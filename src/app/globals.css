@@ -1,26 +1,148 @@
 @import "tailwindcss";
 
+/*
+ * Sistema de diseño del CRM Dicampo.
+ *
+ * Paleta verde (campo/fruta fresca) con acento ámbar. Se usan tokens con la
+ * misma nomenclatura de shadcn/ui para poder incorporar sus componentes sin
+ * reescribir estilos.
+ *
+ * El MVP es solo modo claro: la herramienta se usa en oficina y bodega, y
+ * mantener un único tema reduce la superficie de bugs visuales.
+ */
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /*
+   * Colores de marca, tomados directamente del logotipo
+   * (public/dicampo-logo.png).
+   */
+  --brand-green: #5bb040;
+  --brand-orange: #ec6928;
+
+  --background: oklch(0.99 0.004 120);
+  --foreground: oklch(0.22 0.02 150);
+
+  --card: oklch(1 0 0);
+  --card-foreground: var(--foreground);
+
+  --muted: oklch(0.96 0.008 140);
+  --muted-foreground: oklch(0.52 0.02 150);
+
+  --border: oklch(0.9 0.012 140);
+  --input: oklch(0.9 0.012 140);
+  /*
+   * El anillo de foco usa el verde oscurecido, no el de marca: WCAG 1.4.11
+   * pide 3:1 para indicadores de foco y el verde de marca solo da 2,7:1.
+   */
+  --ring: #40822e;
+
+  /*
+   * El verde de marca sobre blanco da 2,7:1 de contraste — insuficiente para
+   * texto (WCAG AA pide 4,5:1). Así que la identidad la lleva el logo con su
+   * verde exacto, y las superficies que cargan texto usan esta versión
+   * oscurecida del mismo verde: 4,6:1 sobre blanco.
+   */
+  --primary: #40822e;
+  --primary-hover: #366e27;
+  --primary-foreground: #ffffff;
+  --primary-subtle: #ebf5e8;
+  /*
+   * Sobre un fondo tenue, el verde primario baja a 4,2:1. Ningún verde claro
+   * llega a 4,5:1 contra él, así que el texto sobre fondos tenues usa este
+   * tono más oscuro (5,5:1).
+   */
+  --primary-strong: #2f6122;
+
+  /* Naranja de marca: acentos y destacados */
+  --accent: var(--brand-orange);
+  --accent-foreground: #7a3312;
+  --accent-subtle: #fdede5;
+
+  --destructive: oklch(0.58 0.2 25);
+  --destructive-foreground: oklch(0.99 0.01 25);
+  --destructive-subtle: oklch(0.95 0.03 25);
+
+  --success: #2f6122;
+  --success-subtle: #ebf5e8;
+
+  /* La alerta reutiliza la familia del naranja de marca */
+  --warning: #a04a13;
+  --warning-subtle: #fdede5;
+
+  --info: oklch(0.5 0.12 250);
+  --info-subtle: oklch(0.95 0.03 250);
+
+  --radius: 0.625rem;
 }
 
 @theme inline {
+  --color-brand-green: var(--brand-green);
+  --color-brand-orange: var(--brand-orange);
+
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary-subtle: var(--primary-subtle);
+  --color-primary-strong: var(--primary-strong);
+
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent-subtle: var(--accent-subtle);
+
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-destructive-subtle: var(--destructive-subtle);
+
+  --color-success: var(--success);
+  --color-success-subtle: var(--success-subtle);
+
+  --color-warning: var(--warning);
+  --color-warning-subtle: var(--warning-subtle);
+
+  --color-info: var(--info);
+  --color-info-subtle: var(--info-subtle);
+
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+@layer base {
+  * {
+    border-color: var(--border);
   }
-}
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Anillo de foco visible y consistente en toda la app (accesibilidad). */
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+
+  /* Los montos en COP se leen mejor con cifras tabulares alineadas. */
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
 }

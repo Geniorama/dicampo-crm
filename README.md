@@ -1,36 +1,102 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# CRM Dicampo
 
-## Getting Started
+Sistema de gestión comercial para **Dicampo**, fabricante de pulpa de fruta
+congelada 100% natural con distribución B2B en Bogotá.
 
-First, run the development server:
+Cubre el ciclo completo de la operación: prospecto → cliente → pedido →
+despacho → entrega, con control de inventario por lote y fecha de vencimiento.
+
+## Stack
+
+| Capa | Tecnología |
+|---|---|
+| Aplicación | Next.js 15 (App Router) · React 19 · TypeScript |
+| Estilos | Tailwind CSS v4 |
+| Base de datos | PostgreSQL (Supabase) · Prisma 7 |
+| Autenticación | Auth.js v5 (credenciales + roles) |
+| Multimedia | Cloudflare R2 |
+| Despliegue | Netlify, detrás de Cloudflare |
+
+## Puesta en marcha
+
+### 1. Requisitos
+
+- Node.js 20.19 o superior (Prisma 7 lo exige; se recomienda 22)
+- Un proyecto de Supabase
+
+### 2. Variables de entorno
+
+```bash
+cp .env.example .env
+```
+
+Rellena el archivo `.env`:
+
+- **`DATABASE_URL`** — en Supabase, *Project Settings → Database → Connection
+  string → Transaction pooler* (puerto **6543**). Añade
+  `?pgbouncer=true&connection_limit=1`.
+- **`DIRECT_URL`** — la misma cadena pero por el puerto **5432** (conexión
+  directa). Solo la usa el CLI de Prisma; las migraciones no funcionan a
+  través del pooler.
+- **`AUTH_SECRET`** — genérala con `npx auth secret`.
+- **`SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD`** — credenciales del primer
+  usuario administrador.
+- Las claves de **R2** solo hacen falta cuando se active la carga de imágenes.
+
+### 3. Base de datos
+
+```bash
+npm install
+npm run db:migrate    # crea las tablas
+npm run db:seed       # sabores, zonas, lista de precios y usuario admin
+```
+
+### 4. Desarrollo
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Abre http://localhost:3000 e ingresa con las credenciales del seed.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Comandos
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+npm run dev / build / start
+npm run typecheck        # tsc --noEmit
+npm run lint
+npm run test             # vitest
 
-## Learn More
+npm run db:migrate       # nueva migración (desarrollo)
+npm run db:deploy        # aplicar migraciones (producción)
+npm run db:seed
+npm run db:studio        # explorador de datos
+npm run db:reset         # ⚠️ borra y vuelve a sembrar
+```
 
-To learn more about Next.js, take a look at the following resources:
+## Roles
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+| Rol | Alcance |
+|---|---|
+| `ADMIN` | Acceso total, gestión de usuarios y reasignación de cartera |
+| `VENDEDOR` | Solo los clientes, oportunidades y pedidos de su cartera |
+| `BODEGA` | Inventario, lotes y preparación de pedidos |
+| `DESPACHO` | Rutas de reparto y registro de entregas |
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Despliegue
 
-## Deploy on Vercel
+**Netlify** toma la configuración de `netlify.toml`. Carga en el panel las
+mismas variables de `.env` (`DATABASE_URL`, `DIRECT_URL`, `AUTH_SECRET`,
+`AUTH_TRUST_HOST=true` y las de R2). El build aplica las migraciones pendientes
+antes de compilar.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+**Cloudflare** actúa como proxy DNS: usa SSL en modo **Full (strict)** y
+mantén `/api/*` sin caché (ya viene declarado en `netlify.toml`).
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+**Cloudflare R2**: bucket privado servido por un dominio propio. La escritura
+solo ocurre mediante URLs prefirmadas que emite la propia API.
+
+## Documentación
+
+`CLAUDE.md` contiene las convenciones de código y los detalles del stack que
+conviene conocer antes de tocar el repositorio.

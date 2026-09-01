@@ -1,0 +1,600 @@
+// CRM Dicampo — esquema de datos
+// Pulpa de fruta congelada, venta B2B en Bogotá.
+// Convención: enums y valores de negocio en español (coinciden con la operación),
+// nombres de modelos y campos en inglés (coinciden con el código).
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─────────────────────────────────────────────────────────────
+// Usuarios y autenticación (Auth.js v5)
+// ─────────────────────────────────────────────────────────────
+
+enum UserRole {
+  ADMIN
+  VENDEDOR
+  BODEGA
+  DESPACHO
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String
+  email         String    @unique
+  emailVerified DateTime?
+  image         String?
+  passwordHash  String?
+  phone         String?
+  role          UserRole  @default(VENDEDOR)
+  active        Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  accounts       Account[]
+  sessions       Session[]
+  ownedClients   Client[]        @relation("ClientOwner")
+  opportunities  Opportunity[]
+  activities     Activity[]
+  soldOrders     Order[]         @relation("OrderSeller")
+  drivenRoutes   DeliveryRoute[] @relation("RouteDriver")
+  stockMovements StockMovement[]
+
+  @@index([role, active])
+}
+
+// Modelos requeridos por @auth/prisma-adapter. El MVP usa el proveedor
+// Credentials con sesión JWT, pero quedan listos para añadir OAuth después.
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// ─────────────────────────────────────────────────────────────
+// Clientes (B2B: restaurantes, fruterías, panaderías…)
+// ─────────────────────────────────────────────────────────────
+
+enum ClientType {
+  RESTAURANTE
+  FRUTERIA
+  PANADERIA
+  COMIDAS_RAPIDAS
+  CAFETERIA
+  HOTEL
+  DISTRIBUIDOR
+  OTRO
+}
+
+enum ClientStatus {
+  PROSPECTO
+  ACTIVO
+  INACTIVO
+  SUSPENDIDO
+}
+
+enum PaymentTerms {
+  CONTADO
+  CREDITO_8
+  CREDITO_15
+  CREDITO_30
+}
+
+enum DocType {
+  CC
+  CE
+  NIT
+  PASAPORTE
+}
+
+model Client {
+  id           String       @id @default(cuid())
+  /// Consecutivo generado por Postgres; se muestra como "CLI-0042".
+  /// Delegarlo a una secuencia evita la condición de carrera de contar filas.
+  sequence     Int          @unique @default(autoincrement())
+  /// Razón social
+  businessName String
+  /// Nombre comercial / del establecimiento
+  tradeName    String?
+  /// NIT sin dígito de verificación
+  nit          String?      @unique
+  /// Dígito de verificación del NIT
+  nitDv        String?
+  type         ClientType   @default(OTRO)
+  status       ClientStatus @default(PROSPECTO)
+  email        String?
+  phone        String?
+  ownerId      String?
+  priceListId  String?
+  paymentTerms PaymentTerms @default(CONTADO)
+  /// Cupo de crédito aprobado en COP
+  creditLimit  Decimal      @default(0) @db.Decimal(14, 2)
+  notes        String?      @db.Text
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  owner         User?           @relation("ClientOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  priceList     PriceList?      @relation(fields: [priceListId], references: [id], onDelete: SetNull)
+  addresses     ClientAddress[]
+  contacts      Contact[]
+  opportunities Opportunity[]
+  activities    Activity[]
+  orders        Order[]
+
+  @@index([status, type])
+  @@index([ownerId])
+  @@index([businessName])
+}
+
+model ClientAddress {
+  id            String   @id @default(cuid())
+  clientId      String
+  /// Etiqueta de la sede, p. ej. "Sede Chapinero"
+  label         String
+  address       String
+  neighborhood  String?
+  city          String   @default("Bogotá")
+  zoneId        String?
+  lat           Float?
+  lng           Float?
+  /// Indicaciones para el repartidor (horarios, portería, etc.)
+  deliveryNotes String?  @db.Text
+  isPrimary     Boolean  @default(false)
+  active        Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  client Client        @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  zone   DeliveryZone? @relation(fields: [zoneId], references: [id], onDelete: SetNull)
+  orders Order[]
+
+  @@index([clientId])
+  @@index([zoneId])
+}
+
+model Contact {
+  id        String   @id @default(cuid())
+  clientId  String
+  firstName String
+  lastName  String?
+  /// Cargo, p. ej. "Chef", "Administrador"
+  jobTitle  String?
+  email     String?
+  phone     String?
+  /// Número de WhatsApp en formato E.164, p. ej. "573107296238"
+  whatsapp  String?
+  docType   DocType?
+  docNumber String?
+  isPrimary Boolean  @default(false)
+  active    Boolean  @default(true)
+  notes     String?  @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  client     Client     @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  activities Activity[]
+
+  @@index([clientId])
+}
+
+// ─────────────────────────────────────────────────────────────
+// Catálogo y precios
+// ─────────────────────────────────────────────────────────────
+
+enum ProductCategory {
+  PULPA
+  LIMONADA
+  MEZCLA
+}
+
+enum Presentation {
+  KILO
+  LIBRA
+}
+
+model Product {
+  id          String          @id @default(cuid())
+  /// Nombre comercial, p. ej. "Pulpa de Mango"
+  name        String
+  /// Sabor base, p. ej. "Mango". Único: un sabor = un producto.
+  flavor      String          @unique
+  category    ProductCategory @default(PULPA)
+  description String?         @db.Text
+  /// Tarifa de IVA aplicable (0 por defecto: la pulpa de fruta tiene
+  /// tratamiento especial en Colombia, Art. 424/477 ET).
+  taxRate     Decimal         @default(0) @db.Decimal(5, 4)
+  /// Llave del objeto en Cloudflare R2
+  imageKey    String?
+  active      Boolean         @default(true)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  variants ProductVariant[]
+
+  @@index([category, active])
+}
+
+/// Unidad vendible: un producto en una presentación concreta.
+/// Solo existen las combinaciones que Dicampo realmente vende, de modo que
+/// un sabor disponible únicamente por kilo simplemente no tiene variante LIBRA.
+model ProductVariant {
+  id           String       @id @default(cuid())
+  productId    String
+  sku          String       @unique
+  presentation Presentation
+  /// Peso neto en gramos (KILO = 1000, LIBRA = 500)
+  netWeightG   Int
+  active       Boolean      @default(true)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  product        Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
+  priceItems     PriceListItem[]
+  orderItems     OrderItem[]
+  lots           Lot[]
+  stockMovements StockMovement[]
+
+  @@unique([productId, presentation])
+  @@index([active])
+}
+
+model PriceList {
+  id        String    @id @default(cuid())
+  name      String    @unique
+  /// Lista aplicada a clientes sin lista propia asignada
+  isDefault Boolean   @default(false)
+  validFrom DateTime?
+  validTo   DateTime?
+  active    Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  items   PriceListItem[]
+  clients Client[]
+}
+
+model PriceListItem {
+  id          String  @id @default(cuid())
+  priceListId String
+  variantId   String
+  /// Precio unitario en COP, sin impuestos
+  price       Decimal @db.Decimal(14, 2)
+  /// Cantidad mínima para acceder a este precio
+  minQty      Decimal @default(1) @db.Decimal(12, 3)
+
+  priceList PriceList      @relation(fields: [priceListId], references: [id], onDelete: Cascade)
+  variant   ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+
+  @@unique([priceListId, variantId, minQty])
+  @@index([variantId])
+}
+
+// ─────────────────────────────────────────────────────────────
+// Pipeline comercial y bitácora
+// ─────────────────────────────────────────────────────────────
+
+enum OpportunityStage {
+  PROSPECTO
+  CONTACTADO
+  MUESTRA_ENVIADA
+  NEGOCIACION
+  GANADA
+  PERDIDA
+}
+
+model Opportunity {
+  id                String           @id @default(cuid())
+  clientId          String
+  title             String
+  stage             OpportunityStage @default(PROSPECTO)
+  /// Valor mensual estimado en COP
+  estimatedValue    Decimal          @default(0) @db.Decimal(14, 2)
+  ownerId           String?
+  expectedCloseDate DateTime?
+  closedAt          DateTime?
+  lostReason        String?
+  notes             String?          @db.Text
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  client     Client     @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  owner      User?      @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+  activities Activity[]
+
+  @@index([stage, ownerId])
+  @@index([clientId])
+}
+
+enum ActivityType {
+  LLAMADA
+  WHATSAPP
+  VISITA
+  EMAIL
+  MUESTRA
+  NOTA
+}
+
+/// Bitácora de interacciones. Se ancla opcionalmente a un cliente, una
+/// oportunidad y/o un pedido; al menos una referencia debe venir informada
+/// (lo valida la capa de servicios).
+model Activity {
+  id            String       @id @default(cuid())
+  type          ActivityType
+  subject       String
+  notes         String?      @db.Text
+  userId        String
+  clientId      String?
+  contactId     String?
+  opportunityId String?
+  orderId       String?
+  /// Fecha compromiso para actividades pendientes
+  dueAt         DateTime?
+  completedAt   DateTime?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  client      Client?      @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  contact     Contact?     @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  opportunity Opportunity? @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  order       Order?       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([clientId, createdAt])
+  @@index([userId, dueAt])
+  @@index([opportunityId])
+}
+
+// ─────────────────────────────────────────────────────────────
+// Pedidos
+// ─────────────────────────────────────────────────────────────
+
+enum OrderStatus {
+  BORRADOR
+  CONFIRMADO
+  EN_PREPARACION
+  DESPACHADO
+  ENTREGADO
+  CANCELADO
+}
+
+enum OrderChannel {
+  WHATSAPP
+  TELEFONO
+  VISITA
+  WEB
+  PRESENCIAL
+}
+
+enum PaymentStatus {
+  PENDIENTE
+  PARCIAL
+  PAGADO
+}
+
+model Order {
+  id                    String        @id @default(cuid())
+  /// Consecutivo generado por Postgres; se muestra como "PED-000123"
+  orderNumber           Int           @unique @default(autoincrement())
+  clientId              String
+  addressId             String?
+  sellerId              String?
+  status                OrderStatus   @default(BORRADOR)
+  channel               OrderChannel  @default(WHATSAPP)
+  orderDate             DateTime      @default(now())
+  requestedDeliveryDate DateTime?
+  routeId               String?
+  /// Orden de visita dentro de la ruta
+  routeSequence         Int?
+  subtotal              Decimal       @default(0) @db.Decimal(14, 2)
+  discount              Decimal       @default(0) @db.Decimal(14, 2)
+  tax                   Decimal       @default(0) @db.Decimal(14, 2)
+  total                 Decimal       @default(0) @db.Decimal(14, 2)
+  paymentTerms          PaymentTerms  @default(CONTADO)
+  paymentStatus         PaymentStatus @default(PENDIENTE)
+  notes                 String?       @db.Text
+  /// Momento en que se descontó inventario (idempotencia de la reserva FEFO)
+  stockAppliedAt        DateTime?
+  confirmedAt           DateTime?
+  deliveredAt           DateTime?
+  cancelledAt           DateTime?
+  cancelReason          String?
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
+
+  client     Client          @relation(fields: [clientId], references: [id])
+  address    ClientAddress?  @relation(fields: [addressId], references: [id], onDelete: SetNull)
+  seller     User?           @relation("OrderSeller", fields: [sellerId], references: [id], onDelete: SetNull)
+  route      DeliveryRoute?  @relation(fields: [routeId], references: [id], onDelete: SetNull)
+  items      OrderItem[]
+  movements  StockMovement[]
+  activities Activity[]
+  proof      DeliveryProof?
+
+  @@index([clientId, orderDate])
+  @@index([status, requestedDeliveryDate])
+  @@index([sellerId])
+  @@index([routeId, routeSequence])
+}
+
+/// Las columnas *Snapshot congelan cómo se vendió el producto: si luego cambia
+/// el catálogo o la lista de precios, el histórico del pedido no se altera.
+model OrderItem {
+  id                   String       @id @default(cuid())
+  orderId              String
+  variantId            String
+  productNameSnapshot  String
+  skuSnapshot          String
+  presentationSnapshot Presentation
+  quantity             Decimal      @db.Decimal(12, 3)
+  unitPrice            Decimal      @db.Decimal(14, 2)
+  discount             Decimal      @default(0) @db.Decimal(14, 2)
+  taxRate              Decimal      @default(0) @db.Decimal(5, 4)
+  subtotal             Decimal      @db.Decimal(14, 2)
+
+  order   Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  variant ProductVariant @relation(fields: [variantId], references: [id])
+
+  @@index([orderId])
+  @@index([variantId])
+}
+
+// ─────────────────────────────────────────────────────────────
+// Inventario — producto congelado, trazabilidad por lote obligatoria
+// ─────────────────────────────────────────────────────────────
+
+enum LotStatus {
+  DISPONIBLE
+  AGOTADO
+  VENCIDO
+  BLOQUEADO
+}
+
+model Lot {
+  id                String    @id @default(cuid())
+  variantId         String
+  /// Código de lote de producción, p. ej. "L-20260901-MAN"
+  lotCode           String
+  productionDate    DateTime
+  expiryDate        DateTime
+  quantityInitial   Decimal   @db.Decimal(12, 3)
+  /// Saldo disponible; lo mantiene inventory.ts dentro de transacción
+  quantityAvailable Decimal   @db.Decimal(12, 3)
+  status            LotStatus @default(DISPONIBLE)
+  notes             String?   @db.Text
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  variant   ProductVariant  @relation(fields: [variantId], references: [id])
+  movements StockMovement[]
+
+  @@unique([variantId, lotCode])
+  // Índice que sostiene la asignación FEFO
+  @@index([variantId, status, expiryDate])
+  @@index([expiryDate])
+}
+
+enum StockMovementType {
+  ENTRADA_PRODUCCION
+  SALIDA_VENTA
+  AJUSTE
+  DEVOLUCION
+  MERMA
+}
+
+/// Kardex de solo inserción: es la auditoría del inventario.
+/// `quantity` lleva signo (positivo entra, negativo sale).
+model StockMovement {
+  id        String            @id @default(cuid())
+  type      StockMovementType
+  variantId String
+  lotId     String?
+  quantity  Decimal           @db.Decimal(12, 3)
+  orderId   String?
+  userId    String?
+  reason    String?
+  createdAt DateTime          @default(now())
+
+  variant ProductVariant @relation(fields: [variantId], references: [id])
+  lot     Lot?           @relation(fields: [lotId], references: [id], onDelete: SetNull)
+  order   Order?         @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  user    User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([variantId, createdAt])
+  @@index([orderId])
+  @@index([lotId])
+}
+
+// ─────────────────────────────────────────────────────────────
+// Despacho y entregas (Bogotá)
+// ─────────────────────────────────────────────────────────────
+
+model DeliveryZone {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  addresses ClientAddress[]
+  routes    DeliveryRoute[]
+}
+
+enum RouteStatus {
+  PLANEADA
+  EN_RUTA
+  COMPLETADA
+  CANCELADA
+}
+
+model DeliveryRoute {
+  id        String      @id @default(cuid())
+  name      String
+  date      DateTime    @db.Date
+  zoneId    String?
+  driverId  String?
+  vehicle   String?
+  status    RouteStatus @default(PLANEADA)
+  notes     String?     @db.Text
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  zone   DeliveryZone? @relation(fields: [zoneId], references: [id], onDelete: SetNull)
+  driver User?         @relation("RouteDriver", fields: [driverId], references: [id], onDelete: SetNull)
+  orders Order[]
+
+  @@index([date, status])
+  @@index([driverId])
+}
+
+/// Evidencia de entrega: foto de la remisión firmada, guardada en R2.
+model DeliveryProof {
+  id          String   @id @default(cuid())
+  orderId     String   @unique
+  photoKey    String?
+  receivedBy  String?
+  receivedDoc String?
+  deliveredAt DateTime @default(now())
+  notes       String?  @db.Text
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+}

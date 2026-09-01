@@ -1,0 +1,32 @@
+# Despliegue del CRM Dicampo en Netlify.
+# El sitio se sirve detrás de Cloudflare (DNS proxy, SSL Full strict).
+
+[build]
+  # `prisma generate` debe correr en cada build: el cliente se genera en
+  # src/generated y no se versiona. `migrate deploy` aplica las migraciones
+  # pendientes usando DIRECT_URL antes de compilar.
+  command = "npx prisma generate && npx prisma migrate deploy && next build"
+  publish = ".next"
+
+[build.environment]
+  # Prisma 7 requiere Node 20.19+; se fija 22 por ser la versión recomendada.
+  NODE_VERSION = "22"
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
+
+# La API interna nunca debe quedar cacheada por Cloudflare ni por el CDN:
+# devuelve datos por usuario y sesión.
+[[headers]]
+  for = "/api/*"
+  [headers.values]
+    Cache-Control = "no-store, max-age=0"
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    # Es una herramienta interna: no debe aparecer en buscadores.
+    X-Robots-Tag = "noindex, nofollow"
