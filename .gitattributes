@@ -1,0 +1,33 @@
+# Normalización de saltos de línea.
+#
+# El equipo trabaja en Windows pero el build corre en Linux (Netlify y CI).
+# Sin esto, cada quien sube el archivo con sus propios saltos y los diffs se
+# llenan de cambios fantasma que ocultan las modificaciones reales.
+#
+# `text=auto eol=lf` guarda todo con LF en el repositorio; Git sigue
+# entregándolos con CRLF en el disco de Windows si así está configurado.
+* text=auto eol=lf
+
+# Archivos binarios: no se tocan ni se intentan diffear como texto.
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.ico   binary
+*.webp  binary
+*.avif  binary
+*.pdf   binary
+*.woff  binary
+*.woff2 binary
+*.ttf   binary
+*.otf   binary
+*.xlsx  binary
+*.zip   binary
+
+# Scripts de shell: siempre LF, o fallan al ejecutarse en Linux.
+*.sh text eol=lf
+
+# Archivos generados: se excluyen de las estadísticas de lenguaje y se
+# colapsan en los diffs de GitHub, que de otro modo quedan ilegibles.
+package-lock.json linguist-generated=true
+prisma/migrations/**/*.sql linguist-generated=true

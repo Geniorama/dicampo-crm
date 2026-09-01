@@ -1,0 +1,122 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  # Permite lanzarlo a mano desde la pestaña Actions.
+  workflow_dispatch:
+
+# Un push nuevo sobre la misma rama cancela la ejecución anterior: no tiene
+# sentido gastar minutos verificando un commit que ya quedó atrás.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: "22"
+
+jobs:
+  verificar:
+    name: Tipos, lint, pruebas y build
+    runs-on: ubuntu-latest
+
+    env:
+      # El build no consulta la base —todas las páginas privadas son dinámicas
+      # y el cliente de Prisma se crea de forma perezosa—, pero Prisma y
+      # Auth.js exigen que las variables existan. Son valores de relleno.
+      DATABASE_URL: "postgresql://ci:ci@localhost:5432/ci?schema=public"
+      DIRECT_URL: "postgresql://ci:ci@localhost:5432/ci?schema=public"
+      AUTH_SECRET: "ci-secret-sin-valor-real-0000000000000000"
+      AUTH_URL: "http://localhost:3000"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Generar el cliente de Prisma
+        # No se versiona (está en .gitignore), así que todo lo que sigue
+        # —incluido el chequeo de tipos— depende de este paso.
+        run: npm run db:generate
+
+      - name: Chequeo de tipos
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Pruebas unitarias
+        run: npm run test
+
+      - name: Build de producción
+        run: npx next build
+
+  migraciones:
+    name: Migraciones y semilla
+    runs-on: ubuntu-latest
+
+    # Postgres 17, la misma versión mayor que corre Supabase.
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: dicampo_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: "postgresql://ci:ci@localhost:5432/dicampo_ci?schema=public"
+      DIRECT_URL: "postgresql://ci:ci@localhost:5432/dicampo_ci?schema=public"
+      SEED_ADMIN_EMAIL: "admin@dicampo.co"
+      SEED_ADMIN_PASSWORD: "clave-de-prueba-ci"
+      SEED_ADMIN_NAME: "Admin CI"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Generar el cliente de Prisma
+        run: npm run db:generate
+
+      - name: Aplicar migraciones
+        # `migrate deploy` sobre una base vacía: verifica que el historial
+        # aplique limpio, que es justo lo que corre en producción.
+        run: npm run db:deploy
+
+      - name: Comprobar que el esquema quedó al día
+        # Falla si alguien editó schema.prisma sin generar la migración
+        # correspondiente: el error saldría al desplegar, no aquí.
+        run: npx prisma migrate status
+
+      - name: Cargar la semilla
+        run: npm run db:seed
+
+      - name: Volver a cargarla (debe ser idempotente)
+        # La semilla puede correrse contra produccion, asi que repetirla no
+        # debe duplicar nada. Si lo hace, el siguiente paso lo detecta.
+        run: npm run db:seed
+
+      - name: Verificar los datos maestros
+        run: npx tsx scripts/verificar-semilla.ts
