@@ -215,7 +215,14 @@ Verificado contra la base real de Supabase (PostgreSQL 17.6), además de
 | Usuarios y perfil | Listo |
 | Rutas de despacho | Listo |
 | Reportes | Listo |
-| Subida a R2 | Pendiente |
 | Migración desde Contentful | Pendiente |
 
 Todos los módulos listos tienen interfaz completa de lectura y escritura.
+
+**Sobre archivos adjuntos:** se descartó Cloudflare R2. Las imágenes de
+producto no aportan en un CRM interno —el vendedor conoce el catálogo— y la
+foto de la remisión firmada no justifica otro servicio: la evidencia actual
+(quién recibió y su documento) ya es defendible ante un reclamo. Si se añade,
+será con **Supabase Storage**, que ya está aprovisionado y cuyo plan gratuito
+sobra para el volumen real. Los campos `Product.imageKey` y
+`DeliveryProof.photoKey` quedan reservados en el esquema, sin uso.

@@ -14,7 +14,6 @@ despacho → entrega, con control de inventario por lote y fecha de vencimiento.
 | Estilos | Tailwind CSS v4 |
 | Base de datos | PostgreSQL (Supabase) · Prisma 7 |
 | Autenticación | Auth.js v5 (credenciales + roles) |
-| Multimedia | Cloudflare R2 |
 | Despliegue | Netlify, detrás de Cloudflare |
 
 ## Puesta en marcha
@@ -41,7 +40,6 @@ Rellena el archivo `.env`:
 - **`AUTH_SECRET`** — genérala con `npx auth secret`.
 - **`SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD`** — credenciales del primer
   usuario administrador.
-- Las claves de **R2** solo hacen falta cuando se active la carga de imágenes.
 
 ### 3. Base de datos
 
@@ -87,14 +85,11 @@ npm run db:reset         # ⚠️ borra y vuelve a sembrar
 
 **Netlify** toma la configuración de `netlify.toml`. Carga en el panel las
 mismas variables de `.env` (`DATABASE_URL`, `DIRECT_URL`, `AUTH_SECRET`,
-`AUTH_TRUST_HOST=true` y las de R2). El build aplica las migraciones pendientes
+`AUTH_TRUST_HOST=true`). El build aplica las migraciones pendientes
 antes de compilar.
 
 **Cloudflare** actúa como proxy DNS: usa SSL en modo **Full (strict)** y
 mantén `/api/*` sin caché (ya viene declarado en `netlify.toml`).
-
-**Cloudflare R2**: bucket privado servido por un dominio propio. La escritura
-solo ocurre mediante URLs prefirmadas que emite la propia API.
 
 ## Documentación
 

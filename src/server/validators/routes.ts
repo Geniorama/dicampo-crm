@@ -63,11 +63,16 @@ export const routeListQuerySchema = z.object({
 
 export type RouteListQuery = z.infer<typeof routeListQuerySchema>;
 
-/** Evidencia de entrega. La foto llega cuando esté R2; por ahora es opcional. */
+/**
+ * Evidencia de entrega.
+ *
+ * No acepta `photoKey`: nada puede producirlo todavía, y una API que recibe
+ * un campo que nunca se llena solo confunde a quien la lea. Se añadirá junto
+ * con la subida de la foto.
+ */
 export const deliveryProofSchema = z.object({
   receivedBy: z.string().trim().min(3, "¿Quién recibió?").max(120),
   receivedDoc: optionalText(30),
-  photoKey: optionalText(200),
   notes: optionalText(1000),
 });
 

@@ -242,7 +242,8 @@ model Product {
   /// Tarifa de IVA aplicable (0 por defecto: la pulpa de fruta tiene
   /// tratamiento especial en Colombia, Art. 424/477 ET).
   taxRate     Decimal         @default(0) @db.Decimal(5, 4)
-  /// Llave del objeto en Cloudflare R2
+  /// Reservado para una imagen del producto. Sin uso: un CRM interno no la
+  /// necesita — la foto importa en dicampo.co, donde decide el cliente.
   imageKey    String?
   active      Boolean         @default(true)
   createdAt   DateTime        @default(now())
@@ -586,10 +587,14 @@ model DeliveryRoute {
   @@index([driverId])
 }
 
-/// Evidencia de entrega: foto de la remisión firmada, guardada en R2.
+/// Evidencia de entrega. Hoy se guarda quién recibió y su documento, que ya
+/// es defendible ante un reclamo.
 model DeliveryProof {
   id          String   @id @default(cuid())
   orderId     String   @unique
+  /// Reservado para la foto de la remisión firmada. Sin uso todavía: se
+  /// implementará con Supabase Storage, que ya está aprovisionado, cuando la
+  /// operación lo pida.
   photoKey    String?
   receivedBy  String?
   receivedDoc String?
