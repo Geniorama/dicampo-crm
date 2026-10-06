@@ -190,7 +190,7 @@ src/
 Verificado contra la base real de Supabase (PostgreSQL 17.6), además de
 `typecheck`, `lint`, `build` y 56 pruebas unitarias:
 
-- Migración inicial aplicada y semilla cargada (14 sabores, 20 variantes con
+- Migración inicial aplicada y semilla cargada (17 sabores, 23 variantes con
   precio, 6 zonas de Bogotá, usuario admin).
 - Flujo end-to-end comprobado: alta de cliente con contacto y sede → registro
   de lotes → pedido → confirmación con reparto **FEFO** → cancelación con

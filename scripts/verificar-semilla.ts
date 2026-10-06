@@ -37,8 +37,8 @@ async function main() {
     ]);
 
   console.log("\nDatos maestros");
-  check(`14 sabores en el catálogo (${products})`, products === 14);
-  check(`20 variantes vendibles (${variants})`, variants === 20);
+  check(`17 sabores en el catálogo (${products})`, products === 17);
+  check(`23 variantes vendibles (${variants})`, variants === 23);
   check(`toda variante tiene precio (${priced})`, priced === variants);
   check(`6 zonas de reparto (${zones})`, zones === 6);
   check("existe el usuario administrador", admin !== null);
@@ -56,8 +56,8 @@ async function main() {
     `solo una lista de precios por defecto (${defaultLists.length})`,
     defaultLists.length === 1,
   );
-  check("no se duplicaron productos", products === 14);
-  check("ni variantes", variants === 20);
+  check("no se duplicaron productos", products === 17);
+  check("ni variantes", variants === 23);
   check("ni zonas", zones === 6);
 
   /*
@@ -93,8 +93,8 @@ async function main() {
     where: { variants: { none: { presentation: "LIBRA" } } },
   });
   check(
-    `8 sabores existen solo por kilo (${kiloOnly})`,
-    kiloOnly === 8,
+    `11 sabores existen solo por kilo (${kiloOnly})`,
+    kiloOnly === 11,
     "el catálogo real tiene 6 sabores en ambas presentaciones",
   );
 

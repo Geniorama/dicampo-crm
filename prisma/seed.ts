@@ -23,20 +23,18 @@ const adapter = new PrismaPg({
 const prisma = new PrismaClient({ adapter });
 
 // ─────────────────────────────────────────────────────────────
-// Precios base
+// Precios
 //
-// En la app actual (dicampo-app-pedidos) el precio se compone como
-//   precio final = precio base de la presentación + recargo del sabor
-// El recargo por sabor está abajo, tomado de utils/flavors.ts. El precio base
-// vive en Contentful, así que aquí va como constante.
+// KILO: tomados del brochure comercial 2026. El brochure no publica el precio
+// del kilo sino el "costo por jugo", con 1 kilo = 8 paquetes porcionados; el
+// precio es ese costo × 8, redondeado a los 50 pesos (el brochure redondea el
+// costo al peso: 15.950 / 8 = 1.993,75 → $1.994).
 //
-// ⚠️ CONFIRMAR CON DICAMPO antes de usar en producción.
+// LIBRA: el brochure no la menciona. Siguen los valores heredados de
+// dicampo-app-pedidos.
+//
+// ⚠️ CONFIRMAR CON DICAMPO los precios por libra antes de usar en producción.
 // ─────────────────────────────────────────────────────────────
-const BASE_PRICE: Record<Presentation, number> = {
-  KILO: 12_000,
-  LIBRA: 6_500,
-};
-
 const NET_WEIGHT_G: Record<Presentation, number> = {
   KILO: 1000,
   LIBRA: 500,
@@ -51,29 +49,35 @@ type FlavorSeed = {
   /** Prefijo del SKU */
   code: string;
   /**
-   * Recargo sobre el precio base, por presentación.
+   * Precio de lista en COP, sin impuestos, por presentación.
    * `null` significa que ese sabor no se vende en esa presentación,
    * por lo que no se crea la variante.
    */
-  surcharge: { KILO: number | null; LIBRA: number | null };
+  price: { KILO: number | null; LIBRA: number | null };
 };
 
-/** Catálogo real, migrado de ../dicampo-app-pedidos/src/app/utils/flavors.ts */
+/**
+ * Catálogo real, migrado de ../dicampo-app-pedidos/src/app/utils/flavors.ts.
+ * Uva, Piña y Piña Colada no estaban allí: salen del brochure 2026.
+ */
 const FLAVORS: FlavorSeed[] = [
-  { flavor: "Mango", name: "Pulpa de Mango", category: ProductCategory.PULPA, code: "MAN", surcharge: { KILO: 0, LIBRA: 0 } },
-  { flavor: "Fresa", name: "Pulpa de Fresa", category: ProductCategory.PULPA, code: "FRE", surcharge: { KILO: 0, LIBRA: 0 } },
-  { flavor: "Lulo", name: "Pulpa de Lulo", category: ProductCategory.PULPA, code: "LUL", surcharge: { KILO: 0, LIBRA: 0 } },
-  { flavor: "Mora", name: "Pulpa de Mora", category: ProductCategory.PULPA, code: "MOR", surcharge: { KILO: 0, LIBRA: 0 } },
-  { flavor: "Guanábana", name: "Pulpa de Guanábana", category: ProductCategory.PULPA, code: "GUA", surcharge: { KILO: 3_000, LIBRA: 1_500 } },
-  { flavor: "Maracuyá", name: "Pulpa de Maracuyá", category: ProductCategory.PULPA, code: "MAR", surcharge: { KILO: 6_000, LIBRA: 3_000 } },
-  { flavor: "Mandarina", name: "Pulpa de Mandarina", category: ProductCategory.PULPA, code: "MND", surcharge: { KILO: 5_000, LIBRA: null } },
-  { flavor: "Frutos Rojos", name: "Mezcla de Frutos Rojos", category: ProductCategory.MEZCLA, code: "FRO", surcharge: { KILO: 1_000, LIBRA: null } },
-  { flavor: "Frutos Amarillos", name: "Mezcla de Frutos Amarillos", category: ProductCategory.MEZCLA, code: "FAM", surcharge: { KILO: 3_000, LIBRA: null } },
-  { flavor: "Limonada", name: "Base para Limonada Natural", category: ProductCategory.LIMONADA, code: "LIM", surcharge: { KILO: 2_000, LIBRA: null } },
-  { flavor: "Limón Hierbabuena", name: "Limonada de Hierbabuena", category: ProductCategory.LIMONADA, code: "LHB", surcharge: { KILO: 5_000, LIBRA: null } },
-  { flavor: "Limón Cereza", name: "Limonada de Cereza", category: ProductCategory.LIMONADA, code: "LCE", surcharge: { KILO: 5_000, LIBRA: null } },
-  { flavor: "Limón Mango Biche", name: "Limonada de Mango Biche", category: ProductCategory.LIMONADA, code: "LMB", surcharge: { KILO: 5_000, LIBRA: null } },
-  { flavor: "Limón Coco", name: "Limonada de Coco", category: ProductCategory.LIMONADA, code: "LCO", surcharge: { KILO: 12_000, LIBRA: null } },
+  { flavor: "Mango", name: "Pulpa de Mango", category: ProductCategory.PULPA, code: "MAN", price: { KILO: 15_950, LIBRA: 6_500 } },
+  { flavor: "Fresa", name: "Pulpa de Fresa", category: ProductCategory.PULPA, code: "FRE", price: { KILO: 15_950, LIBRA: 6_500 } },
+  { flavor: "Lulo", name: "Pulpa de Lulo", category: ProductCategory.PULPA, code: "LUL", price: { KILO: 15_950, LIBRA: 6_500 } },
+  { flavor: "Mora", name: "Pulpa de Mora", category: ProductCategory.PULPA, code: "MOR", price: { KILO: 15_950, LIBRA: 6_500 } },
+  { flavor: "Guanábana", name: "Pulpa de Guanábana", category: ProductCategory.PULPA, code: "GUA", price: { KILO: 18_700, LIBRA: 8_000 } },
+  { flavor: "Maracuyá", name: "Pulpa de Maracuyá", category: ProductCategory.PULPA, code: "MAR", price: { KILO: 23_100, LIBRA: 9_500 } },
+  { flavor: "Mandarina", name: "Pulpa de Mandarina", category: ProductCategory.PULPA, code: "MND", price: { KILO: 22_000, LIBRA: null } },
+  { flavor: "Uva", name: "Pulpa de Uva", category: ProductCategory.PULPA, code: "UVA", price: { KILO: 14_000, LIBRA: null } },
+  { flavor: "Piña", name: "Pulpa de Piña", category: ProductCategory.PULPA, code: "PIN", price: { KILO: 16_500, LIBRA: null } },
+  { flavor: "Piña Colada", name: "Mezcla de Piña Colada", category: ProductCategory.MEZCLA, code: "PCO", price: { KILO: 23_100, LIBRA: null } },
+  { flavor: "Frutos Rojos", name: "Mezcla de Frutos Rojos", category: ProductCategory.MEZCLA, code: "FRO", price: { KILO: 16_500, LIBRA: null } },
+  { flavor: "Frutos Amarillos", name: "Mezcla de Frutos Amarillos", category: ProductCategory.MEZCLA, code: "FAM", price: { KILO: 18_150, LIBRA: null } },
+  { flavor: "Limonada", name: "Base para Limonada Natural", category: ProductCategory.LIMONADA, code: "LIM", price: { KILO: 15_400, LIBRA: null } },
+  { flavor: "Limón Hierbabuena", name: "Limonada de Hierbabuena", category: ProductCategory.LIMONADA, code: "LHB", price: { KILO: 20_900, LIBRA: null } },
+  { flavor: "Limón Cereza", name: "Limonada de Cereza", category: ProductCategory.LIMONADA, code: "LCE", price: { KILO: 20_900, LIBRA: null } },
+  { flavor: "Limón Mango Biche", name: "Limonada de Mango Biche", category: ProductCategory.LIMONADA, code: "LMB", price: { KILO: 20_800, LIBRA: null } },
+  { flavor: "Limón Coco", name: "Limonada de Coco", category: ProductCategory.LIMONADA, code: "LCO", price: { KILO: 28_600, LIBRA: null } },
 ];
 
 /** Zonas de reparto en Bogotá */
@@ -148,9 +152,9 @@ async function main() {
     });
 
     for (const presentation of [Presentation.KILO, Presentation.LIBRA]) {
-      const surcharge = item.surcharge[presentation];
+      const price = item.price[presentation];
       // `null` = Dicampo no vende ese sabor en esa presentación.
-      if (surcharge === null) continue;
+      if (price === null) continue;
 
       const sku = `${item.code}-${presentation === Presentation.KILO ? "K" : "L"}`;
 
@@ -175,11 +179,11 @@ async function main() {
             minQty: 1,
           },
         },
-        update: { price: BASE_PRICE[presentation] + surcharge },
+        update: { price },
         create: {
           priceListId: priceList.id,
           variantId: variant.id,
-          price: BASE_PRICE[presentation] + surcharge,
+          price,
           minQty: 1,
         },
       });
@@ -190,7 +194,7 @@ async function main() {
 
   console.log(`  Productos: ${FLAVORS.length}`);
   console.log(`  Variantes con precio: ${variantCount}`);
-  console.log(`\nListo. Recuerda confirmar los precios base con Dicampo.`);
+  console.log(`\nListo. Recuerda confirmar los precios por libra con Dicampo.`);
 }
 
 main()
