@@ -6,6 +6,7 @@ import { requireUser, INVENTORY_ROLES, isAdmin } from "@/server/guards";
 import { getStockSummary, listLots } from "@/server/services/inventory";
 import { lotListQuerySchema } from "@/server/validators/inventory";
 import { PageHeader } from "@/components/layout/page-header";
+import { ImportLink } from "@/components/import/import-link";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { buttonVariants } from "@/components/ui/button";
 import { LotAdjustment } from "@/components/inventory/lot-adjustment";
@@ -53,6 +54,7 @@ export default async function InventoryPage({
           canEdit && (
             <>
               <ExpireLotsButton />
+              <ImportLink entity="lotes" user={user} />
               <Link href="/inventario/lotes/nuevo" className={buttonVariants()}>
                 <Plus aria-hidden="true" />
                 Registrar producción

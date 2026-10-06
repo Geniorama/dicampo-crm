@@ -9,6 +9,7 @@ import {
   LayoutDashboard,
   Package,
   Truck,
+  Upload,
   Users,
   UserCog,
   Target,
@@ -59,6 +60,13 @@ const NAV_ITEMS: NavItem[] = [
     roles: ["DESPACHO", "BODEGA"],
   },
   { href: "/reportes", label: "Reportes", icon: BarChart3, roles: ["VENDEDOR"] },
+  {
+    href: "/importar",
+    label: "Carga masiva",
+    icon: Upload,
+    // DESPACHO no tiene ninguna carga a su alcance: el enlace no le sirve.
+    roles: ["VENDEDOR", "BODEGA"],
+  },
   // roles: [] significa "ningún rol adicional": solo ADMIN, que ve todo.
   { href: "/usuarios", label: "Usuarios", icon: UserCog, roles: [] },
 ];

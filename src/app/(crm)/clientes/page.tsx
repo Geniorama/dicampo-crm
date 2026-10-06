@@ -5,6 +5,7 @@ import { requireUser } from "@/server/guards";
 import { listClients } from "@/server/services/clients";
 import { clientListQuerySchema } from "@/server/validators/clients";
 import { PageHeader } from "@/components/layout/page-header";
+import { ImportLink } from "@/components/import/import-link";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -43,10 +44,13 @@ export default async function ClientsPage({
         title="Clientes"
         description={`${total} ${total === 1 ? "cliente" : "clientes"} en tu alcance`}
         actions={
-          <Link href="/clientes/nuevo" className={buttonVariants()}>
-            <Plus aria-hidden="true" />
-            Nuevo cliente
-          </Link>
+          <>
+            <ImportLink entity="clientes" user={user} />
+            <Link href="/clientes/nuevo" className={buttonVariants()}>
+              <Plus aria-hidden="true" />
+              Nuevo cliente
+            </Link>
+          </>
         }
       />
 

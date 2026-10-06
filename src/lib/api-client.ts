@@ -25,17 +25,8 @@ export class ApiClientError extends Error {
   }
 }
 
-async function request<T>(
-  method: "POST" | "PUT" | "PATCH" | "DELETE",
-  url: string,
-  body?: unknown,
-): Promise<T> {
-  const response = await fetch(url, {
-    method,
-    headers: { "Content-Type": "application/json" },
-    body: body === undefined ? undefined : JSON.stringify(body),
-  });
-
+/** Abre el sobre `{ data }` / `{ error }` común a toda la API. */
+async function unwrap<T>(response: Response): Promise<T> {
   if (response.status === 204) return undefined as T;
 
   const payload = await response.json().catch(() => null);
@@ -53,8 +44,35 @@ async function request<T>(
   return payload?.data as T;
 }
 
+async function request<T>(
+  method: "POST" | "PUT" | "PATCH" | "DELETE",
+  url: string,
+  body?: unknown,
+): Promise<T> {
+  const response = await fetch(url, {
+    method,
+    headers: { "Content-Type": "application/json" },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+
+  return unwrap<T>(response);
+}
+
+/**
+ * Envía un formulario con archivo.
+ *
+ * No se fija `Content-Type` a propósito: el navegador tiene que añadirlo él
+ * con el `boundary` del multipart, y ponerlo a mano rompe la petición.
+ */
+async function upload<T>(url: string, body: FormData): Promise<T> {
+  const response = await fetch(url, { method: "POST", body });
+
+  return unwrap<T>(response);
+}
+
 export const api = {
   post: <T>(url: string, body?: unknown) => request<T>("POST", url, body),
+  upload: <T>(url: string, body: FormData) => upload<T>(url, body),
   put: <T>(url: string, body?: unknown) => request<T>("PUT", url, body),
   patch: <T>(url: string, body?: unknown) => request<T>("PATCH", url, body),
   delete: <T>(url: string) => request<T>("DELETE", url),

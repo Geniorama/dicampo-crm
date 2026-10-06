@@ -5,6 +5,7 @@ import { requireUser, isAdmin } from "@/server/guards";
 import { listProducts } from "@/server/services/catalog";
 import { productListQuerySchema } from "@/server/validators/catalog";
 import { PageHeader } from "@/components/layout/page-header";
+import { ImportLink } from "@/components/import/import-link";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -46,6 +47,7 @@ export default async function CatalogPage({
         actions={
           canEdit && (
             <>
+              <ImportLink entity="productos" user={user} />
               <Link
                 href="/catalogo/precios"
                 className={buttonVariants({ variant: "secondary" })}

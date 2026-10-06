@@ -5,6 +5,7 @@ import { requireUser } from "@/server/guards";
 import { listOpportunities } from "@/server/services/pipeline";
 import { opportunityListQuerySchema } from "@/server/validators/pipeline";
 import { PageHeader } from "@/components/layout/page-header";
+import { ImportLink } from "@/components/import/import-link";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -34,10 +35,13 @@ export default async function PipelinePage({
         title="Pipeline"
         description={`${total} ${total === 1 ? "oportunidad" : "oportunidades"} · ${formatCOP(value)} estimados al mes`}
         actions={
-          <Link href="/pipeline/nueva" className={buttonVariants()}>
-            <Plus aria-hidden="true" />
-            Nueva oportunidad
-          </Link>
+          <>
+            <ImportLink entity="oportunidades" user={user} />
+            <Link href="/pipeline/nueva" className={buttonVariants()}>
+              <Plus aria-hidden="true" />
+              Nueva oportunidad
+            </Link>
+          </>
         }
       />
 

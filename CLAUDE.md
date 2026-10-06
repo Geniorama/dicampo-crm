@@ -59,10 +59,12 @@ src/
 │  ├─ guards.ts         requireUser / scopeToOwnPortfolio
 │  ├─ errors.ts         errores de dominio, sin saber de HTTP
 │  ├─ http.ts           ok() / route() / traducción de errores
+│  ├─ import/           motor de carga masiva (lee archivo, ejecuta filas)
 │  ├─ services/         ← la lógica de negocio
 │  └─ validators/       esquemas Zod, compartidos con los formularios
 ├─ components/ui/       primitivos (tokens estilo shadcn, Tailwind v4)
 ├─ lib/                 lógica pura: totales, FEFO, formateo COP, NIT, WhatsApp
+│  └─ import/           parseo de CSV, cotejo de columnas, catálogo de campos
 └─ generated/prisma/    cliente generado (NO se versiona)
 ```
 
@@ -185,10 +187,46 @@ src/
   `Lot.quantityAvailable` y escribe el `StockMovement`. `Order.stockAppliedAt`
   hace la operación idempotente.
 
+## Carga masiva
+
+Siete entidades se pueden subir por archivo desde `/importar` (y desde el botón
+"Importar" de cada módulo): clientes, contactos, sedes, productos, precios,
+lotes y oportunidades. Pedidos no: una fila por renglón con FEFO y precios es
+otro problema.
+
+- **No depende de una plantilla.** El archivo se lee, se proponen las columnas
+  y la persona corrige el cotejo. La sugerencia sale de los **alias** de cada
+  campo en `lib/import/entities.ts`; si un encabezado real no se reconoce, el
+  arreglo es añadirlo ahí, no pedirle a nadie que renombre su Excel.
+- **La simulación y la ejecución real recorren el mismo código**; solo cambia
+  `dryRun`. Una vista previa calculada aparte acabaría prometiendo algo
+  distinto de lo que luego ocurre.
+- **Una fila mala no tumba el archivo**: cada fila se procesa y se reporta
+  aparte. Nada de envolverlo todo en una transacción — obligaría a corregir dos
+  mil filas por una celda con una fecha rara.
+- **Los importadores llaman a los servicios**, nunca a Prisma para escribir.
+  Así la carga respeta las mismas reglas que el formulario (cartera del
+  vendedor, NIT único, sede principal excluyente, kardex del lote). El precio
+  de eso son varias consultas por fila; a 2.000 filas como máximo, sale a
+  cuenta.
+- **Permisos por módulo**: cada carga exige los roles de su módulo. Catálogo y
+  precios, solo ADMIN; lotes, bodega; cartera y pipeline, ventas. `ImportLink`
+  comprueba el mismo permiso que la pantalla, así que no aparece un botón que
+  acabe en una redirección.
+- **.xls no se lee** (ExcelJS solo abre .xlsx) y se dice con todas las letras
+  al detectar la firma OLE2, en vez de fallar con "archivo dañado". Sí se leen
+  .xlsx, .csv, .tsv y .txt.
+- **Codificación**: se intenta UTF-8 y, si aparecen caracteres de reemplazo, se
+  reintenta con Windows-1252 — los CSV de sistemas viejos vienen en ANSI.
+- El tope de 2.000 filas (`validators/imports.ts`) no es del negocio: el
+  archivo viaja al navegador para cotejar y vuelve para ejecutarse.
+- Los lotes **solo se crean**. Un lote existente no se reescribe: su saldo es
+  el resultado del kardex, y cambiarlo por archivo descuadraría la auditoría.
+
 ## Estado actual
 
 Verificado contra la base real de Supabase (PostgreSQL 17.6), además de
-`typecheck`, `lint`, `build` y 56 pruebas unitarias:
+`typecheck`, `lint`, `build` y 95 pruebas unitarias:
 
 - Migración inicial aplicada y semilla cargada (17 sabores, 23 variantes con
   precio, 6 zonas de Bogotá, usuario admin).
@@ -215,9 +253,17 @@ Verificado contra la base real de Supabase (PostgreSQL 17.6), además de
 | Usuarios y perfil | Listo |
 | Rutas de despacho | Listo |
 | Reportes | Listo |
+| Carga masiva (CSV / XLSX) | Listo |
 | Migración desde Contentful | Pendiente |
 
 Todos los módulos listos tienen interfaz completa de lectura y escritura.
+
+De la carga masiva están verificados el lector y el cotejo (CSV con separador
+detectado, comillas y BOM; XLSX con hoja de portada, título suelto, números y
+fechas; rechazo del .xls binario; y cotejo correcto de las siete entidades
+sobre encabezados verosímiles). La ejecución contra la base real está
+**pendiente**: el proyecto de Supabase no responde
+(`tenant/user ... not found`).
 
 **Sobre archivos adjuntos:** se descartó Cloudflare R2. Las imágenes de
 producto no aportan en un CRM interno —el vendedor conoce el catálogo— y la

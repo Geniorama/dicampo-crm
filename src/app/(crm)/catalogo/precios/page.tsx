@@ -3,6 +3,7 @@ import { requireAdminPage } from "@/server/guards";
 import { prisma } from "@/server/db";
 import { listPriceLists } from "@/server/services/pricing";
 import { PageHeader } from "@/components/layout/page-header";
+import { ImportLink } from "@/components/import/import-link";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import {
@@ -19,7 +20,7 @@ export default async function PricesPage({
 }: {
   searchParams: Promise<RawSearchParams>;
 }) {
-  await requireAdminPage();
+  const user = await requireAdminPage();
   const params = flattenSearchParams(await searchParams);
 
   const lists = await listPriceLists();
@@ -77,6 +78,7 @@ export default async function PricesPage({
       <PageHeader
         title="Precios"
         description={`${rows.length} presentaciones activas en "${activeList.name}"`}
+        actions={<ImportLink entity="precios" user={user} label="Importar lista" />}
       />
       <PriceListEditor
         priceLists={choices}
