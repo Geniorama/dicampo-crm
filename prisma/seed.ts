@@ -87,7 +87,7 @@ const ZONES = [
   { name: "Centro", description: "La Candelaria, Santa Fe, Teusaquillo, Los Mártires" },
   { name: "Occidente", description: "Engativá, Fontibón, Kennedy, Puente Aranda" },
   { name: "Sur", description: "Bosa, Tunjuelito, Usme, Ciudad Bolívar, Rafael Uribe" },
-  { name: "Municipios aledaños", description: "Soacha, Chía, Cajicá, Mosquera, Funza" },
+  { name: "Municipios aledaños", description: "Mosquera, Funza, Madrid" },
 ];
 
 const DEFAULT_PRICE_LIST = "Lista General";
