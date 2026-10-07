@@ -287,6 +287,19 @@ src/
   - La traza del agente se muestra si `agentTrace` trae
     `{ herramientas: string[], fuentes: [{ titulo, similitud }] }`; otra forma
     se muestra como JSON.
+- **Base de conocimiento del agente** (`supabase/kb/001_kb_busqueda.sql`,
+  aplicado en Supabase como migración `daic12_kb_busqueda`): vive en el
+  esquema **`kb`**, fuera de `public`, porque Prisma gestiona `public` y una
+  migración propondría borrar cualquier tabla que no esté en
+  `schema.prisma`. **No la agregues al esquema de Prisma** ni la muevas a
+  `public`. pgvector y unaccent están en el esquema `extensions`.
+  - n8n la usa solo por RPC con la llave de servicio: `buscar_kb` (búsqueda
+    híbrida semántica + palabras clave sin tildes, fusionadas con RRF),
+    `kb_hash_actual` y `kb_guardar_fragmento` (ingesta: si el hash no
+    cambió no se vuelve a pedir el embedding) y `kb_desactivar_sobrantes`.
+    `anon` y `authenticated` no tienen acceso.
+  - Cambios al SQL: archivo nuevo en `supabase/kb/` y aplicarlo con el SQL
+    editor o `apply_migration`; nunca con `prisma migrate`.
 - **WhatsApp por contacto**: `Contact.whatsappE164` es el número normalizado
   con `contactWhatsappKey()` (WhatsApp o, si falta, teléfono). Lo mantiene
   `services/clients.ts` al crear y editar; es la llave con que el agente
