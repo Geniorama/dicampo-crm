@@ -59,7 +59,8 @@ src/
 │  ├─ db.ts             singleton de Prisma
 │  ├─ auth.ts           Auth.js v5 (Node)
 │  ├─ auth.config.ts    config compartida con el middleware (Edge)
-│  ├─ guards.ts         requireUser / scopeToOwnPortfolio
+│  ├─ guards.ts         requireUser / scopeToOwnPortfolio / requireAgent
+│  ├─ agent-auth.ts     API key del agente IA (n8n)
 │  ├─ errors.ts         errores de dominio, sin saber de HTTP
 │  ├─ http.ts           ok() / route() / traducción de errores
 │  ├─ import/           motor de carga masiva (lee archivo, ejecuta filas)
@@ -179,6 +180,14 @@ src/
   cambia de rol y el rol no se ofrece en los formularios: entra solo por
   `/api/agente` con API key. **Desactivarlo apaga la integración**, por eso la
   semilla nunca toca su `active`.
+- **API del agente** (`/api/agente/*`): cada handler empieza con
+  `requireAgent(request)`, que valida `Authorization: Bearer` contra
+  `AGENTE_API_KEY` (o `AGENTE_API_KEY_ANTERIOR` mientras se rota) comparando
+  SHA-256 en tiempo constante, y devuelve el usuario `AGENTE_IA` como un
+  `SessionUser` para reutilizar los servicios. Llave mala o sin configurar →
+  401; agente desactivado → 403. `GET /api/agente/estado` sirve para probar
+  la conexión desde n8n. Rotar: llave vieja a `_ANTERIOR`, nueva a
+  `AGENTE_API_KEY`, actualizar n8n, vaciar `_ANTERIOR`.
 - **WhatsApp por contacto**: `Contact.whatsappE164` es el número normalizado
   con `contactWhatsappKey()` (WhatsApp o, si falta, teléfono). Lo mantiene
   `services/clients.ts` al crear y editar; es la llave con que el agente

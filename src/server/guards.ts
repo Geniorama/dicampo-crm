@@ -50,6 +50,12 @@ export async function requireUser(
   return user;
 }
 
+/**
+ * Las rutas `/api/agente/*` no usan sesión: exigen la API key de n8n.
+ * Ver `agent-auth.ts`.
+ */
+export { requireAgent } from "./agent-auth";
+
 export function isAdmin(user: SessionUser): boolean {
   return user.role === UserRole.ADMIN;
 }
