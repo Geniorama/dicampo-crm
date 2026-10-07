@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../src/generated/prisma/client";
 import { UserRole } from "../src/generated/prisma/enums";
+import { contactWhatsappKey } from "../src/lib/whatsapp";
 
 /**
  * Datos de DEMOSTRACIÓN para revisar la aplicación con contenido realista.
@@ -195,7 +196,13 @@ async function main() {
         ownerId: seller.id,
         priceListId: priceList.id,
         notes: `${DEMO_TAG}cliente de demostración`,
-        contacts: { create: { ...demo.contact, isPrimary: true } },
+        contacts: {
+          create: {
+            ...demo.contact,
+            whatsappE164: contactWhatsappKey(demo.contact),
+            isPrimary: true,
+          },
+        },
         addresses: {
           create: {
             ...demo.address,

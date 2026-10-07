@@ -5,11 +5,15 @@ import { useRouter } from "next/navigation";
 import { KeyRound, Power, PowerOff } from "lucide-react";
 import { api, ApiClientError } from "@/lib/api-client";
 import { USER_ROLE_LABEL, toOptions } from "@/lib/labels";
+import { AGENT_ROLE, isAssignableRole } from "@/lib/agent";
 import { Button } from "@/components/ui/button";
 import { Input, Select } from "@/components/ui/field";
 import type { UserRole } from "@/generated/prisma/enums";
 
-const roleOptions = toOptions(USER_ROLE_LABEL);
+// El rol del agente IA no se le da a personas.
+const roleOptions = toOptions(USER_ROLE_LABEL).filter((option) =>
+  isAssignableRole(option.value),
+);
 
 /**
  * Acciones sobre un usuario: cambiar rol, activar/desactivar y restablecer
@@ -37,6 +41,10 @@ export function UserRowActions({
   const [newPassword, setNewPassword] = useState("");
   const [done, setDone] = useState<string | null>(null);
 
+  // El agente IA no cambia de rol ni usa contraseña: solo se activa o
+  // desactiva, que es como se enciende o apaga la integración.
+  const isAgent = role === AGENT_ROLE;
+
   async function run(fn: () => Promise<unknown>, successMessage?: string) {
     setError(null);
     setDone(null);
@@ -59,6 +67,7 @@ export function UserRowActions({
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap items-center justify-end gap-2">
+        {!isAgent && (
         <Select
           aria-label="Rol"
           selectSize="sm"
@@ -80,7 +89,9 @@ export function UserRowActions({
             </option>
           ))}
         </Select>
+        )}
 
+        {!isAgent && (
         <Button
           variant="secondary"
           size="sm"
@@ -94,6 +105,7 @@ export function UserRowActions({
           <KeyRound aria-hidden="true" />
           Clave
         </Button>
+        )}
 
         <Button
           variant={active ? "secondary" : "primary"}

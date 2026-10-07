@@ -28,6 +28,7 @@ export const USER_ROLE_LABEL: Record<UserRole, string> = {
   VENDEDOR: "Vendedor",
   BODEGA: "Bodega",
   DESPACHO: "Despacho",
+  AGENTE_IA: "Agente IA",
 };
 
 export const CLIENT_TYPE_LABEL: Record<ClientType, string> = {

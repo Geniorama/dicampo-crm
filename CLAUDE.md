@@ -32,6 +32,7 @@ npm run db:studio    # explorador de datos
 npm run db:reset     # ⚠️ borra la base y vuelve a sembrar
 
 npx tsx scripts/verificar-carga-masiva.ts   # carga masiva de punta a punta
+npx tsx scripts/normalizar-whatsapp.ts      # llena Contact.whatsappE164 (--aplicar para escribir)
 ```
 
 ## Arquitectura
@@ -172,6 +173,23 @@ src/
   autor). Tres salvaguardas en `services/users.ts` impiden quedarse sin
   acceso: nadie se desactiva a sí mismo, nadie se quita su propio rol de ADMIN,
   y siempre debe quedar un ADMIN activo. El hash nunca sale del servicio.
+- **Agente IA de WhatsApp**: existe como el usuario `agente-ia@dicampo.co` con
+  rol `AGENTE_IA` (constantes en `lib/agent.ts`), porque la bitácora y las
+  conversaciones necesitan autor. No tiene contraseña ni puede recibirla, no
+  cambia de rol y el rol no se ofrece en los formularios: entra solo por
+  `/api/agente` con API key. **Desactivarlo apaga la integración**, por eso la
+  semilla nunca toca su `active`.
+- **WhatsApp por contacto**: `Contact.whatsappE164` es el número normalizado
+  con `contactWhatsappKey()` (WhatsApp o, si falta, teléfono). Lo mantiene
+  `services/clients.ts` al crear y editar; es la llave con que el agente
+  encuentra al cliente, así que nada debe escribir `whatsapp` o `phone` sin
+  pasar por el servicio.
+- **Conversaciones** (`WhatsappConversation`, `WhatsappMessage`): un número =
+  una conversación. `waMessageId` es único para absorber los reintentos del
+  webhook de Meta. Un lead descartado (fuera de cobertura o sin negocio) queda
+  solo como conversación, sin crear cliente. Los seguimientos exigen
+  `marketingConsentAt` y respetan `optOutAt`: es lo que pide la política de
+  datos de Dicampo.
 - **Pipeline**: a diferencia de los pedidos, NO es una máquina de estados
   rígida — en ventas se retrocede de etapa con normalidad. Las únicas reglas
   están en `src/lib/pipeline-stages.ts`: perder exige motivo, cerrar estampa

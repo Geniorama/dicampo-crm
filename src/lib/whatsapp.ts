@@ -44,3 +44,16 @@ export function whatsappLink(
   const base = `https://wa.me/${normalized}`;
   return message ? `${base}?text=${encodeURIComponent(message)}` : base;
 }
+
+/**
+ * Llave con la que el agente de WhatsApp encuentra a un contacto: su número de
+ * WhatsApp normalizado o, si no lo tiene, su teléfono. Se guarda en
+ * `Contact.whatsappE164` para poder buscar por igualdad, porque los números se
+ * escriben a mano en formatos distintos.
+ */
+export function contactWhatsappKey(contact: {
+  whatsapp?: string | null;
+  phone?: string | null;
+}): string | null {
+  return normalizePhone(contact.whatsapp) ?? normalizePhone(contact.phone);
+}

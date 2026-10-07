@@ -8,6 +8,7 @@ import {
 import { scopeToOwnPortfolio, type SessionUser } from "../guards";
 import { UserRole } from "@/generated/prisma/enums";
 import { calculateNitDv } from "@/lib/nit";
+import { contactWhatsappKey } from "@/lib/whatsapp";
 import type {
   AddressCreateInput,
   ClientCreateInput,
@@ -244,7 +245,9 @@ export async function addContact(
       });
     }
 
-    return tx.contact.create({ data: { ...input, clientId } });
+    return tx.contact.create({
+      data: { ...input, clientId, whatsappE164: contactWhatsappKey(input) },
+    });
   });
 }
 
@@ -252,7 +255,13 @@ export async function addContact(
 async function assertOwnsContact(user: SessionUser, contactId: string) {
   const contact = await prisma.contact.findUnique({
     where: { id: contactId },
-    select: { id: true, clientId: true, client: { select: { ownerId: true } } },
+    select: {
+      id: true,
+      clientId: true,
+      whatsapp: true,
+      phone: true,
+      client: { select: { ownerId: true } },
+    },
   });
   if (!contact) throw new NotFoundError("El contacto");
   assertCanAccess(user, contact.client.ownerId);
@@ -267,6 +276,18 @@ export async function updateContact(
 ) {
   const contact = await assertOwnsContact(user, contactId);
 
+  // La llave de WhatsApp se recalcula solo si llega alguno de los dos números,
+  // combinando lo que llega con lo que ya estaba guardado. `undefined` es "sin
+  // cambio" para Prisma, así que aquí significa lo mismo.
+  const touchesNumbers =
+    input.whatsapp !== undefined || input.phone !== undefined;
+  const whatsappE164 = touchesNumbers
+    ? contactWhatsappKey({
+        whatsapp: input.whatsapp ?? contact.whatsapp,
+        phone: input.phone ?? contact.phone,
+      })
+    : undefined;
+
   return prisma.$transaction(async (tx) => {
     if (input.isPrimary) {
       await tx.contact.updateMany({
@@ -275,7 +296,10 @@ export async function updateContact(
       });
     }
 
-    return tx.contact.update({ where: { id: contactId }, data: input });
+    return tx.contact.update({
+      where: { id: contactId },
+      data: { ...input, ...(touchesNumbers ? { whatsappE164 } : {}) },
+    });
   });
 }
 

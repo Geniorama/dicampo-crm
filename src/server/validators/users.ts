@@ -1,7 +1,15 @@
 import { z } from "zod";
 import { UserRole } from "@/generated/prisma/enums";
+import { isAssignableRole } from "@/lib/agent";
 
 /** Validación de usuarios internos y de cambios de contraseña. */
+
+/** Rol que se puede dar a una persona: todos menos el del agente IA. */
+const assignableRole = z
+  .enum(UserRole)
+  .refine(isAssignableRole, {
+    message: "Ese rol es exclusivo del agente IA y no se asigna a personas.",
+  });
 
 const optionalText = (max = 255) =>
   z
@@ -44,7 +52,7 @@ export const userCreateSchema = z.object({
   name: z.string().trim().min(3, "El nombre es obligatorio").max(120),
   email: emailSchema,
   password: passwordSchema,
-  role: z.enum(UserRole).default(UserRole.VENDEDOR),
+  role: assignableRole.default(UserRole.VENDEDOR),
   phone: optionalText(50),
 });
 
@@ -58,7 +66,7 @@ export type UserCreateInput = z.output<typeof userCreateSchema>;
 export const userUpdateSchema = z
   .object({
     name: z.string().trim().min(3, "El nombre es obligatorio").max(120).optional(),
-    role: z.enum(UserRole).optional(),
+    role: assignableRole.optional(),
     phone: optionalText(50),
     active: z.boolean().optional(),
   })

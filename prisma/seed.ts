@@ -7,10 +7,11 @@ import {
   Presentation,
   UserRole,
 } from "../src/generated/prisma/enums";
+import { AGENT_USER_EMAIL, AGENT_USER_NAME } from "../src/lib/agent";
 
 /**
  * Datos maestros del CRM: zonas de reparto, catálogo de sabores, lista de
- * precios por defecto y usuario administrador.
+ * precios por defecto, usuario administrador y usuario del agente IA.
  *
  * Es idempotente (todo por `upsert`), así que puede ejecutarse varias veces
  * sin duplicar. No crea clientes ni pedidos de ejemplo: está pensado para
@@ -119,6 +120,22 @@ async function main() {
     },
   });
   console.log(`  Administrador: ${adminEmail}`);
+
+  // ── Usuario del agente IA de WhatsApp ──────────────────────
+  // Usuario de sistema, sin contraseña: no puede iniciar sesión. `active` no
+  // se toca al re-sembrar, porque desactivarlo es la forma de apagar la
+  // integración y la semilla no debe encenderla de nuevo. La contraseña sí se
+  // anula siempre, por si alguien llegó a ponerle una.
+  await prisma.user.upsert({
+    where: { email: AGENT_USER_EMAIL },
+    update: { role: UserRole.AGENTE_IA, passwordHash: null },
+    create: {
+      email: AGENT_USER_EMAIL,
+      name: AGENT_USER_NAME,
+      role: UserRole.AGENTE_IA,
+    },
+  });
+  console.log(`  Agente IA: ${AGENT_USER_EMAIL}`);
 
   // ── Zonas de reparto ───────────────────────────────────────
   for (const zone of ZONES) {

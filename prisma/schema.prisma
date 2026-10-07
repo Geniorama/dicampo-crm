@@ -21,6 +21,9 @@ enum UserRole {
   VENDEDOR
   BODEGA
   DESPACHO
+  /// Usuario de sistema del agente IA de WhatsApp. No tiene contraseña ni
+  /// acceso a la interfaz: entra solo por /api/agente con API key.
+  AGENTE_IA
 }
 
 model User {
@@ -44,6 +47,9 @@ model User {
   soldOrders     Order[]         @relation("OrderSeller")
   drivenRoutes   DeliveryRoute[] @relation("RouteDriver")
   stockMovements StockMovement[]
+
+  assignedConversations WhatsappConversation[] @relation("ConversationAssignee")
+  authoredMessages      WhatsappMessage[]      @relation("MessageAuthorUser")
 
   @@index([role, active])
 }
@@ -152,13 +158,14 @@ model Client {
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
 
-  owner         User?           @relation("ClientOwner", fields: [ownerId], references: [id], onDelete: SetNull)
-  priceList     PriceList?      @relation(fields: [priceListId], references: [id], onDelete: SetNull)
+  owner         User?                  @relation("ClientOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  priceList     PriceList?             @relation(fields: [priceListId], references: [id], onDelete: SetNull)
   addresses     ClientAddress[]
   contacts      Contact[]
   opportunities Opportunity[]
   activities    Activity[]
   orders        Order[]
+  conversations WhatsappConversation[]
 
   @@index([status, type])
   @@index([ownerId])
@@ -192,28 +199,34 @@ model ClientAddress {
 }
 
 model Contact {
-  id        String   @id @default(cuid())
-  clientId  String
-  firstName String
-  lastName  String?
+  id           String   @id @default(cuid())
+  clientId     String
+  firstName    String
+  lastName     String?
   /// Cargo, p. ej. "Chef", "Administrador"
-  jobTitle  String?
-  email     String?
-  phone     String?
+  jobTitle     String?
+  email        String?
+  phone        String?
   /// Número de WhatsApp en formato E.164, p. ej. "573107296238"
-  whatsapp  String?
-  docType   DocType?
-  docNumber String?
-  isPrimary Boolean  @default(false)
-  active    Boolean  @default(true)
-  notes     String?  @db.Text
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  whatsapp     String?
+  /// `whatsapp` (o `phone` si falta) normalizado con `normalizePhone()`:
+  /// "310 729 6238" y "+57 3107296238" quedan iguales. Es la llave con que el
+  /// agente de WhatsApp encuentra a un contacto; lo mantiene el servicio.
+  whatsappE164 String?
+  docType      DocType?
+  docNumber    String?
+  isPrimary    Boolean  @default(false)
+  active       Boolean  @default(true)
+  notes        String?  @db.Text
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
-  client     Client     @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  activities Activity[]
+  client        Client                 @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  activities    Activity[]
+  conversations WhatsappConversation[]
 
   @@index([clientId])
+  @@index([whatsappE164])
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -602,4 +615,121 @@ model DeliveryProof {
   notes       String?  @db.Text
 
   order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+}
+
+// ─────────────────────────────────────────────────────────────
+// WhatsApp: conversaciones del agente IA y de los asesores
+// ─────────────────────────────────────────────────────────────
+//
+// n8n escribe aquí a través de /api/agente; la interfaz de supervisión del
+// CRM lee lo mismo. Un número de WhatsApp = una conversación: el historial es
+// continuo aunque pasen semanas entre mensajes.
+
+enum ConversationStatus {
+  /// Responde el agente IA
+  BOT
+  /// Un asesor tomó la conversación; el agente no responde
+  HUMANO
+  CERRADA
+}
+
+/// Motivo por el que el agente descartó a quien escribió. Un descartado no se
+/// crea como cliente: el CRM no se llena de prospectos que no aplican.
+enum DisqualificationReason {
+  FUERA_DE_COBERTURA
+  SIN_NEGOCIO
+  OTRO
+}
+
+enum MessageDirection {
+  ENTRANTE
+  SALIENTE
+}
+
+enum MessageAuthor {
+  CLIENTE
+  AGENTE_IA
+  ASESOR
+}
+
+enum MessageType {
+  TEXTO
+  AUDIO
+  IMAGEN
+  DOCUMENTO
+  INTERACTIVO
+  PLANTILLA
+}
+
+model WhatsappConversation {
+  id                 String                  @id @default(cuid())
+  /// E.164 sin "+", p. ej. "573107296238"
+  phone              String                  @unique
+  clientId           String?
+  contactId          String?
+  status             ConversationStatus      @default(BOT)
+  /// Vendedor que atiende cuando el estado es HUMANO
+  assignedUserId     String?
+  /// Aviso de tratamiento de datos entregado (Ley 1581). La política de
+  /// Dicampo acepta la conducta inequívoca para atender la solicitud.
+  consentAt          DateTime?
+  /// Versión de la política vigente cuando se entregó el aviso
+  consentVersion     String?
+  /// Autorización expresa para comunicaciones comerciales (seguimientos).
+  /// Es una finalidad secundaria de la política: sin ella no se hace
+  /// seguimiento.
+  marketingConsentAt DateTime?
+  /// "DEJAR DE RECIBIR MENSAJES" o "CANCELAR": no más seguimientos
+  optOutAt           DateTime?
+  disqualifiedReason DisqualificationReason?
+  disqualifiedAt     DateTime?
+  /// Seguimientos enviados (máximo 3: 24 h, 72 h y 5–7 días)
+  followUpCount      Int                     @default(0)
+  nextFollowUpAt     DateTime?
+  /// Último mensaje del cliente: abre la ventana de 24 h de Meta
+  lastInboundAt      DateTime?
+  lastMessageAt      DateTime?
+  /// Resumen que el agente deja para el asesor al escalar
+  summary            String?                 @db.Text
+  createdAt          DateTime                @default(now())
+  updatedAt          DateTime                @updatedAt
+
+  client       Client?           @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  contact      Contact?          @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  assignedUser User?             @relation("ConversationAssignee", fields: [assignedUserId], references: [id], onDelete: SetNull)
+  messages     WhatsappMessage[]
+
+  @@index([status, lastMessageAt])
+  @@index([clientId])
+  @@index([assignedUserId])
+  @@index([nextFollowUpAt])
+}
+
+/// Historial de solo inserción, salvo `deliveryStatus`, que actualizan los
+/// webhooks de estado de Meta.
+model WhatsappMessage {
+  id             String           @id @default(cuid())
+  conversationId String
+  /// Id de Meta (wamid). Único: deduplica los reintentos del webhook.
+  waMessageId    String?          @unique
+  direction      MessageDirection
+  author         MessageAuthor
+  /// Asesor que escribió, cuando `author` es ASESOR
+  authorUserId   String?
+  type           MessageType      @default(TEXTO)
+  body           String?          @db.Text
+  /// Ruta en Supabase Storage (bucket privado wa-media)
+  mediaPath      String?
+  mediaMime      String?
+  mediaSizeBytes Int?
+  /// sent / delivered / read / failed, según el webhook de estados de Meta
+  deliveryStatus String?
+  /// Herramientas que usó el agente y fuentes que consultó para responder
+  agentTrace     Json?
+  createdAt      DateTime         @default(now())
+
+  conversation WhatsappConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  authorUser   User?                @relation("MessageAuthorUser", fields: [authorUserId], references: [id], onDelete: SetNull)
+
+  @@index([conversationId, createdAt])
 }

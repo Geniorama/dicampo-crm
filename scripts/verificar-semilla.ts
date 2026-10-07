@@ -1,6 +1,7 @@
 import "dotenv/config";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../src/generated/prisma/client";
+import { AGENT_USER_EMAIL } from "../src/lib/agent";
 
 /**
  * Comprueba que la semilla dejó los datos maestros que el CRM necesita para
@@ -26,7 +27,7 @@ async function main() {
   const adminEmail = process.env.SEED_ADMIN_EMAIL;
   if (!adminEmail) throw new Error("Falta SEED_ADMIN_EMAIL");
 
-  const [products, variants, priced, zones, admin, defaultLists] =
+  const [products, variants, priced, zones, admin, defaultLists, agent, agents] =
     await Promise.all([
       prisma.product.count(),
       prisma.productVariant.count(),
@@ -34,6 +35,8 @@ async function main() {
       prisma.deliveryZone.count(),
       prisma.user.findUnique({ where: { email: adminEmail } }),
       prisma.priceList.findMany({ where: { isDefault: true, active: true } }),
+      prisma.user.findUnique({ where: { email: AGENT_USER_EMAIL } }),
+      prisma.user.count({ where: { role: "AGENTE_IA" } }),
     ]);
 
   console.log("\nDatos maestros");
@@ -51,6 +54,16 @@ async function main() {
     admin?.passwordHash?.startsWith("$2") === true,
   );
 
+  check("existe el usuario del agente IA", agent !== null);
+  check(
+    "tiene rol AGENTE_IA y está activo",
+    agent?.role === "AGENTE_IA" && agent?.active === true,
+  );
+  check(
+    "no tiene contraseña (no puede iniciar sesión)",
+    agent !== null && agent.passwordHash === null,
+  );
+
   console.log("\nIdempotencia (la semilla corrió dos veces en CI)");
   check(
     `solo una lista de precios por defecto (${defaultLists.length})`,
@@ -59,6 +72,7 @@ async function main() {
   check("no se duplicaron productos", products === 17);
   check("ni variantes", variants === 23);
   check("ni zonas", zones === 6);
+  check(`un solo usuario del agente IA (${agents})`, agents === 1);
 
   /*
    * Invariantes que sí pueden romperse. Las relaciones obligatorias las

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { normalizePhone, whatsappLink } from "./whatsapp";
+import { contactWhatsappKey, normalizePhone, whatsappLink } from "./whatsapp";
 
 describe("normalizePhone", () => {
   it("añade el indicativo de país a un celular de 10 dígitos", () => {
@@ -39,5 +39,35 @@ describe("whatsappLink", () => {
 
   it("devuelve null si el teléfono no sirve", () => {
     expect(whatsappLink(undefined, "Hola")).toBeNull();
+  });
+});
+
+describe("contactWhatsappKey", () => {
+  it("usa el WhatsApp del contacto, normalizado", () => {
+    expect(
+      contactWhatsappKey({ whatsapp: "+57 310 729 6238", phone: "6019439500" }),
+    ).toBe("573107296238");
+  });
+
+  it("recurre al teléfono si no hay WhatsApp", () => {
+    expect(contactWhatsappKey({ whatsapp: null, phone: "310 729 6238" })).toBe(
+      "573107296238",
+    );
+  });
+
+  it("recurre al teléfono si el WhatsApp no es un número utilizable", () => {
+    expect(contactWhatsappKey({ whatsapp: "pendiente", phone: "3107296238" })).toBe(
+      "573107296238",
+    );
+  });
+
+  it("da la misma llave para el mismo número escrito distinto", () => {
+    const formats = ["310 729 6238", "+57 3107296238", "57-310-729-6238", "(310) 7296238"];
+    const keys = formats.map((whatsapp) => contactWhatsappKey({ whatsapp }));
+    expect(new Set(keys)).toEqual(new Set(["573107296238"]));
+  });
+
+  it("devuelve null si no hay ningún número", () => {
+    expect(contactWhatsappKey({})).toBeNull();
   });
 });

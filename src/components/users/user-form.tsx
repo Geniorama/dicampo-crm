@@ -11,11 +11,15 @@ import {
   type UserFormValues,
 } from "@/server/validators/users";
 import { USER_ROLE_LABEL, toOptions } from "@/lib/labels";
+import { isAssignableRole } from "@/lib/agent";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field, Input, Select } from "@/components/ui/field";
 
-const roleOptions = toOptions(USER_ROLE_LABEL);
+// El rol del agente IA no se le da a personas.
+const roleOptions = toOptions(USER_ROLE_LABEL).filter((option) =>
+  isAssignableRole(option.value),
+);
 
 /** Qué puede hacer cada rol, para que quien crea la cuenta elija con criterio. */
 const ROLE_HELP: Record<string, string> = {

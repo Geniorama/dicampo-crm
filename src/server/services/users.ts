@@ -128,6 +128,14 @@ export async function updateUser(
   });
   if (!target) throw new NotFoundError("El usuario");
 
+  // El usuario del agente IA solo se activa o desactiva (así se apaga la
+  // integración). Darle otro rol lo convertiría en una cuenta de persona.
+  if (target.role === UserRole.AGENTE_IA && input.role !== undefined && input.role !== UserRole.AGENTE_IA) {
+    throw new BusinessRuleError(
+      "El usuario del agente IA no puede cambiar de rol; solo se activa o desactiva.",
+    );
+  }
+
   const isSelf = actor.id === id;
 
   // Salvaguarda 1: no puedes desactivarte a ti mismo.
@@ -171,9 +179,16 @@ export async function resetPassword(
 ) {
   const target = await prisma.user.findUnique({
     where: { id },
-    select: { id: true },
+    select: { id: true, role: true },
   });
   if (!target) throw new NotFoundError("El usuario");
+
+  // El agente IA no inicia sesión: una contraseña le abriría la interfaz.
+  if (target.role === UserRole.AGENTE_IA) {
+    throw new BusinessRuleError(
+      "El usuario del agente IA no usa contraseña: se autentica con API key.",
+    );
+  }
 
   // Cambiar la propia contraseña exige conocer la anterior; para eso está
   // `changeOwnPassword`. Este endpoint es solo para restablecer la de otros.
