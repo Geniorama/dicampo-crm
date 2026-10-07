@@ -3,6 +3,10 @@ import type {
   ActivityType,
   ClientStatus,
   ClientType,
+  ConversationStatus,
+  DisqualificationReason,
+  MessageAuthor,
+  MessageType,
   DocType,
   LotStatus,
   OpportunityStage,
@@ -206,3 +210,38 @@ export function toOptions<T extends string>(
     label: labels[value],
   }));
 }
+
+// ── Conversaciones de WhatsApp ───────────────────────────────
+
+export const CONVERSATION_STATUS_LABEL: Record<ConversationStatus, string> = {
+  BOT: "Agente IA",
+  HUMANO: "Asesor",
+  CERRADA: "Cerrada",
+};
+
+export const CONVERSATION_STATUS_TONE: Record<ConversationStatus, BadgeTone> = {
+  BOT: "info",
+  HUMANO: "warning",
+  CERRADA: "neutral",
+};
+
+export const MESSAGE_AUTHOR_LABEL: Record<MessageAuthor, string> = {
+  CLIENTE: "Cliente",
+  AGENTE_IA: "Agente IA",
+  ASESOR: "Asesor",
+};
+
+export const MESSAGE_TYPE_LABEL: Record<MessageType, string> = {
+  TEXTO: "Texto",
+  AUDIO: "Audio",
+  IMAGEN: "Imagen",
+  DOCUMENTO: "Documento",
+  INTERACTIVO: "Botón / lista",
+  PLANTILLA: "Plantilla",
+};
+
+export const DISQUALIFICATION_REASON_LABEL: Record<DisqualificationReason, string> = {
+  FUERA_DE_COBERTURA: "Fuera de cobertura",
+  SIN_NEGOCIO: "Sin negocio",
+  OTRO: "Otro motivo",
+};

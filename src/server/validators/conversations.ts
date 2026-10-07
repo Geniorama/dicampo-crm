@@ -7,6 +7,7 @@ import {
 } from "@/generated/prisma/enums";
 import { DELIVERY_STATUSES, MEDIA_LIMITS, baseMime } from "@/lib/conversation-rules";
 import { phoneSchema } from "./agent";
+import { localDateSchema } from "./reports";
 
 /**
  * Contratos de `/api/agente/conversaciones/*` y `/api/agente/seguimientos/*`.
@@ -107,3 +108,27 @@ export type MediaUploadInput = z.infer<typeof mediaUploadSchema>;
 export const pendingFollowUpsQuerySchema = z.object({
   limite: z.coerce.number().int().min(1).max(200).default(50),
 });
+
+// ── Supervisión (API interna con sesión) ─────────────────────
+
+export const conversationListQuerySchema = z.object({
+  /** Nombre del cliente o teléfono */
+  search: z.string().trim().max(120).optional(),
+  status: z.enum(["BOT", "HUMANO", "CERRADA"]).optional(),
+  assignedUserId: z.string().cuid().optional(),
+  stage: z.enum(["PROSPECTO", "CONTACTADO", "MUESTRA_ENVIADA", "NEGOCIACION", "GANADA", "PERDIDA"]).optional(),
+  from: localDateSchema.optional(),
+  to: localDateSchema.optional(),
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(30),
+});
+export type ConversationListQuery = z.infer<typeof conversationListQuerySchema>;
+
+export const advisorReplySchema = z.object({
+  texto: z
+    .string()
+    .trim()
+    .min(1, "Escribe un mensaje")
+    .max(4096, "WhatsApp admite hasta 4.096 caracteres por mensaje"),
+});
+export type AdvisorReplyInput = z.infer<typeof advisorReplySchema>;

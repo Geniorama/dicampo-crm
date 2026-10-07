@@ -22,7 +22,7 @@ export type PeriodPreset = keyof typeof PERIOD_PRESETS;
  * (UTC−5) retrocede un día — el rango terminaría la víspera y dejaría fuera
  * las ventas de la última jornada. Aquí se construye la fecha en local.
  */
-const localDateSchema = z.union([
+export const localDateSchema = z.union([
   z.date(),
   z
     .string()

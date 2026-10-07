@@ -73,3 +73,45 @@ export function formatNit(
   const digits = Number.isNaN(Number(nit)) ? nit : grouped;
   return dv ? `${digits}-${dv}` : digits;
 }
+
+const bogotaDateTime = new Intl.DateTimeFormat("es-CO", {
+  timeZone: "America/Bogota",
+  day: "2-digit",
+  month: "short",
+  hour: "2-digit",
+  minute: "2-digit",
+});
+
+const bogotaTime = new Intl.DateTimeFormat("es-CO", {
+  timeZone: "America/Bogota",
+  hour: "2-digit",
+  minute: "2-digit",
+});
+
+const bogotaDay = new Intl.DateTimeFormat("es-CO", {
+  timeZone: "America/Bogota",
+  weekday: "long",
+  day: "numeric",
+  month: "long",
+  year: "numeric",
+});
+
+/**
+ * Fecha y hora **en Bogotá**, sin depender de la zona del servidor (Netlify
+ * corre en UTC). Para mensajes de chat, donde cinco horas de diferencia
+ * confunden.
+ */
+export function formatBogotaDateTime(value: Date | string | null | undefined): string {
+  if (!value) return "—";
+  return bogotaDateTime.format(typeof value === "string" ? new Date(value) : value);
+}
+
+/** Solo la hora en Bogotá: "10:23 a. m." */
+export function formatBogotaTime(value: Date | string): string {
+  return bogotaTime.format(typeof value === "string" ? new Date(value) : value);
+}
+
+/** Día completo en Bogotá, para separar el chat por fechas. */
+export function formatBogotaDay(value: Date | string): string {
+  return bogotaDay.format(typeof value === "string" ? new Date(value) : value);
+}

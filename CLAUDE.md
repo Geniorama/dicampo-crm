@@ -247,6 +247,30 @@ src/
   - Ojo: dentro de una transacción no se consulta con el `prisma` global (lo
     que haga falta, como el cliente del número, se resuelve antes); pediría
     una segunda conexión mientras la primera espera.
+- **Supervisión de conversaciones** (`/conversaciones`, `services/supervision.ts`,
+  API interna `/api/conversaciones/*` con sesión, roles de ventas):
+  - ADMIN ve todas; un VENDEDOR, las de su cartera **y** las que tiene
+    asignadas (un escalamiento puede llegar antes de que el número sea
+    cliente). Fuera de alcance → 404, no 403.
+  - **Tomar** pasa a HUMANO y asigna; un vendedor no le quita una
+    conversación a otro, un ADMIN sí. **Liberar** (devolver al agente) solo
+    quien la atiende o un ADMIN.
+  - **Responder** exige haberla tomado y la ventana de 24 h abierta (fuera de
+    ella Meta solo acepta plantillas). El CRM no habla con Meta: llama al
+    webhook de n8n (`server/n8n.ts`, `N8N_ENVIO_WEBHOOK_URL` +
+    encabezado `X-CRM-Secret` = `N8N_ENVIO_SECRET`), que devuelve
+    `{ waMessageId }`. Si el mismo wamid ya está en esa conversación (n8n lo
+    registró por la API del agente) no se duplica.
+  - La multimedia se ve con URLs firmadas de 1 h. El chat **no** se recarga a
+    ciegas: `AutoRefresh` consulta `/api/conversaciones/:id/version` y solo
+    refresca si cambió, porque re-renderizar re-firma los archivos y corta un
+    audio a medias. La bandeja se refresca cada 30 s.
+  - Horas del chat con `formatBogotaDateTime` / `formatBogotaTime`
+    (`lib/format.ts`): Netlify corre en UTC y `formatDateTime` (date-fns) usa
+    la zona del servidor.
+  - La traza del agente se muestra si `agentTrace` trae
+    `{ herramientas: string[], fuentes: [{ titulo, similitud }] }`; otra forma
+    se muestra como JSON.
 - **WhatsApp por contacto**: `Contact.whatsappE164` es el número normalizado
   con `contactWhatsappKey()` (WhatsApp o, si falta, teléfono). Lo mantiene
   `services/clients.ts` al crear y editar; es la llave con que el agente
