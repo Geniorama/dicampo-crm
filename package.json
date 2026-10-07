@@ -16,6 +16,7 @@
     "db:seed": "prisma db seed",
     "db:studio": "prisma studio",
     "db:reset": "prisma migrate reset",
+    "clave:admin": "tsx scripts/clave-admin.ts",
     "db:demo": "tsx prisma/seed-demo.ts",
     "db:demo:clean": "tsx prisma/seed-demo.ts --clean"
   },
