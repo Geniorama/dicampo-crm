@@ -61,6 +61,8 @@ src/
 │  ├─ auth.config.ts    config compartida con el middleware (Edge)
 │  ├─ guards.ts         requireUser / scopeToOwnPortfolio / requireAgent
 │  ├─ agent-auth.ts     API key del agente IA (n8n)
+│  ├─ storage.ts        Supabase Storage: URLs firmadas de wa-media
+│  ├─ locks.ts          candados de Postgres por llave (pg_advisory_xact_lock)
 │  ├─ errors.ts         errores de dominio, sin saber de HTTP
 │  ├─ http.ts           ok() / route() / traducción de errores
 │  ├─ import/           motor de carga masiva (lee archivo, ejecuta filas)
@@ -219,6 +221,32 @@ src/
     persona (visita, escalamiento) va a nombre del vendedor, porque la agenda
     de cada uno son sus actividades pendientes. Sin vendedor activo, al
     primer ADMIN activo.
+- **Conversaciones desde el agente** (`services/conversations.ts`, reglas
+  puras en `lib/conversation-rules.ts`):
+  - `POST conversaciones/mensajes`: entrante o saliente, **idempotente por
+    `waMessageId`** (201/200; la carrera se resuelve con el índice único).
+    Entrante: abre la ventana de 24 h, cancela seguimientos, reabre una
+    CERRADA y detecta "DEJAR DE RECIBIR MENSAJES"/"CANCELAR" (baja) y
+    "ELIMINAR MIS DATOS" (tarea al ADMIN, 10 días hábiles). Solo cuenta si el
+    mensaje es exactamente la instrucción. Saliente del agente: programa el
+    seguimiento. Devuelve `palabraClave` para que n8n confirme.
+  - Seguimientos a las 24 h, 72 h y 6 días del último mensaje del agente,
+    máximo 3. `GET seguimientos/pendientes` exige BOT, `marketingConsentAt`,
+    sin baja ni descarte. n8n registra cada envío con `seguimiento: true`.
+  - `GET conversaciones/estado`: quién responde, consentimientos, descarte,
+    último entrante (para agrupar mensajes seguidos) y ventana de 24 h.
+  - `POST conversaciones/consentimiento` (AVISO / COMERCIAL / BAJA) deja nota
+    en la ficha si ya es cliente. `POST conversaciones/descartar` cierra sin
+    crear cliente. `POST conversaciones/entregas`: el estado solo avanza.
+  - **Multimedia**: nunca pasa por Netlify (6 MB por petición). `POST
+    conversaciones/media` firma una subida directa al bucket privado
+    `wa-media` (`{telefono}/{AAAA-MM}/{wamid}.{ext}`), n8n hace `PUT` y luego
+    registra el mensaje con `media.ruta`, que debe estar en la carpeta de ese
+    teléfono. `server/storage.ts` habla REST con Storage y necesita
+    `SUPABASE_URL` y `SUPABASE_SERVICE_ROLE_KEY` (sin ellas, 503).
+  - Ojo: dentro de una transacción no se consulta con el `prisma` global (lo
+    que haga falta, como el cliente del número, se resuelve antes); pediría
+    una segunda conexión mientras la primera espera.
 - **WhatsApp por contacto**: `Contact.whatsappE164` es el número normalizado
   con `contactWhatsappKey()` (WhatsApp o, si falta, teléfono). Lo mantiene
   `services/clients.ts` al crear y editar; es la llave con que el agente

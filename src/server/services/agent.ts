@@ -2,6 +2,7 @@ import { prisma } from "../db";
 import { BusinessRuleError, NotFoundError, ValidationError } from "../errors";
 import type { SessionUser } from "../guards";
 import { buildPriceResolver } from "./pricing";
+import { lockKey } from "../locks";
 import type { Prisma } from "@/generated/prisma/client";
 import type { OpportunityStage } from "@/generated/prisma/enums";
 import { PRESENTATION_LABEL } from "@/lib/labels";
@@ -50,15 +51,6 @@ const OPEN_STAGE_FILTER = { in: OPEN_STAGES };
 // ── Utilidades ───────────────────────────────────────────────
 
 /**
- * Serializa dentro de la transacción las operaciones sobre la misma llave
- * (un teléfono, la rotación). Es un candado de Postgres que se suelta solo al
- * terminar la transacción, así que funciona detrás de PgBouncer.
- */
-async function lock(tx: Tx, key: string) {
-  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${key}))`;
-}
-
-/**
  * Persona que atiende lo que el agente no puede hacer: el vendedor del
  * cliente si está activo; si no, el primer ADMIN activo.
  */
@@ -89,7 +81,7 @@ async function responsibleUser(
 
 /** Elige vendedor por rotación: el activo con menos prospectos. */
 async function rotateSeller(tx: Tx): Promise<string | null> {
-  await lock(tx, "agente:rotacion-vendedores");
+  await lockKey(tx, "agente:rotacion-vendedores");
 
   const sellers = await tx.user.findMany({
     where: { role: "VENDEDOR", active: true },
@@ -279,7 +271,7 @@ export async function createLead(
   if (existing) return { created: false, lead: existing };
 
   const result = await prisma.$transaction(async (tx) => {
-    await lock(tx, `agente:telefono:${input.telefono}`);
+    await lockKey(tx, `agente:telefono:${input.telefono}`);
 
     // Otro request pudo crearlo mientras esperábamos el candado.
     const raced = await tx.contact.findFirst({
@@ -530,7 +522,7 @@ export async function upsertOpportunity(
   const breakdown = describeInterest(valuation.lines, formatCOP);
 
   const opportunity = await prisma.$transaction(async (tx) => {
-    await lock(tx, `agente:oportunidad:${client.id}`);
+    await lockKey(tx, `agente:oportunidad:${client.id}`);
 
     const open = await tx.opportunity.findFirst({
       where: { clientId: client.id, stage: OPEN_STAGE_FILTER },
@@ -735,7 +727,7 @@ export async function scheduleVisit(agent: SessionUser, input: VisitInput) {
 
   return prisma.$transaction(async (tx) => {
     const client = await getClientOrThrow(tx, input.clientId);
-    await lock(tx, `agente:oportunidad:${client.id}`);
+    await lockKey(tx, `agente:oportunidad:${client.id}`);
 
     const person = await responsibleUser(tx, client.ownerId);
     const name = clientDisplayName(client);
@@ -822,7 +814,7 @@ export async function escalate(input: EscalateInput) {
   const lead = await findLeadByPhone(input.telefono);
 
   return prisma.$transaction(async (tx) => {
-    await lock(tx, `agente:telefono:${input.telefono}`);
+    await lockKey(tx, `agente:telefono:${input.telefono}`);
 
     const current = await tx.whatsappConversation.findUnique({
       where: { phone: input.telefono },
