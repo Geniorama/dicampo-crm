@@ -188,6 +188,37 @@ src/
   401; agente desactivado → 403. `GET /api/agente/estado` sirve para probar
   la conexión desde n8n. Rotar: llave vieja a `_ANTERIOR`, nueva a
   `AGENTE_API_KEY`, actualizar n8n, vaciar `_ANTERIOR`.
+- **Trabajo comercial del agente** (`services/agent.ts`, reglas puras en
+  `lib/agent-rules.ts`). Contratos en español porque son las herramientas
+  que ve el modelo en n8n:
+  - `GET leads?telefono=` → ficha resumida o `null`. Si el número está en
+    varios clientes, gana el de actividad más reciente.
+  - `POST leads` crea cliente `PROSPECTO` + contacto y lo vincula a la
+    conversación. **Idempotente por teléfono** (201 creado / 200 existente),
+    con candado `pg_advisory_xact_lock` para los reintentos en paralelo.
+    Vendedor por rotación (`pickSeller`: menos prospectos; en empate, el que
+    lleva más sin recibir). Sin vendedores activos queda sin asignar y se
+    crea una tarea al ADMIN.
+  - `PATCH leads/:clientId` completa datos y sede; nunca toca estado,
+    vendedor ni NIT.
+  - `POST oportunidades` recibe `interes: [{ sku, kilosMes }]` — **el
+    interés completo vigente, no un incremento** — y el CRM lo valora con
+    `buildPriceResolver()` (kilos → unidades de la variante). Una sola
+    oportunidad abierta por cliente: crea en CONTACTADO o revalora (201/200).
+    Las notas terminan en un bloque "Interés declarado por WhatsApp" que se
+    reemplaza; lo que escriba el vendedor arriba se conserva.
+  - `POST oportunidades/:id/etapa` solo a CONTACTADO, MUESTRA_ENVIADA o
+    NEGOCIACION y nunca sobre una cerrada. El agente no gana ni pierde.
+  - `POST actividades`: resumen tipo WHATSAPP a nombre del agente.
+  - `POST visitas` (fecha ISO **con zona**): VISITA pendiente en la agenda
+    del vendedor, sede principal, oportunidad a CONTACTADO si seguía en
+    PROSPECTO (no retrocede) y conversación a HUMANO.
+  - `POST escalar`: conversación a HUMANO asignada al vendedor y tarea para
+    ya. Si ya estaba en HUMANO solo actualiza el resumen, sin duplicar tarea.
+  - **Agenda**: lo que hace el agente va a su nombre; lo que le toca a una
+    persona (visita, escalamiento) va a nombre del vendedor, porque la agenda
+    de cada uno son sus actividades pendientes. Sin vendedor activo, al
+    primer ADMIN activo.
 - **WhatsApp por contacto**: `Contact.whatsappE164` es el número normalizado
   con `contactWhatsappKey()` (WhatsApp o, si falta, teléfono). Lo mantiene
   `services/clients.ts` al crear y editar; es la llave con que el agente
