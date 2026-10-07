@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input, Select } from "@/components/ui/field";
 import { StageSelector } from "@/components/pipeline/stage-selector";
-import { formatCOP, formatDate } from "@/lib/format";
+import { formatCOP, formatCalendarDate } from "@/lib/format";
 import { flattenSearchParams, type RawSearchParams } from "@/lib/search-params";
 import { OPPORTUNITY_STAGE_LABEL } from "@/lib/labels";
 import { isClosedStage } from "@/lib/pipeline-stages";
@@ -135,7 +135,7 @@ export default async function PipelinePage({
                         </span>
                         {item.expectedCloseDate && (
                           <span className="text-muted-foreground">
-                            cierra {formatDate(item.expectedCloseDate)}
+                            cierra {formatCalendarDate(item.expectedCloseDate)}
                           </span>
                         )}
                       </div>

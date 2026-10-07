@@ -1,4 +1,5 @@
 import { prisma } from "../db";
+import { endOfBusinessDay } from "../validators/reports";
 import { BusinessRuleError, ForbiddenError, NotFoundError } from "../errors";
 import type { SessionUser } from "../guards";
 import { lockKey } from "../locks";
@@ -42,12 +43,6 @@ function isAdmin(user: SessionUser) {
   return user.role === UserRole.ADMIN;
 }
 
-/** Fin del día local: un filtro "hasta el 7" incluye todo el 7. */
-function endOfDay(date: Date): Date {
-  const end = new Date(date);
-  end.setHours(23, 59, 59, 999);
-  return end;
-}
 
 // ── Bandeja ──────────────────────────────────────────────────
 
@@ -78,7 +73,7 @@ export async function listConversations(
         ? {
             lastMessageAt: {
               ...(from ? { gte: from } : {}),
-              ...(to ? { lte: endOfDay(to) } : {}),
+              ...(to ? { lte: endOfBusinessDay(to) } : {}),
             },
           }
         : {},

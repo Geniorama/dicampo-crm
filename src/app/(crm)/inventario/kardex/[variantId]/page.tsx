@@ -10,7 +10,7 @@ import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
-import { formatDate, formatDateTime, formatOrderNumber, formatQuantity } from "@/lib/format";
+import { formatCalendarDate, formatDateTime, formatOrderNumber, formatQuantity } from "@/lib/format";
 import { PRESENTATION_LABEL, STOCK_MOVEMENT_LABEL } from "@/lib/labels";
 
 export const metadata: Metadata = { title: "Kardex" };
@@ -121,7 +121,7 @@ export default async function KardexPage({
                           <>
                             {movement.lot.lotCode}
                             <span className="block text-xs">
-                              vence {formatDate(movement.lot.expiryDate)}
+                              vence {formatCalendarDate(movement.lot.expiryDate)}
                             </span>
                           </>
                         ) : (

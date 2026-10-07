@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { businessDateSchema } from "./reports";
 import { ActivityType, OpportunityStage } from "@/generated/prisma/enums";
 
 /** Validación de oportunidades comerciales y de la bitácora de actividades. */
@@ -87,7 +88,7 @@ export const activityCreateSchema = z
     opportunityId: z.string().cuid().optional(),
     orderId: z.string().cuid().optional(),
     /** Fecha compromiso; si se envía, la actividad nace pendiente. */
-    dueAt: z.coerce.date().optional(),
+    dueAt: businessDateSchema.optional(),
     /** Marca la actividad como ya realizada al registrarla. */
     completed: z.boolean().default(true),
   })

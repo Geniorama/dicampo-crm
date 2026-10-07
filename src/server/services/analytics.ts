@@ -1,4 +1,6 @@
 import { prisma } from "../db";
+import { TZDate } from "@date-fns/tz";
+import { BUSINESS_TIME_ZONE } from "@/lib/format";
 import { OrderStatus, UserRole } from "@/generated/prisma/enums";
 import type { SessionUser } from "../guards";
 import type { ReportQuery } from "../validators/reports";
@@ -89,7 +91,8 @@ export async function getSalesTrend(
   const buckets = new Map<string, { revenue: number; orders: number }>();
 
   for (const order of orders) {
-    const date = order.orderDate;
+    // El día de un pedido es el de Bogotá, no el del servidor.
+    const date = new TZDate(order.orderDate, BUSINESS_TIME_ZONE);
     const month = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
     const key = byMonth
       ? month

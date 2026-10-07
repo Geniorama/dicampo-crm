@@ -13,7 +13,7 @@ import { LotAdjustment } from "@/components/inventory/lot-adjustment";
 import { ExpireLotsButton } from "@/components/inventory/expire-lots-button";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
-import { formatDate, formatQuantity } from "@/lib/format";
+import { formatCalendarDate, formatQuantity } from "@/lib/format";
 import { flattenSearchParams, type RawSearchParams } from "@/lib/search-params";
 import {
   LOT_STATUS_LABEL,
@@ -194,7 +194,7 @@ export default async function InventoryPage({
                         {PRESENTATION_SHORT[lot.variant.presentation]})
                       </td>
                       <td className="px-4 py-2.5 text-muted-foreground">
-                        {formatDate(lot.productionDate)}
+                        {formatCalendarDate(lot.productionDate)}
                       </td>
                       <td className="px-4 py-2.5">
                         <span
@@ -206,7 +206,7 @@ export default async function InventoryPage({
                                 : "text-muted-foreground"
                           }
                         >
-                          {formatDate(lot.expiryDate)}
+                          {formatCalendarDate(lot.expiryDate)}
                         </span>
                         {isExpiringSoon && (
                           <span className="ml-2 text-xs text-warning">

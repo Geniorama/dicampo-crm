@@ -1,5 +1,13 @@
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
+import { TZDate } from "@date-fns/tz";
+
+/**
+ * Zona horaria de la operación. El servidor (Netlify) corre en UTC y el
+ * navegador en la zona de cada quien: formatear sin zona explícita mostraba
+ * las horas cinco horas corridas en producción.
+ */
+export const BUSINESS_TIME_ZONE = "America/Bogota";
 
 /**
  * Formateadores para la operación colombiana.
@@ -39,18 +47,32 @@ export function formatQuantity(value: Numeric | null | undefined): string {
   return quantityFormatter.format(toNumber(value));
 }
 
-/** Fecha corta: "01 sep 2026" */
+/**
+ * Fecha corta de un **momento** (creación, pedido, actividad), en hora de
+ * Bogotá: "01 sep 2026". Para fechas de calendario usa `formatCalendarDate`.
+ */
 export function formatDate(value: Date | string | null | undefined): string {
   if (!value) return "—";
-  const date = typeof value === "string" ? new Date(value) : value;
-  return format(date, "dd MMM yyyy", { locale: es });
+  return format(new TZDate(new Date(value), BUSINESS_TIME_ZONE), "dd MMM yyyy", { locale: es });
 }
 
-/** Fecha y hora: "01 sep 2026, 10:23" */
+/** Fecha y hora de un momento, en hora de Bogotá: "01 sep 2026, 10:23" */
 export function formatDateTime(value: Date | string | null | undefined): string {
   if (!value) return "—";
-  const date = typeof value === "string" ? new Date(value) : value;
-  return format(date, "dd MMM yyyy, HH:mm", { locale: es });
+  return format(new TZDate(new Date(value), BUSINESS_TIME_ZONE), "dd MMM yyyy, HH:mm", {
+    locale: es,
+  });
+}
+
+/**
+ * Fecha **de calendario**, sin hora: vencimiento de un lote, entrega pedida,
+ * fecha de ruta, cierre esperado. Un `<input type="date">` llega como
+ * "AAAA-MM-DD" y se guarda a medianoche UTC; leerla en hora de Bogotá la
+ * mostraría el día anterior, así que se lee en UTC.
+ */
+export function formatCalendarDate(value: Date | string | null | undefined): string {
+  if (!value) return "—";
+  return format(new TZDate(new Date(value), "UTC"), "dd MMM yyyy", { locale: es });
 }
 
 /** Consecutivo de pedido legible: 123 → "PED-000123" */

@@ -1,4 +1,6 @@
 import ExcelJS from "exceljs";
+import { TZDate } from "@date-fns/tz";
+import { BUSINESS_TIME_ZONE, formatDate, formatDateTime } from "@/lib/format";
 
 /**
  * Construcción del libro de Excel de reportes.
@@ -34,6 +36,34 @@ export type Sheet<T> = {
   /** Nota que se imprime bajo la tabla, para explicar el contenido. */
   note?: string;
 };
+
+/**
+ * Excel no tiene zonas horarias: muestra la fecha tal como se escribe en UTC.
+ * Un momento (fecha de un pedido) se escribe con la hora de Bogotá para que
+ * un pedido de las 8 p. m. no aparezca al día siguiente. Una fecha de
+ * calendario (vencimiento, entrega pedida) ya viene a medianoche UTC y se
+ * deja igual.
+ */
+function toExcelDate(value: Date): Date {
+  const isCalendarDate =
+    value.getUTCHours() === 0 &&
+    value.getUTCMinutes() === 0 &&
+    value.getUTCSeconds() === 0 &&
+    value.getUTCMilliseconds() === 0;
+  if (isCalendarDate) return value;
+
+  const local = new TZDate(value, BUSINESS_TIME_ZONE);
+  return new Date(
+    Date.UTC(
+      local.getFullYear(),
+      local.getMonth(),
+      local.getDate(),
+      local.getHours(),
+      local.getMinutes(),
+      local.getSeconds(),
+    ),
+  );
+}
 
 function numberFormatFor(kind: ColumnKind | undefined): string | undefined {
   switch (kind) {
@@ -79,7 +109,12 @@ function addSheet<T>(workbook: ExcelJS.Workbook, sheet: Sheet<T>) {
   headerRow.height = 20;
 
   for (const row of sheet.rows) {
-    worksheet.addRow(sheet.columns.map((column) => column.value(row)));
+    worksheet.addRow(
+      sheet.columns.map((column) => {
+        const value = column.value(row);
+        return column.kind === "date" && value instanceof Date ? toExcelDate(value) : value;
+      }),
+    );
   }
 
   // El autofiltro solo tiene sentido si hay algo que filtrar.
@@ -140,10 +175,10 @@ function addCoverSheet(
     ["Período", meta.periodLabel],
     [
       "Rango",
-      `${meta.rangeFrom.toLocaleDateString("es-CO")} — ${meta.rangeTo.toLocaleDateString("es-CO")}`,
+      `${formatDate(meta.rangeFrom)} — ${formatDate(meta.rangeTo)}`,
     ],
     ["Generado por", meta.generatedBy],
-    ["Generado el", meta.generatedAt.toLocaleString("es-CO")],
+    ["Generado el", formatDateTime(meta.generatedAt)],
   ];
 
   for (const [label, value] of details) {

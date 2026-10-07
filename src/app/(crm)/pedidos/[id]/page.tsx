@@ -12,7 +12,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { OrderStatusActions } from "@/components/orders/order-status-actions";
 import {
   formatCOP,
-  formatDate,
+  formatCalendarDate, formatDate,
   formatDateTime,
   formatOrderNumber,
   formatQuantity,
@@ -60,7 +60,7 @@ export default async function OrderDetailPage({
     "",
     `Total: ${formatCOP(order.total)}`,
     order.requestedDeliveryDate
-      ? `Entrega: ${formatDate(order.requestedDeliveryDate)}`
+      ? `Entrega: ${formatCalendarDate(order.requestedDeliveryDate)}`
       : "",
   ]
     .filter(Boolean)
@@ -195,7 +195,7 @@ export default async function OrderDetailPage({
                       </p>
                       <p className="text-xs text-muted-foreground">
                         {movement.lot
-                          ? `Lote ${movement.lot.lotCode} · vence ${formatDate(movement.lot.expiryDate)}`
+                          ? `Lote ${movement.lot.lotCode} · vence ${formatCalendarDate(movement.lot.expiryDate)}`
                           : "Sin lote"}{" "}
                         · {formatDateTime(movement.createdAt)}
                       </p>
@@ -263,7 +263,7 @@ export default async function OrderDetailPage({
                   {ORDER_CHANNEL_LABEL[order.channel]}
                 </DataRow>
                 <DataRow label="Entrega solicitada">
-                  {formatDate(order.requestedDeliveryDate)}
+                  {formatCalendarDate(order.requestedDeliveryDate)}
                 </DataRow>
                 <DataRow label="Condición de pago">
                   {PAYMENT_TERMS_LABEL[order.paymentTerms]}
@@ -275,7 +275,7 @@ export default async function OrderDetailPage({
                 </DataRow>
                 <DataRow label="Ruta">
                   {order.route
-                    ? `${order.route.name} · ${formatDate(order.route.date)}`
+                    ? `${order.route.name} · ${formatCalendarDate(order.route.date)}`
                     : "Sin asignar"}
                 </DataRow>
               </dl>

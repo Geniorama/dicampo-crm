@@ -13,7 +13,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { StageSelector } from "@/components/pipeline/stage-selector";
 import { ActivityForm } from "@/components/pipeline/activity-form";
 import { CompleteActivityButton } from "@/components/pipeline/complete-activity-button";
-import { formatCOP, formatDate, formatDateTime } from "@/lib/format";
+import { formatCOP, formatCalendarDate, formatDate, formatDateTime } from "@/lib/format";
 import {
   ACTIVITY_TYPE_LABEL,
   CLIENT_STATUS_LABEL,
@@ -218,7 +218,7 @@ export default async function OpportunityDetailPage({
                   {opportunity.owner?.name ?? "Sin asignar"}
                 </DataRow>
                 <DataRow label="Cierre esperado">
-                  {formatDate(opportunity.expectedCloseDate)}
+                  {formatCalendarDate(opportunity.expectedCloseDate)}
                 </DataRow>
                 {opportunity.closedAt && (
                   <DataRow label="Cerrada el">

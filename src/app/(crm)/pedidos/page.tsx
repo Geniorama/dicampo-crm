@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input, Select } from "@/components/ui/field";
-import { formatCOP, formatDate, formatOrderNumber } from "@/lib/format";
+import { formatCOP, formatCalendarDate, formatDate, formatOrderNumber } from "@/lib/format";
 import { flattenSearchParams, type RawSearchParams } from "@/lib/search-params";
 import {
   ORDER_CHANNEL_LABEL,
@@ -149,7 +149,7 @@ export default async function OrdersPage({
                       {formatDate(order.orderDate)}
                     </td>
                     <td className="px-4 py-2.5 text-muted-foreground">
-                      {formatDate(order.requestedDeliveryDate)}
+                      {formatCalendarDate(order.requestedDeliveryDate)}
                     </td>
                     <td className="px-4 py-2.5 text-muted-foreground">
                       {ORDER_CHANNEL_LABEL[order.channel]}

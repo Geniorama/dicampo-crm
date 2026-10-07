@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowDown, ArrowUp, Plus, X } from "lucide-react";
 import { api, ApiClientError } from "@/lib/api-client";
-import { formatCOP, formatDate, formatOrderNumber } from "@/lib/format";
+import { formatCOP, formatCalendarDate, formatOrderNumber } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -217,7 +217,7 @@ export function RoutePlanner({
                     <p className="truncate text-xs text-muted-foreground">
                       {order.zoneName ?? "Sin zona"}
                       {order.requestedDeliveryDate
-                        ? ` · pide ${formatDate(order.requestedDeliveryDate)}`
+                        ? ` · pide ${formatCalendarDate(order.requestedDeliveryDate)}`
                         : ""}
                     </p>
                   </div>

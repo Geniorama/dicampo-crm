@@ -21,7 +21,7 @@ import { RouteStatusActions } from "@/components/routes/route-status-actions";
 import { DeliveryForm } from "@/components/routes/delivery-form";
 import {
   formatCOP,
-  formatDate,
+  formatCalendarDate,
   formatDateTime,
   formatOrderNumber,
 } from "@/lib/format";
@@ -86,7 +86,7 @@ export default async function RouteDetailPage({
         title={route.name}
         description={
           <>
-            {formatDate(route.date)} · {route.zone?.name ?? "Sin zona"} ·{" "}
+            {formatCalendarDate(route.date)} · {route.zone?.name ?? "Sin zona"} ·{" "}
             {route.driver?.name ?? "Sin repartidor"}
           </>
         }

@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Select } from "@/components/ui/field";
-import { formatDate } from "@/lib/format";
+import { formatCalendarDate } from "@/lib/format";
 import { flattenSearchParams, type RawSearchParams } from "@/lib/search-params";
 import { ROUTE_STATUS_LABEL, ROUTE_STATUS_TONE, toOptions } from "@/lib/labels";
 
@@ -104,7 +104,7 @@ export default async function RoutesPage({
                       )}
                     </td>
                     <td className="px-4 py-2.5 text-muted-foreground">
-                      {formatDate(route.date)}
+                      {formatCalendarDate(route.date)}
                     </td>
                     <td className="px-4 py-2.5 text-muted-foreground">
                       {route.zone?.name ?? "Sin zona"}

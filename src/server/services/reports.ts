@@ -1,4 +1,6 @@
 import { prisma } from "../db";
+import { TZDate } from "@date-fns/tz";
+import { BUSINESS_TIME_ZONE } from "@/lib/format";
 import type { SessionUser } from "../guards";
 import { OrderStatus, UserRole } from "@/generated/prisma/enums";
 
@@ -40,9 +42,14 @@ export type DashboardMetrics = {
 export async function getDashboardMetrics(
   user: SessionUser,
 ): Promise<DashboardMetrics> {
-  const now = new Date();
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-  const previousMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  // Meses de Bogotá, no de la zona del servidor (UTC en Netlify).
+  const now = TZDate.tz(BUSINESS_TIME_ZONE);
+  const monthStart = new Date(
+    new TZDate(now.getFullYear(), now.getMonth(), 1, BUSINESS_TIME_ZONE).getTime(),
+  );
+  const previousMonthStart = new Date(
+    new TZDate(now.getFullYear(), now.getMonth() - 1, 1, BUSINESS_TIME_ZONE).getTime(),
+  );
   const inThirtyDays = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
 
   const soldStatuses = { status: { in: SOLD_STATUSES } };

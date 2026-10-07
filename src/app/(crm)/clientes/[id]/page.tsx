@@ -13,7 +13,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import {
   formatCOP,
   formatClientCode,
-  formatDate,
+  formatCalendarDate, formatDate,
   formatDateTime,
   formatNit,
   formatOrderNumber,
@@ -125,7 +125,7 @@ export default async function ClientDetailPage({ params }: Props) {
                       <p className="text-xs text-muted-foreground">
                         {formatCOP(opportunity.estimatedValue)} / mes
                         {opportunity.expectedCloseDate
-                          ? ` · cierra ${formatDate(opportunity.expectedCloseDate)}`
+                          ? ` · cierra ${formatCalendarDate(opportunity.expectedCloseDate)}`
                           : ""}
                       </p>
                     </div>

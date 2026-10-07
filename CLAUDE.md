@@ -140,11 +140,27 @@ src/
   produce un 401 con cuerpo JSON.
 - **Consecutivos**: `Client.sequence` y `Order.orderNumber` son
   `@default(autoincrement())` de Postgres. Nunca los generes contando filas.
-- **Fechas de un `<input type="date">`**: NO uses `z.coerce.date()`. Interpreta
-  "AAAA-MM-DD" como medianoche UTC y al leerla con los metodos locales en
-  Bogota (UTC-5) retrocede un dia: un rango personalizado dejaria fuera las
-  ventas de su ultima jornada. Usa `localDateSchema` de
-  `validators/reports.ts`, que construye la fecha en hora local.
+- **Zona horaria: todo en hora de Bogotá** (`BUSINESS_TIME_ZONE` en
+  `lib/format.ts`). Netlify corre en **UTC**: nada que dependa de "hoy" o de
+  la hora puede usar la zona del servidor (`new Date(y, m, d)`, `getHours()`,
+  `format()` de date-fns sin zona). Se usa `TZDate` de `@date-fns/tz`.
+  - **Momentos** (creación, pedido, actividad, mensajes): `formatDate` /
+    `formatDateTime`, ya en hora de Bogotá.
+  - **Fechas de calendario** (vencimiento y producción de lote, entrega
+    pedida, fecha de ruta, cierre esperado): `formatCalendarDate`. Un
+    `<input type="date">` validado con `z.coerce.date()` queda a medianoche
+    UTC; leído en Bogotá saldría el día anterior.
+  - **Filtros de rango** (reportes, conversaciones): `localDateSchema` da la
+    medianoche de Bogotá y `endOfBusinessDay` el último milisegundo de ese
+    día; los periodos ("este mes", "últimos 30") se calculan en Bogotá. Un
+    pedido de las 8 p. m. del 31 cuenta en ese mes, no en el siguiente.
+  - **Fecha compromiso de una actividad**: `businessDateSchema` toma
+    "AAAA-MM-DD" como el inicio de ese día en Bogotá y respeta una fecha con
+    hora (las visitas que agenda el agente).
+  - **Excel**: no tiene zonas; `toExcelDate` escribe los momentos con la hora
+    de Bogotá y deja las fechas de calendario (medianoche UTC) igual.
+  - Las pruebas de `lib/format.test.ts` y `validators/reports.test.ts` deben
+    pasar con `TZ=UTC` y `TZ=America/Bogota`.
 - **Parametros repetidos en la URL** (?hojas=a&hojas=b, como los envia un grupo
   de casillas): `Object.fromEntries(searchParams)` **los colapsa y deja solo el
   ultimo**. Hay que leerlos con `searchParams.getAll(nombre)`.

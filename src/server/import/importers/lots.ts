@@ -1,5 +1,5 @@
 import { PRESENTATION_LABEL } from "@/lib/labels";
-import { formatDate, formatQuantity } from "@/lib/format";
+import { formatCalendarDate, formatQuantity } from "@/lib/format";
 import { prisma } from "../../db";
 import { BusinessRuleError, ValidationError } from "../../errors";
 import { registerLot } from "../../services/inventory";
@@ -121,7 +121,7 @@ export const lotsImporter: Importer<Ctx> = {
     return {
       action: "crear",
       label,
-      message: `${formatQuantity(quantity)} · vence ${formatDate(expiryDate)}`,
+      message: `${formatQuantity(quantity)} · vence ${formatCalendarDate(expiryDate)}`,
     };
   },
 };

@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { TZDate } from "@date-fns/tz";
+import { BUSINESS_TIME_ZONE } from "@/lib/format";
 
 /** Validación de los filtros de reportes. */
 
@@ -27,9 +29,10 @@ export const localDateSchema = z.union([
   z
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/, "Formato de fecha no válido")
-    .transform((value) => {
+    .transform((value): Date => {
       const [year, month, day] = value.split("-").map(Number);
-      return new Date(year, month - 1, day);
+      // Medianoche en Bogotá, no en la zona del servidor (UTC en Netlify).
+      return new Date(new TZDate(year, month - 1, day, BUSINESS_TIME_ZONE).getTime());
     }),
 ]);
 
@@ -58,15 +61,27 @@ function resolveRange(data: {
   from?: Date;
   to?: Date;
 }): { rangeFrom: Date; rangeTo: Date } {
-  const now = new Date();
-  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  // Los "hoy", "este mes" y "este año" son los de Bogotá: con la zona del
+  // servidor (UTC) un pedido de las 8 p. m. del 31 caía en el mes siguiente.
+  const now = TZDate.tz(BUSINESS_TIME_ZONE);
+  const day = (
+    year: number,
+    month: number,
+    date: number,
+    hours = 0,
+    minutes = 0,
+    seconds = 0,
+    ms = 0,
+  ): Date =>
+    new Date(new TZDate(year, month, date, hours, minutes, seconds, ms, BUSINESS_TIME_ZONE).getTime());
+  const startOfToday = day(now.getFullYear(), now.getMonth(), now.getDate());
   const endOfToday = new Date(startOfToday.getTime() + 24 * 60 * 60 * 1000 - 1);
 
   switch (data.period) {
     case "MES_ANTERIOR":
       return {
-        rangeFrom: new Date(now.getFullYear(), now.getMonth() - 1, 1),
-        rangeTo: new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999),
+        rangeFrom: day(now.getFullYear(), now.getMonth() - 1, 1),
+        rangeTo: day(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999),
       };
     case "ULTIMOS_30":
       return {
@@ -80,21 +95,21 @@ function resolveRange(data: {
       };
     case "ESTE_ANIO":
       return {
-        rangeFrom: new Date(now.getFullYear(), 0, 1),
+        rangeFrom: day(now.getFullYear(), 0, 1),
         rangeTo: endOfToday,
       };
     case "PERSONALIZADO":
       return {
-        rangeFrom: data.from ?? new Date(now.getFullYear(), now.getMonth(), 1),
+        rangeFrom: data.from ?? day(now.getFullYear(), now.getMonth(), 1),
         // Se incluye el día completo del extremo superior.
         rangeTo: data.to
-          ? new Date(data.to.getFullYear(), data.to.getMonth(), data.to.getDate(), 23, 59, 59, 999)
+          ? endOfBusinessDay(data.to)
           : endOfToday,
       };
     case "ESTE_MES":
     default:
       return {
-        rangeFrom: new Date(now.getFullYear(), now.getMonth(), 1),
+        rangeFrom: day(now.getFullYear(), now.getMonth(), 1),
         rangeTo: endOfToday,
       };
   }
@@ -149,3 +164,38 @@ export const workbookQuerySchema = z.object({
       return valid.length > 0 ? valid : ALL_SHEETS;
     }),
 });
+
+/** Último milisegundo del día de `date` en Bogotá. */
+export function endOfBusinessDay(date: Date): Date {
+  const local = new TZDate(date, BUSINESS_TIME_ZONE);
+  return new Date(
+    new TZDate(
+      local.getFullYear(),
+      local.getMonth(),
+      local.getDate(),
+      23,
+      59,
+      59,
+      999,
+      BUSINESS_TIME_ZONE,
+    ).getTime(),
+  );
+}
+
+/**
+ * Fecha compromiso: "AAAA-MM-DD" de un `<input type="date">` se toma como el
+ * inicio de ese día en Bogotá (así se muestra en el día correcto); una fecha
+ * con hora se respeta tal cual.
+ */
+export const businessDateSchema = z.union([
+  z.date(),
+  z
+    .string()
+    .trim()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .transform((value): Date => {
+      const [year, month, day] = value.split("-").map(Number);
+      return new Date(new TZDate(year, month - 1, day, BUSINESS_TIME_ZONE).getTime());
+    }),
+  z.coerce.date(),
+]);
