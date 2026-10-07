@@ -30,6 +30,8 @@ npm run db:deploy    # aplica migraciones pendientes (producción)
 npm run db:seed      # datos maestros: sabores, zonas, precios, admin
 npm run db:studio    # explorador de datos
 npm run db:reset     # ⚠️ borra la base y vuelve a sembrar
+
+npx tsx scripts/verificar-carga-masiva.ts   # carga masiva de punta a punta
 ```
 
 ## Arquitectura
@@ -261,9 +263,15 @@ Todos los módulos listos tienen interfaz completa de lectura y escritura.
 De la carga masiva están verificados el lector y el cotejo (CSV con separador
 detectado, comillas y BOM; XLSX con hoja de portada, título suelto, números y
 fechas; rechazo del .xls binario; y cotejo correcto de las siete entidades
-sobre encabezados verosímiles). La ejecución contra la base real está
-**pendiente**: el proyecto de Supabase no responde
-(`tenant/user ... not found`).
+sobre encabezados verosímiles).
+
+La ejecución también está verificada. `scripts/verificar-carga-masiva.ts` sube
+un CSV por cada una de las siete entidades contra la base de `DATABASE_URL`,
+con el cotejo que propone el propio módulo: simula, ejecuta, comprueba lo que
+quedó en la base y borra lo que creó (todo lleva la marca `ZZVERIF`). Pasa
+completo contra Postgres local. En producción se simularon las siete y se
+escribieron de verdad productos y precios: así entraron los precios del
+brochure 2026 y los sabores Uva, Piña y Piña Colada.
 
 **Sobre archivos adjuntos:** se descartó Cloudflare R2. Las imágenes de
 producto no aportan en un CRM interno —el vendedor conoce el catálogo— y la

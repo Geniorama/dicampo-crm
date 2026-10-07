@@ -190,6 +190,18 @@ export const productsImporter: Importer<Ctx> = {
       );
 
       if (options.dryRun) {
+        // Se recuerda el sabor para que la siguiente fila del mismo archivo
+        // —otra presentación— se anuncie como actualización, que es lo que
+        // pasará al ejecutar.
+        ctx.products.set(comparisonKey(flavor), {
+          id: "",
+          flavor,
+          name,
+          variants: presentation
+            ? [{ id: "", presentation, sku: sku ?? "" }]
+            : [],
+        });
+
         return { action: "crear", label, message: describePlan(presentation, price) };
       }
 
@@ -220,6 +232,12 @@ export const productsImporter: Importer<Ctx> = {
       : undefined;
 
     if (options.dryRun) {
+      // Igual que al ejecutar: la presentación nueva queda anotada para las
+      // filas siguientes.
+      if (presentation && !variant) {
+        existing.variants.push({ id: "", presentation, sku: sku ?? "" });
+      }
+
       return {
         action: "actualizar",
         label,
