@@ -33,6 +33,11 @@ npm run db:reset     # ⚠️ borra la base y vuelve a sembrar
 
 npx tsx scripts/verificar-carga-masiva.ts   # carga masiva de punta a punta
 npx tsx scripts/normalizar-whatsapp.ts      # llena Contact.whatsappE164 (--aplicar para escribir)
+
+# Regresión de la API del agente por HTTP (44 comprobaciones). DATABASE_URL
+# debe ser la base del CRM que se prueba: con ella borra lo que crea
+# (números 57300000090X, clientes ZZVERIF).
+CRM_URL=https://crm.dicampo.co AGENTE_API_KEY=... npx tsx scripts/verificar-api-agente.ts
 ```
 
 ## Arquitectura
