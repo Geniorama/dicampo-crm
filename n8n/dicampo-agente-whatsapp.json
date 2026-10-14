@@ -1,0 +1,2431 @@
+{
+  "name": "Dicampo · Agente WhatsApp",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "dicampo-whatsapp",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "3b417cb0-b4da-5105-b29d-661940c0be36",
+      "name": "Meta · Verificación (GET)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -1400,
+        -560
+      ],
+      "webhookId": "7be1c3b9-c156-54d2-9dcb-cfb3c15788c2"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "8cfa0e8a-503b-5a67-a8b4-663f733814c8",
+              "leftValue": "={{ $json.query['hub.mode'] }}",
+              "rightValue": "subscribe",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "a8cc41aa-907e-53c6-b09c-64133a0a161d",
+              "leftValue": "={{ $json.query['hub.verify_token'] }}",
+              "rightValue": "PEGAR_VERIFY_TOKEN",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "c24a80b0-4a82-5ae4-9ea8-847c3ccdc0a6",
+      "name": "¿Token de verificación correcto?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -1180,
+        -560
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ $json.query['hub.challenge'] }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "f964ff9e-703b-5ee6-9611-f906522a4e6b",
+      "name": "Responder challenge",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        -940,
+        -640
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "noData",
+        "options": {
+          "responseCode": 403
+        }
+      },
+      "id": "adcadbc5-712f-5ea1-b572-5a73962e72d5",
+      "name": "Rechazar verificación",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        -940,
+        -480
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "dicampo-whatsapp",
+        "options": {
+          "rawBody": true
+        }
+      },
+      "id": "2ed914e5-b5e3-59e3-8db2-2d0c9087035c",
+      "name": "Meta · Webhook (POST)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -1400,
+        0
+      ],
+      "webhookId": "683efc25-a1fe-51fa-9edc-9c6c00d4fdec"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "14c3a75a-5df4-51c1-9467-af77101fa9a7",
+              "name": "crmUrl",
+              "value": "https://crm.dicampo.co",
+              "type": "string"
+            },
+            {
+              "id": "9b04c671-e4b1-5c58-b7a5-a72e4721372f",
+              "name": "graphUrl",
+              "value": "https://graph.facebook.com/v23.0",
+              "type": "string"
+            },
+            {
+              "id": "96f47ef2-537e-50fd-a403-5d20f0f3a37f",
+              "name": "phoneNumberId",
+              "value": "PEGAR_PHONE_NUMBER_ID",
+              "type": "string"
+            },
+            {
+              "id": "2f2ba954-9c1c-570e-b6f4-82626267651e",
+              "name": "metaAppSecret",
+              "value": "PEGAR_APP_SECRET",
+              "type": "string"
+            },
+            {
+              "id": "e56a502a-c877-51b6-8e10-844354a257a6",
+              "name": "politicaUrl",
+              "value": "https://dicampo.co/politica-de-privacidad",
+              "type": "string"
+            },
+            {
+              "id": "5c9dfe04-5e7d-5351-92e2-c1d3c9513a8b",
+              "name": "politicaVersion",
+              "value": "2026-01",
+              "type": "string"
+            },
+            {
+              "id": "ed897dac-2e99-56e9-a838-0505dc964fd1",
+              "name": "catalogoUrl",
+              "value": "",
+              "type": "string"
+            },
+            {
+              "id": "8404f89f-2a58-5162-bef2-82c1c6cdaf43",
+              "name": "esperaRafagaSeg",
+              "value": "7",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "ee4a692f-b3cb-5938-b881-4b15e4179bb0",
+      "name": "Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -1180,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "action": "hmac",
+        "type": "SHA256",
+        "binaryData": true,
+        "binaryPropertyName": "data",
+        "dataPropertyName": "firmaCalculada",
+        "secret": "={{ $json.metaAppSecret }}",
+        "encoding": "hex"
+      },
+      "id": "bf1c2a10-86f6-580b-a99a-988bf41a1a77",
+      "name": "Firma calculada",
+      "type": "n8n-nodes-base.crypto",
+      "typeVersion": 1,
+      "position": [
+        -960,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "14bcd57c-d42e-5d5b-93f5-7b1d49f4310a",
+              "leftValue": "={{ $json.headers['x-hub-signature-256'] }}",
+              "rightValue": "={{ 'sha256=' + $json.firmaCalculada }}",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "e26141d5-ad92-5027-ad87-bb92fcd0b31d",
+      "name": "¿Firma válida?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -740,
+        0
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "d123954a-2e9f-5158-ad02-3ac7d5a90d6c",
+      "name": "Firma inválida: descartar",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        -520,
+        140
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Convierte el webhook de Meta en un ítem por mensaje y uno por estado de entrega.\n// Solo procesa eventos del número configurado en Config.phoneNumberId.\nconst cfg = $('Config').first().json;\nconst body = cfg.body || {};\n\n// Tipos que el CRM guarda como archivo (ver MEDIA_LIMITS del CRM).\nconst MIME_PERMITIDOS = [\n  'audio/ogg', 'audio/mpeg', 'audio/mp4', 'audio/aac', 'audio/amr',\n  'image/jpeg', 'image/png', 'image/webp', 'application/pdf',\n];\nconst baseMime = (mime) => String(mime || '').split(';')[0].trim().toLowerCase();\n\nfunction normalizar(m, nombres) {\n  const base = {\n    evento: 'mensaje',\n    telefono: m.from,\n    waMessageId: m.id,\n    fecha: new Date(Number(m.timestamp) * 1000).toISOString(),\n    nombrePerfil: nombres[m.from] || null,\n    tipo: 'TEXTO',\n    texto: null,\n    mediaId: null,\n    mime: null,\n  };\n  const archivo = (tipo, media, texto) => {\n    const mime = baseMime(media && media.mime_type);\n    const guardable = media && media.id && MIME_PERMITIDOS.includes(mime);\n    return { ...base, tipo, texto, mediaId: guardable ? media.id : null, mime: guardable ? mime : null };\n  };\n\n  switch (m.type) {\n    case 'text':\n      return { ...base, texto: m.text.body };\n    case 'button':\n      return { ...base, tipo: 'INTERACTIVO', texto: m.button.text };\n    case 'interactive': {\n      const r = m.interactive || {};\n      const titulo = (r.button_reply && r.button_reply.title) || (r.list_reply && r.list_reply.title) || '[Respuesta interactiva]';\n      return { ...base, tipo: 'INTERACTIVO', texto: titulo };\n    }\n    case 'image':\n      return archivo('IMAGEN', m.image, m.image.caption || '[Imagen]');\n    case 'sticker':\n      return archivo('IMAGEN', m.sticker, '[Sticker]');\n    case 'audio':\n      return archivo('AUDIO', m.audio, '[Nota de voz]');\n    case 'document': {\n      const nombre = m.document.filename ? `[Documento: ${m.document.filename}]` : '[Documento]';\n      return archivo('DOCUMENTO', m.document, m.document.caption ? `${nombre} ${m.document.caption}` : nombre);\n    }\n    case 'video':\n      return { ...base, texto: m.video && m.video.caption ? `[Video] ${m.video.caption}` : '[Video]' };\n    case 'location': {\n      const l = m.location || {};\n      const lugar = [l.name, l.address].filter(Boolean).join(', ');\n      return { ...base, texto: `[Ubicación: ${l.latitude}, ${l.longitude}${lugar ? ` · ${lugar}` : ''}]` };\n    }\n    case 'contacts':\n      return { ...base, texto: '[Compartió un contacto]' };\n    default:\n      // reaction, unsupported, system…: no ameritan respuesta.\n      return null;\n  }\n}\n\nconst salida = [];\nfor (const entry of body.entry || []) {\n  for (const change of entry.changes || []) {\n    const v = change.value || {};\n    const numero = v.metadata && String(v.metadata.phone_number_id);\n    if (cfg.phoneNumberId && numero && numero !== String(cfg.phoneNumberId)) continue;\n\n    const nombres = {};\n    for (const c of v.contacts || []) nombres[c.wa_id] = (c.profile && c.profile.name) || null;\n\n    for (const m of v.messages || []) {\n      const item = normalizar(m, nombres);\n      if (item) salida.push({ json: item });\n    }\n    for (const s of v.statuses || []) {\n      if (['sent', 'delivered', 'read', 'failed'].includes(s.status)) {\n        salida.push({ json: { evento: 'estado', waMessageId: s.id, estado: s.status } });\n      }\n    }\n  }\n}\nreturn salida;\n"
+      },
+      "id": "b088c9e7-2db7-5867-98bf-7cdada6e4cf8",
+      "name": "Desglosar evento",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -520,
+        -20
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "981cd097-7aa4-5a28-a918-cf748e7a1a9d",
+                    "leftValue": "={{ $json.evento }}",
+                    "rightValue": "mensaje",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Mensaje"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "03cc4eb9-821f-5e7b-8226-554b92bf781d",
+                    "leftValue": "={{ $json.evento }}",
+                    "rightValue": "estado",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Estado"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "badff05b-30a6-5bf8-bd85-380a4416927b",
+      "name": "¿Mensaje o estado?",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        -300,
+        -20
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config').first().json.crmUrl }}/api/agente/conversaciones/entregas",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ waMessageId: $json.waMessageId, estado: $json.estado }) }}",
+        "options": {}
+      },
+      "id": "5a506ca3-e3f7-5e00-a4ec-e2b064b357b8",
+      "name": "CRM · Estado de entrega",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        -60,
+        240
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REEMPLAZAR",
+          "name": "CRM Dicampo · Agente IA"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "600aa4fe-5a44-51b9-a5de-aefb965c54ce",
+              "leftValue": "={{ $json.mediaId }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "bc63fc5a-6c14-59e7-8770-a68d553297f7",
+      "name": "¿Trae archivo?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -60,
+        -20
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $('Config').first().json.graphUrl }}/{{ $json.mediaId }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "options": {}
+      },
+      "id": "0fbffb5f-5afb-5775-b457-cb357b839e1b",
+      "name": "Meta · Datos del archivo",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        180,
+        -180
+      ],
+      "credentials": {
+        "httpBearerAuth": {
+          "id": "REEMPLAZAR",
+          "name": "Meta WhatsApp · Token"
+        }
+      },
+      "onError": "continueErrorOutput",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config').first().json.crmUrl }}/api/agente/conversaciones/media",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ telefono: $('Desglosar evento').item.json.telefono, mime: $json.mime_type, bytes: $json.file_size, waMessageId: $('Desglosar evento').item.json.waMessageId }) }}",
+        "options": {}
+      },
+      "id": "ce327df2-aefb-591a-834c-b24cd94a4232",
+      "name": "CRM · Firmar subida",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        400,
+        -180
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REEMPLAZAR",
+          "name": "CRM Dicampo · Agente IA"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "url": "={{ $('Meta · Datos del archivo').item.json.url }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "id": "3b71e075-31cb-571b-982e-87b61d32822e",
+      "name": "Meta · Descargar archivo",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        620,
+        -180
+      ],
+      "credentials": {
+        "httpBearerAuth": {
+          "id": "REEMPLAZAR",
+          "name": "Meta WhatsApp · Token"
+        }
+      },
+      "onError": "continueErrorOutput",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "={{ $('CRM · Firmar subida').item.json.data.urlSubida }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "={{ $('Meta · Datos del archivo').item.json.mime_type }}"
+            },
+            {
+              "name": "x-upsert",
+              "value": "true"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "binaryData",
+        "inputDataFieldName": "data",
+        "options": {}
+      },
+      "id": "25cdf0ca-da53-5344-bedc-01138a483c11",
+      "name": "Storage · Subir archivo",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        840,
+        -180
+      ],
+      "onError": "continueErrorOutput",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "ce375855-28e6-5947-9d12-6e8c66b25b14",
+              "name": "archivoOk",
+              "value": true,
+              "type": "boolean"
+            },
+            {
+              "id": "0dfa03b4-8bec-5aa6-801d-20faa7bf00d8",
+              "name": "ruta",
+              "value": "={{ $('CRM · Firmar subida').item.json.data.ruta }}",
+              "type": "string"
+            },
+            {
+              "id": "c447f020-1e11-5a11-8f6f-d8f17bf9e5af",
+              "name": "bytes",
+              "value": "={{ $('Meta · Datos del archivo').item.json.file_size }}",
+              "type": "number"
+            }
+          ]
+        },
+        "options": {
+          "stripBinary": true
+        }
+      },
+      "id": "19810b90-e528-5c4b-aac0-0f99d4d4ce77",
+      "name": "Archivo guardado",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1060,
+        -240
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "5fa55850-e81c-5354-aab2-cdd64b9f5fc3",
+              "name": "archivoOk",
+              "value": false,
+              "type": "boolean"
+            }
+          ]
+        },
+        "options": {
+          "stripBinary": true
+        }
+      },
+      "id": "4afd5ab7-69df-50b0-8bd3-c8952bff96fd",
+      "name": "Archivo no disponible",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1060,
+        -100
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Arma el cuerpo de POST /api/agente/conversaciones/mensajes para el entrante.\nconst msg = $('Desglosar evento').item.json;\nconst cuerpo = {\n  telefono: msg.telefono,\n  waMessageId: msg.waMessageId,\n  direccion: 'ENTRANTE',\n  tipo: msg.tipo,\n  texto: msg.texto || undefined,\n  fecha: msg.fecha,\n};\nif ($json.archivoOk === true && $json.ruta) {\n  cuerpo.media = { ruta: $json.ruta, mime: msg.mime };\n  if ($json.bytes) cuerpo.media.bytes = $json.bytes;\n}\nreturn { json: { ...msg, cuerpo } };\n",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "9ece4898-108d-57d7-be8e-c62708a544e8",
+      "name": "Preparar entrante",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1280,
+        -20
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config').first().json.crmUrl }}/api/agente/conversaciones/mensajes",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.cuerpo) }}",
+        "options": {}
+      },
+      "id": "c1a93192-0791-5ff6-8ce3-6de41802a383",
+      "name": "CRM · Registrar entrante",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        1500,
+        -20
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REEMPLAZAR",
+          "name": "CRM Dicampo · Agente IA"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "9452993a-9742-5e0d-b063-5278f29d1a1d",
+              "leftValue": "={{ $json.data.creado }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "14bbe3b9-a0c2-53f2-9ab3-32818a2ab2d9",
+      "name": "¿Mensaje nuevo?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1720,
+        -20
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "cec047c7-05e2-56c1-acf2-07019a761437",
+      "name": "Reintento de Meta: ignorar",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1940,
+        140
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "ef6a2445-f714-51c3-b8c5-5ff17dea7968",
+                    "leftValue": "={{ $json.data.palabraClave }}",
+                    "rightValue": "",
+                    "operator": {
+                      "type": "string",
+                      "operation": "notEmpty",
+                      "singleValue": true
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Baja o supresión"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra",
+          "renameFallbackOutput": "Conversación normal"
+        }
+      },
+      "id": "85450426-5edd-58bb-9731-1f6dbd7facd9",
+      "name": "¿Palabra clave?",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        1940,
+        -40
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Confirma la baja o la solicitud de supresión de datos (política de Dicampo).\nconst respuesta = $json.data;\nconst telefono = $('Preparar entrante').item.json.telefono;\nconst textos = {\n  BAJA: 'Listo, no te enviaremos más mensajes comerciales. Si más adelante quieres retomar, aquí estamos.',\n  ELIMINAR_DATOS:\n    'Recibimos tu solicitud para eliminar tus datos. La atendemos en un plazo máximo de 10 días hábiles y te confirmaremos por este medio.',\n};\nreturn { json: { telefono, texto: textos[respuesta.palabraClave] || textos.BAJA } };\n",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "c83c87fb-1fc9-59ab-8eaf-30dfc5eaf201",
+      "name": "Confirmar palabra clave",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2160,
+        -220
+      ]
+    },
+    {
+      "parameters": {
+        "amount": "={{ Number($('Config').first().json.esperaRafagaSeg) || 7 }}"
+      },
+      "id": "d5a6a2ac-f492-5935-8455-e662b1b9a022",
+      "name": "Esperar ráfaga",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        2160,
+        -20
+      ],
+      "webhookId": "a0805f85-dbbf-5b80-afe4-563112933029"
+    },
+    {
+      "parameters": {
+        "url": "={{ $('Config').first().json.crmUrl }}/api/agente/conversaciones/contexto?telefono={{ $('Preparar entrante').item.json.telefono }}&limite=20",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "id": "dcd1cd37-6f47-5c64-be52-3d2268a91ccb",
+      "name": "CRM · Contexto",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        2380,
+        -20
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REEMPLAZAR",
+          "name": "CRM Dicampo · Agente IA"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "81445ff4-e032-51cf-adca-b7a1fb967372",
+              "leftValue": "={{ $json.data.estado.ultimoEntrante.waMessageId }}",
+              "rightValue": "={{ $('Preparar entrante').item.json.waMessageId }}",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "a8c9400f-5896-54cc-bf85-852f5529dcba",
+      "name": "¿Es el último mensaje?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2600,
+        -20
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "67995cce-00cc-57fa-af65-d1e42a72773e",
+      "name": "Otro mensaje más nuevo responde",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        2820,
+        140
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "e6379e85-a827-5887-a23e-583267902b69",
+              "leftValue": "={{ $json.data.estado.estado }}",
+              "rightValue": "BOT",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "82442054-e9bc-5c47-8c8b-6ab4501510ce",
+      "name": "¿Responde el bot?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2820,
+        -20
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "13dd5c05-8ad1-5db3-9069-7cee0b97d64b",
+      "name": "Lo atiende un asesor",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        3040,
+        140
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "ea833a3b-d439-564f-a6f7-5df87f242857",
+              "leftValue": "={{ $json.data.estado.consentimiento.aviso }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "empty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "c89e4b1f-a76f-5d53-bd5e-99e1cb091a4a",
+      "name": "¿Falta el aviso de privacidad?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        3040,
+        -20
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "bc2a7593-95bb-5c2a-9c00-f12ac4a2d83f",
+              "name": "telefono",
+              "value": "={{ $('Preparar entrante').item.json.telefono }}",
+              "type": "string"
+            },
+            {
+              "id": "71de2a52-164f-5621-8848-e6c7ec68b1c0",
+              "name": "texto",
+              "value": "=Antes de seguir, te cuento que tratamos tus datos según nuestra política de privacidad: {{ $('Config').first().json.politicaUrl }}. Si en algún momento no quieres recibir más mensajes, escribe DEJAR DE RECIBIR MENSAJES.",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "67a082b2-0632-534c-8aa0-4bee1ac8a8dd",
+      "name": "Texto del aviso",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        3260,
+        -200
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config').first().json.graphUrl }}/{{ $('Config').first().json.phoneNumberId }}/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ messaging_product: 'whatsapp', to: $json.telefono, type: 'text', text: { preview_url: false, body: $json.texto } }) }}",
+        "options": {}
+      },
+      "id": "67440138-52a1-5795-91ba-8a7754c451bf",
+      "name": "Meta · Enviar aviso",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        3480,
+        -200
+      ],
+      "credentials": {
+        "httpBearerAuth": {
+          "id": "REEMPLAZAR",
+          "name": "Meta WhatsApp · Token"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config').first().json.crmUrl }}/api/agente/conversaciones/mensajes",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ telefono: $('Texto del aviso').item.json.telefono, waMessageId: $json.messages[0].id, direccion: 'SALIENTE', texto: $('Texto del aviso').item.json.texto }) }}",
+        "options": {}
+      },
+      "id": "f6edd589-9f00-5f41-948a-d6686efe7612",
+      "name": "CRM · Registrar aviso",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        3700,
+        -200
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REEMPLAZAR",
+          "name": "CRM Dicampo · Agente IA"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config').first().json.crmUrl }}/api/agente/conversaciones/consentimiento",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ telefono: $('Texto del aviso').item.json.telefono, tipo: 'AVISO', versionPolitica: $('Config').first().json.politicaVersion }) }}",
+        "options": {}
+      },
+      "id": "7a90b68a-42a1-5c70-827e-d680a93d179f",
+      "name": "CRM · Consentimiento AVISO",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        3920,
+        -200
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REEMPLAZAR",
+          "name": "CRM Dicampo · Agente IA"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "parameters": {
+        "jsCode": "// Arma el mensaje para el agente: hora de Bogotá, ficha del CRM, historial y\n// el bloque de mensajes nuevos que el cliente escribió de corrido.\nconst ctx = $('CRM · Contexto').item.json.data;\nconst msg = $('Preparar entrante').item.json;\nconst lead = ctx.lead;\n\nconst partes = Object.fromEntries(\n  new Intl.DateTimeFormat('en-CA', {\n    timeZone: 'America/Bogota',\n    year: 'numeric', month: '2-digit', day: '2-digit',\n    hour: '2-digit', minute: '2-digit', hourCycle: 'h23', weekday: 'long',\n  }).formatToParts(new Date()).map((p) => [p.type, p.value]),\n);\nconst dias = { Monday: 'lunes', Tuesday: 'martes', Wednesday: 'miércoles', Thursday: 'jueves', Friday: 'viernes', Saturday: 'sábado', Sunday: 'domingo' };\nconst ahora = `${dias[partes.weekday] || partes.weekday} ${partes.year}-${partes.month}-${partes.day}, ${partes.hour}:${partes.minute} (America/Bogota, UTC-05:00)`;\n\nconst autores = { CLIENTE: 'Cliente', AGENTE_IA: 'David (tú)', ASESOR: 'Asesor' };\nconst texto = (m) => m.texto || (m.conArchivo ? '[archivo]' : '');\nconst pendientes = new Set(ctx.pendientes.map((m) => m.waMessageId));\nconst historial = ctx.mensajes\n  .filter((m) => !pendientes.has(m.waMessageId))\n  .map((m) => `${autores[m.autor] || m.autor}: ${texto(m)}`)\n  .join('\\n');\nconst nuevos = ctx.pendientes.map(texto).join('\\n');\n\nlet ficha = 'No está registrado en el CRM (todavía no es lead).';\nif (lead) {\n  ficha = JSON.stringify({\n    clientId: lead.cliente.id,\n    codigo: lead.cliente.codigo,\n    negocio: lead.cliente.nombreComercial || lead.cliente.razonSocial,\n    tipo: lead.cliente.tipo,\n    estado: lead.cliente.estado,\n    contacto: lead.contacto ? lead.contacto.nombre : null,\n    vendedor: lead.vendedor ? lead.vendedor.nombre : null,\n    oportunidadAbierta: lead.oportunidadAbierta,\n    ultimoPedido: lead.ultimoPedido,\n    sedePrincipal: lead.sedePrincipal,\n  }, null, 2);\n}\n\nconst secciones = [\n  `Fecha y hora: ${ahora}\\nNombre en su perfil de WhatsApp: ${msg.nombrePerfil || 'desconocido'}`,\n  `Ficha en el CRM:\\n${ficha}`,\n  ctx.estado.descartada\n    ? `Ojo: antes se descartó por ${ctx.estado.descartada.motivo}. Si ahora califica, sigue el flujo normal.`\n    : null,\n  ctx.estado.resumen ? `Resumen previo: ${ctx.estado.resumen}` : null,\n  `Conversación hasta ahora:\\n${historial || '(es el primer contacto)'}`,\n  `Mensajes nuevos del cliente (respóndelos juntos):\\n${nuevos}`,\n];\nconst prompt = secciones.filter(Boolean).join('\\n\\n');\n\nreturn { json: { prompt, telefono: msg.telefono } };\n",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "3965a096-e526-51a1-9d42-b2e6778e162a",
+      "name": "Armar prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4140,
+        -20
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.prompt }}",
+        "options": {
+          "systemMessage": "=Eres David, asesor comercial de Dicampo por WhatsApp. Dicampo produce pulpa de fruta 100 % natural, congelada y porcionada, para negocios de alimentos en Bogotá. Atiendes leads que llegan desde la pauta de Google Ads.\n\n# Objetivo\nCalificar al lead, generar interés y cerrar una VISITA PRESENCIAL: un asesor va al negocio, hace la demostración de preparación y deja 1 kilo de muestra gratis.\nPrioridad de cierre: (1) agendar la visita, (2) si no quiere visita, primer pedido, (3) si no compra aún, dejar la puerta abierta con seguimiento.\n\n# Cómo escribes\n- Profesional y cercano, español colombiano natural. No suenas a robot ni eres condescendiente.\n- Mensajes de 2 a 4 líneas. Máximo 1 o 2 preguntas por mensaje y máximo 1 emoji.\n- Siempre pregunta antes de explicar. No sueltes toda la información de golpe.\n- Habla del negocio del cliente (tiempo de preparación, desperdicio, sabor inconsistente), no del producto.\n- Si necesitas mandar dos mensajes seguidos, sepáralos con una línea que tenga solo ---\n- Solo texto. No uses títulos, tablas ni markdown; para resaltar usa *así*.\n\n# Flujo\n1. Saludo y filtro: \"Soy David de Dicampo\". Pregunta su nombre, qué tipo de negocio tiene y en qué zona está.\n2. Si NO tiene negocio de alimentos o está fuera de Bogotá, Mosquera, Funza o Madrid: cierra con amabilidad y usa descartar_lead. No crees lead.\n3. Si califica: usa registrar_lead (con su nombre y negocio) y sigue.\n4. Detecta el dolor: ¿manejan jugos o bebidas?, ¿cómo los preparan hoy?, ¿qué les pesa más: tiempo, desperdicio o sabor inconsistente?\n5. Presenta la solución: pulpa 100 % natural, sin aditivos, lista en segundos, porción medida para un jugo de 14 a 16 onzas, cero desperdicio.\n6. Ancla económica: 8 jugos exactos por kilo; el costo por bebida queda desde aproximadamente $1.700.\n7. Oferta de primera compra: 15 % de descuento, 1 kilo de regalo, vasito medidor y capacitación de 1 hora con el asesor.\n8. Cierra la visita: \"¿Qué día te funciona para que pase nuestro asesor?\". Es sin compromiso.\n9. Si acepta: confirma día, hora y dirección exacta, usa agendar_visita y despídete con el mensaje de transferencia.\n   Si no quiere visita: el pedido mínimo es de 8 paquetes, domicilio gratis, pide hoy y llega mañana. Si quiere pedir, usa escalar_a_humano (motivo \"Pedido confirmado\").\n   Si pide tiempo: sin presión. Pregunta si le puedes escribir en unos días; si dice que sí, usa registrar_autorizacion_comercial.\n\n# Datos fijos (confiables)\n- 1 paquete = 1 kilo = 8 porciones de 125 g = 8 jugos. Cada paquete es de UN solo sabor; no hay paquetes surtidos, pero el pedido puede combinar sabores.\n- Pedido mínimo: 8 paquetes (8 kilos = 64 jugos).\n- Cobertura: todo Bogotá + Mosquera, Funza y Madrid. Ningún otro municipio.\n- Entrega: pide hoy, llega mañana, de lunes a sábado. Domicilio gratis con el pedido mínimo.\n- Pago: contra entrega. Clientes recurrentes: quincenal o mensual.\n- Certificación INVIMA PSA-0004293-2023. Más de 6 años en el mercado. Frutas calidad exportación.\n- Sin endulzantes, azúcares añadidos, espesantes ni colorantes. NO es \"orgánica\": es 100 % natural.\n- No hay punto de venta al público.\n{{ $('Config').first().json.catalogoUrl ? '- Catálogo con sabores y precios: ' + $('Config').first().json.catalogoUrl + ' (compártelo cuando pregunten por precios).' : '- Aún no hay enlace al catálogo: si preguntan precios, da el ancla por jugo y ofrece que el asesor lo comparte en la visita.' }}\n\n# Reglas inquebrantables\n- Nunca inventes datos, precios, beneficios, fechas de entrega ni descuentos. Si no está aquí, usa buscar_conocimiento; si tampoco aparece, dilo con honestidad y ofrece que el asesor lo confirme.\n- No des el precio de un sabor específico. Usa el ancla de costo por jugo y el catálogo.\n- Solo temas comerciales de Dicampo.\n- Escala a una persona (escalar_a_humano) si: hay visita agendada (agendar_visita ya lo hace), quiere hacer un pedido, pregunta por maquila, frutas al por mayor u otros servicios, está molesto o insatisfecho, pide factura, NIT o razón social, o pide hablar con una persona.\n- Mensaje de transferencia: \"Te voy a comunicar con nuestro asesor para que te atienda directamente y coordinen todo. ¡Un gusto hablar contigo!\"\n\n# Herramientas (úsalas en silencio, sin mencionarlas al cliente)\n- buscar_conocimiento: dudas sobre productos, condiciones, políticas u objeciones que no estén en los datos fijos.\n- registrar_lead: una sola vez, cuando el cliente califica. Si la ficha ya trae cliente, no la uses.\n- actualizar_lead: cuando el cliente da datos nuevos (razón social, tipo de negocio, dirección, cargo, correo). Usa el clientId de la ficha o de registrar_lead.\n- registrar_interes: cuando menciona sabores y volumen. Manda SIEMPRE la lista completa vigente de lo que le interesa, en kilos al mes, con los SKU de la tabla.\n- mover_etapa: CONTACTADO al calificar, NEGOCIACION cuando habla de pedido o precio concreto. Nunca ganes ni pierdas oportunidades.\n- agendar_visita: con fecha y hora en formato ISO con zona de Bogotá (ej. 2026-10-16T10:00:00-05:00) y la dirección exacta. Confirma ambas con el cliente antes.\n- escalar_a_humano: ver reglas. Escribe un resumen útil para el asesor.\n- descartar_lead: fuera de cobertura (FUERA_DE_COBERTURA) o sin negocio (SIN_NEGOCIO), después de despedirte.\n- registrar_autorizacion_comercial: solo si el cliente acepta que le escribas más adelante.\n\n# SKU por sabor (presentación de 1 kilo)\nMango MAN-K · Fresa FRE-K · Lulo LUL-K · Mora MOR-K · Guanábana GUA-K · Maracuyá MAR-K · Mandarina MND-K · Frutos Rojos FRO-K · Frutos Amarillos FAM-K · Piña PIN-K · Piña Colada PCO-K · Uva UVA-K · Limonada Natural LIM-K · Limonada de Hierbabuena LHB-K · Limonada de Cereza LCE-K · Limonada de Mango Biche LMB-K · Limonada de Coco LCO-K\n\n# Contexto\nCada mensaje trae la fecha y hora de Bogotá, la ficha del CRM, la conversación previa y los mensajes nuevos. Responde los mensajes nuevos juntos, en el punto del flujo donde va la conversación. Si el cliente envía una nota de voz, pídele con amabilidad que te escriba, porque por ahora solo lees texto.\n",
+          "maxIterations": 8,
+          "returnIntermediateSteps": true
+        }
+      },
+      "id": "d9297110-04b9-5307-9639-1fd76e007185",
+      "name": "David · Agente IA",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2.2,
+      "position": [
+        4420,
+        -20
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "id",
+          "value": "claude-haiku-4-5-20251001"
+        },
+        "options": {
+          "maxTokensToSample": 800,
+          "temperature": 0.4
+        }
+      },
+      "id": "61dc7f06-85b9-5867-a4c7-414032843270",
+      "name": "Claude Haiku 4.5",
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.3,
+      "position": [
+        4200,
+        240
+      ],
+      "credentials": {
+        "anthropicApi": {
+          "id": "REEMPLAZAR",
+          "name": "Anthropic"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "toolDescription": "Busca en la base de conocimiento de Dicampo: productos, condiciones comerciales, políticas, preguntas frecuentes y manejo de objeciones. Úsala antes de afirmar algo que no esté en tus datos fijos.",
+        "method": "POST",
+        "url": "={{ $('Config').first().json.crmUrl }}/api/agente/conocimiento/buscar",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{ \"consulta\": {consulta}, \"limite\": 4 }",
+        "placeholderDefinitions": {
+          "values": [
+            {
+              "name": "consulta",
+              "description": "La pregunta o tema a buscar, en español",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "id": "e7938b45-5ef9-5680-a84c-8a0926cd5d7d",
+      "name": "buscar_conocimiento",
+      "type": "@n8n/n8n-nodes-langchain.toolHttpRequest",
+      "typeVersion": 1.1,
+      "position": [
+        4340,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REEMPLAZAR",
+          "name": "CRM Dicampo · Agente IA"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "toolDescription": "Registra al prospecto en el CRM cuando califica (negocio de alimentos dentro de la cobertura). Devuelve la ficha con data.cliente.id, que es el clientId. No la uses si la ficha ya trae un cliente.",
+        "method": "POST",
+        "url": "={{ $('Config').first().json.crmUrl }}/api/agente/leads",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"telefono\": \"{{ $('Armar prompt').first().json.telefono }}\", \"nombreContacto\": {nombreContacto}, \"negocio\": {negocio}, \"tipo\": {tipo} }",
+        "placeholderDefinitions": {
+          "values": [
+            {
+              "name": "nombreContacto",
+              "description": "Nombre de la persona",
+              "type": "string"
+            },
+            {
+              "name": "negocio",
+              "description": "Nombre del negocio; texto vacío si no lo dijo",
+              "type": "string"
+            },
+            {
+              "name": "tipo",
+              "description": "Uno de RESTAURANTE, FRUTERIA, PANADERIA, COMIDAS_RAPIDAS, CAFETERIA, HOTEL u OTRO",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "id": "455b187f-a75f-52e5-9bfb-40df38cee696",
+      "name": "registrar_lead",
+      "type": "@n8n/n8n-nodes-langchain.toolHttpRequest",
+      "typeVersion": 1.1,
+      "position": [
+        4490,
+        420
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REEMPLAZAR",
+          "name": "CRM Dicampo · Agente IA"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "toolDescription": "Completa datos del cliente en el CRM. Envía solo los campos nuevos que el cliente acaba de dar.",
+        "method": "PATCH",
+        "url": "={{ $('Config').first().json.crmUrl }}/api/agente/leads/{clientId}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{campos}",
+        "placeholderDefinitions": {
+          "values": [
+            {
+              "name": "clientId",
+              "description": "clientId de la ficha o de registrar_lead",
+              "type": "string"
+            },
+            {
+              "name": "campos",
+              "description": "Objeto con los campos nuevos. Claves posibles: razonSocial, nombreComercial, tipo, correo, nombreContacto, cargoContacto y sede ({direccion, barrio, ciudad, indicaciones})",
+              "type": "json"
+            }
+          ]
+        }
+      },
+      "id": "030ea3e3-dab4-5b86-9ac0-cca07c2b74d8",
+      "name": "actualizar_lead",
+      "type": "@n8n/n8n-nodes-langchain.toolHttpRequest",
+      "typeVersion": 1.1,
+      "position": [
+        4640,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REEMPLAZAR",
+          "name": "CRM Dicampo · Agente IA"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "toolDescription": "Registra o actualiza la oportunidad con los sabores y kilos al mes que le interesan. Manda siempre la lista completa vigente. El CRM calcula el valor y devuelve la oportunidad con su id.",
+        "method": "POST",
+        "url": "={{ $('Config').first().json.crmUrl }}/api/agente/oportunidades",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{oportunidad}",
+        "placeholderDefinitions": {
+          "values": [
+            {
+              "name": "oportunidad",
+              "description": "Objeto con clientId (texto), interes (arreglo de {sku, kilosMes}) y notas (texto opcional). Ejemplo: {\"clientId\":\"c123\",\"interes\":[{\"sku\":\"MAN-K\",\"kilosMes\":20}],\"notas\":\"Para jugos\"}",
+              "type": "json"
+            }
+          ]
+        }
+      },
+      "id": "01954c8e-d80d-5934-b9f2-aaa93bd894a4",
+      "name": "registrar_interes",
+      "type": "@n8n/n8n-nodes-langchain.toolHttpRequest",
+      "typeVersion": 1.1,
+      "position": [
+        4790,
+        420
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REEMPLAZAR",
+          "name": "CRM Dicampo · Agente IA"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "toolDescription": "Mueve la oportunidad abierta a CONTACTADO, MUESTRA_ENVIADA o NEGOCIACION.",
+        "method": "POST",
+        "url": "={{ $('Config').first().json.crmUrl }}/api/agente/oportunidades/{oportunidadId}/etapa",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{ \"etapa\": {etapa} }",
+        "placeholderDefinitions": {
+          "values": [
+            {
+              "name": "oportunidadId",
+              "description": "id de la oportunidad abierta (ficha o registrar_interes)",
+              "type": "string"
+            },
+            {
+              "name": "etapa",
+              "description": "CONTACTADO, MUESTRA_ENVIADA o NEGOCIACION",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "id": "350670e7-6504-589d-b389-1ba7bfb961b2",
+      "name": "mover_etapa",
+      "type": "@n8n/n8n-nodes-langchain.toolHttpRequest",
+      "typeVersion": 1.1,
+      "position": [
+        4940,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REEMPLAZAR",
+          "name": "CRM Dicampo · Agente IA"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "toolDescription": "Agenda la visita presencial del asesor con la fecha, hora y dirección confirmadas por el cliente. Pasa la conversación a un asesor.",
+        "method": "POST",
+        "url": "={{ $('Config').first().json.crmUrl }}/api/agente/visitas",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{ \"clientId\": {clientId}, \"fecha\": {fecha}, \"direccion\": {direccion}, \"barrio\": {barrio}, \"notas\": {notas} }",
+        "placeholderDefinitions": {
+          "values": [
+            {
+              "name": "clientId",
+              "description": "clientId del cliente",
+              "type": "string"
+            },
+            {
+              "name": "fecha",
+              "description": "Fecha y hora ISO 8601 con zona de Bogotá, p. ej. 2026-10-16T10:00:00-05:00",
+              "type": "string"
+            },
+            {
+              "name": "direccion",
+              "description": "Dirección exacta del negocio",
+              "type": "string"
+            },
+            {
+              "name": "barrio",
+              "description": "Barrio; texto vacío si no lo dijo",
+              "type": "string"
+            },
+            {
+              "name": "notas",
+              "description": "Lo que el asesor debe saber para la visita",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "id": "5ada7c92-fe33-55a0-8734-4ca7957b496c",
+      "name": "agendar_visita",
+      "type": "@n8n/n8n-nodes-langchain.toolHttpRequest",
+      "typeVersion": 1.1,
+      "position": [
+        5090,
+        420
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REEMPLAZAR",
+          "name": "CRM Dicampo · Agente IA"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "toolDescription": "Pasa la conversación a un asesor humano y le deja una tarea con el resumen.",
+        "method": "POST",
+        "url": "={{ $('Config').first().json.crmUrl }}/api/agente/escalar",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"telefono\": \"{{ $('Armar prompt').first().json.telefono }}\", \"motivo\": {motivo}, \"resumen\": {resumen} }",
+        "placeholderDefinitions": {
+          "values": [
+            {
+              "name": "motivo",
+              "description": "Motivo corto, p. ej. Pedido confirmado",
+              "type": "string"
+            },
+            {
+              "name": "resumen",
+              "description": "Resumen para el asesor: quién es, qué necesita y qué se le prometió",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "id": "177d9d65-15f5-56b5-bf77-4e0bc6d096a5",
+      "name": "escalar_a_humano",
+      "type": "@n8n/n8n-nodes-langchain.toolHttpRequest",
+      "typeVersion": 1.1,
+      "position": [
+        5240,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REEMPLAZAR",
+          "name": "CRM Dicampo · Agente IA"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "toolDescription": "Cierra la conversación de alguien sin negocio de alimentos o fuera de cobertura, sin crear cliente.",
+        "method": "POST",
+        "url": "={{ $('Config').first().json.crmUrl }}/api/agente/conversaciones/descartar",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"telefono\": \"{{ $('Armar prompt').first().json.telefono }}\", \"motivo\": {motivo}, \"detalle\": {detalle} }",
+        "placeholderDefinitions": {
+          "values": [
+            {
+              "name": "motivo",
+              "description": "FUERA_DE_COBERTURA, SIN_NEGOCIO u OTRO",
+              "type": "string"
+            },
+            {
+              "name": "detalle",
+              "description": "Detalle breve, p. ej. la ciudad",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "id": "96206e71-2c18-5e53-b4c9-b418737eddd5",
+      "name": "descartar_lead",
+      "type": "@n8n/n8n-nodes-langchain.toolHttpRequest",
+      "typeVersion": 1.1,
+      "position": [
+        5390,
+        420
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REEMPLAZAR",
+          "name": "CRM Dicampo · Agente IA"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "toolDescription": "Registra que el cliente aceptó que le escribas más adelante (seguimientos). Úsala solo si dijo que sí.",
+        "method": "POST",
+        "url": "={{ $('Config').first().json.crmUrl }}/api/agente/conversaciones/consentimiento",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"telefono\": \"{{ $('Armar prompt').first().json.telefono }}\", \"tipo\": \"COMERCIAL\", \"acepta\": {acepta} }",
+        "placeholderDefinitions": {
+          "values": [
+            {
+              "name": "acepta",
+              "description": "true si aceptó que le escribas más adelante",
+              "type": "boolean"
+            }
+          ]
+        }
+      },
+      "id": "25f79765-0f4a-50f4-9dc1-d9ccd02d42e7",
+      "name": "registrar_autorizacion_comercial",
+      "type": "@n8n/n8n-nodes-langchain.toolHttpRequest",
+      "typeVersion": 1.1,
+      "position": [
+        5540,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REEMPLAZAR",
+          "name": "CRM Dicampo · Agente IA"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Convierte la salida del agente en uno o más mensajes de WhatsApp y arma la\n// traza (herramientas y fuentes) que muestra la supervisión del CRM.\nconst r = $input.first().json;\nconst telefono = $('Armar prompt').first().json.telefono;\n\nlet texto = String(r.output || '').trim()\n  .replace(/\\*\\*(.+?)\\*\\*/g, '*$1*')\n  .replace(/^#{1,6}\\s+/gm, '');\nif (!texto) throw new Error('El agente no devolvió texto.');\n\nconst pasos = r.intermediateSteps || [];\nconst herramientas = [...new Set(pasos.map((p) => p.action && p.action.tool).filter(Boolean))];\nconst fuentes = [];\nfor (const p of pasos) {\n  if (!p.action || p.action.tool !== 'buscar_conocimiento') continue;\n  try {\n    let obs = typeof p.observation === 'string' ? JSON.parse(p.observation) : p.observation;\n    if (Array.isArray(obs)) obs = obs[0];\n    if (obs && typeof obs.response === 'string') obs = JSON.parse(obs.response);\n    const filas = (obs && obs.data && obs.data.resultados) || [];\n    for (const f of filas) {\n      fuentes.push({ titulo: [f.titulo, f.seccion].filter(Boolean).join(' · ') || f.fuente, similitud: f.similitud });\n    }\n  } catch (e) {\n    // Una observación que no es JSON no impide responder.\n  }\n}\n\n// \"---\" en una línea separa mensajes; WhatsApp admite 4.096 caracteres.\nconst LIMITE = 4096;\nconst mensajes = [];\nfor (const parte of texto.split(/\\n\\s*---+\\s*\\n/)) {\n  let resto = parte.trim();\n  while (resto.length > LIMITE) {\n    let corte = resto.lastIndexOf('\\n', LIMITE);\n    if (corte < LIMITE / 2) corte = resto.lastIndexOf(' ', LIMITE);\n    if (corte < LIMITE / 2) corte = LIMITE;\n    mensajes.push(resto.slice(0, corte).trim());\n    resto = resto.slice(corte).trim();\n  }\n  if (resto) mensajes.push(resto);\n}\n\nreturn mensajes.map((t, i) => ({\n  json: { telefono, texto: t, traza: i === 0 ? { herramientas, fuentes } : {} },\n}));\n"
+      },
+      "id": "d5677b4b-5a30-523a-bbc0-a1c39aa8f12e",
+      "name": "Preparar respuesta",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4740,
+        -20
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// El agente falló (modelo caído, tiempo agotado, salida vacía): el cliente\n// recibe un mensaje de respaldo y la conversación pasa a un asesor.\nconst telefono = $('Armar prompt').first().json.telefono;\nconst e = $input.first().json;\nconst detalle = String((e.error && (e.error.message || e.error)) || e.message || 'Error sin detalle').slice(0, 4000);\nreturn [{\n  json: {\n    telefono,\n    texto: 'Disculpa, se me presentó un inconveniente. Ya le aviso a un asesor de Dicampo para que te escriba en breve.',\n    detalle: `El agente IA no pudo responder: ${detalle}`,\n  },\n}];\n"
+      },
+      "id": "b4690e7a-5988-53d8-963c-f0202e75a982",
+      "name": "Respaldo por falla",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4960,
+        -240
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "751dfa08-de41-5b19-a9f5-86b753ff1dbb",
+              "name": "telefono",
+              "value": "={{ $json.telefono }}",
+              "type": "string"
+            },
+            {
+              "id": "dd43efe7-d600-5329-ba30-1ac51e7473cb",
+              "name": "texto",
+              "value": "={{ $json.texto }}",
+              "type": "string"
+            },
+            {
+              "id": "98e1b814-179f-5b36-b5d2-9c934146824a",
+              "name": "traza",
+              "value": "={{ $json.traza ?? {} }}",
+              "type": "object"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "b995abbe-ebff-507c-ba16-dc0da35b1b55",
+      "name": "Mensaje a enviar",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        5180,
+        -20
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config').first().json.graphUrl }}/{{ $('Config').first().json.phoneNumberId }}/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ messaging_product: 'whatsapp', to: $json.telefono, type: 'text', text: { preview_url: true, body: $json.texto } }) }}",
+        "options": {}
+      },
+      "id": "d2d1b88f-5cbc-59ac-ae3e-47bfdec902b3",
+      "name": "Meta · Enviar texto",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        5620,
+        0
+      ],
+      "credentials": {
+        "httpBearerAuth": {
+          "id": "REEMPLAZAR",
+          "name": "Meta WhatsApp · Token"
+        }
+      },
+      "onError": "continueErrorOutput",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config').first().json.crmUrl }}/api/agente/conversaciones/mensajes",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ telefono: $('Mensaje a enviar').item.json.telefono, waMessageId: $json.messages[0].id, direccion: 'SALIENTE', texto: $('Mensaje a enviar').item.json.texto, traza: Object.keys($('Mensaje a enviar').item.json.traza ?? {}).length ? $('Mensaje a enviar').item.json.traza : undefined }) }}",
+        "options": {}
+      },
+      "id": "aeba3e50-8f07-54a9-8ccb-ee56e4612bb9",
+      "name": "CRM · Registrar saliente",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        5840,
+        -100
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REEMPLAZAR",
+          "name": "CRM Dicampo · Agente IA"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config').first().json.crmUrl }}/api/agente/escalar",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ telefono: $json.telefono, motivo: 'Falla del agente IA', resumen: $json.detalle }) }}",
+        "options": {}
+      },
+      "id": "3c55fa10-5cb7-5a64-b1a8-40f2387318c8",
+      "name": "CRM · Escalar por falla",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        5180,
+        -260
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REEMPLAZAR",
+          "name": "CRM Dicampo · Agente IA"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "errorMessage": "={{ 'WhatsApp no aceptó el mensaje para ' + $('Mensaje a enviar').item.json.telefono }}"
+      },
+      "id": "cfbd504b-0cff-57ab-ba69-71cd2f434940",
+      "name": "Envío fallido",
+      "type": "n8n-nodes-base.stopAndError",
+      "typeVersion": 1,
+      "position": [
+        5840,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "514c54bd-9dfe-5b3f-a5fa-4662862376ca",
+      "name": "Uno por uno",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        5400,
+        -20
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "dicampo-envio-asesor",
+        "authentication": "headerAuth",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "57ae8844-4fdc-539a-ab02-5e4fbd2b8aca",
+      "name": "CRM · Envío del asesor",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -1400,
+        640
+      ],
+      "webhookId": "11f35576-2a36-5fc2-be2d-dec32d4a3bc5",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REEMPLAZAR",
+          "name": "CRM → n8n · X-CRM-Secret"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "765faf61-bd1f-5836-9060-f2fed215684e",
+              "name": "graphUrl",
+              "value": "https://graph.facebook.com/v23.0",
+              "type": "string"
+            },
+            {
+              "id": "1978b7ad-1e2b-57a4-b001-90cea154228d",
+              "name": "phoneNumberId",
+              "value": "PEGAR_PHONE_NUMBER_ID",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "987acecc-5c3b-5696-9a00-dd9ff88d6030",
+      "name": "Config (asesor)",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -1180,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.graphUrl }}/{{ $json.phoneNumberId }}/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ messaging_product: 'whatsapp', to: $json.body.telefono, type: 'text', text: { preview_url: true, body: $json.body.texto } }) }}",
+        "options": {}
+      },
+      "id": "0a63b51d-f8cf-57e3-9c9b-fc277437431b",
+      "name": "Meta · Enviar texto del asesor",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        -960,
+        640
+      ],
+      "credentials": {
+        "httpBearerAuth": {
+          "id": "REEMPLAZAR",
+          "name": "Meta WhatsApp · Token"
+        }
+      },
+      "onError": "continueErrorOutput",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ waMessageId: $json.messages[0].id }) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "e82497ca-8366-5aab-8705-1ecba1765950",
+      "name": "Responder waMessageId",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        -720,
+        560
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ error: 'WhatsApp no aceptó el mensaje' }) }}",
+        "options": {
+          "responseCode": 502
+        }
+      },
+      "id": "cdff21a7-6755-5f9a-8219-b9e50159451e",
+      "name": "Responder error",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        -720,
+        720
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Antes de activar\n1. **Config**: `phoneNumberId`, `metaAppSecret` y, si hay, `catalogoUrl`.\n2. **¿Token de verificación correcto?**: cambia `PEGAR_VERIFY_TOKEN` por el mismo token que pongas en Meta.\n3. Credenciales: *CRM Dicampo · Agente IA* (Header Auth `Authorization: Bearer <AGENTE_API_KEY>`), *Meta WhatsApp · Token* (Bearer, token permanente del System User), *Anthropic* y *CRM → n8n · X-CRM-Secret* (Header Auth `X-CRM-Secret: <N8N_ENVIO_SECRET>`).\n4. En Meta, URL del webhook: `<n8n>/webhook/dicampo-whatsapp`, campo `messages`.\n5. En Netlify: `N8N_ENVIO_WEBHOOK_URL=<n8n>/webhook/dicampo-envio-asesor`.",
+        "height": 300,
+        "width": 620,
+        "color": 4
+      },
+      "id": "5e2b0ac2-c06a-5fad-8597-c2bf4cda5cc6",
+      "name": "Nota · Configuración",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -1460,
+        -900
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Mensaje entrante\nFirma → desglose → archivo a Storage → registro (idempotente) → palabra clave → espera de ráfaga → contexto → ¿último?, ¿bot?, ¿aviso? → agente → envío → registro.\nSi el agente falla: mensaje de respaldo y escalamiento al asesor.",
+        "height": 200,
+        "width": 560
+      },
+      "id": "d7553854-4ed6-55fb-9bf0-9adfbd53de43",
+      "name": "Nota · Flujo",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -760,
+        -900
+      ]
+    }
+  ],
+  "connections": {
+    "Meta · Verificación (GET)": {
+      "main": [
+        [
+          {
+            "node": "¿Token de verificación correcto?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Token de verificación correcto?": {
+      "main": [
+        [
+          {
+            "node": "Responder challenge",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Rechazar verificación",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Meta · Webhook (POST)": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config": {
+      "main": [
+        [
+          {
+            "node": "Firma calculada",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Firma calculada": {
+      "main": [
+        [
+          {
+            "node": "¿Firma válida?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Firma válida?": {
+      "main": [
+        [
+          {
+            "node": "Desglosar evento",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Firma inválida: descartar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Desglosar evento": {
+      "main": [
+        [
+          {
+            "node": "¿Mensaje o estado?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Mensaje o estado?": {
+      "main": [
+        [
+          {
+            "node": "¿Trae archivo?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "CRM · Estado de entrega",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Trae archivo?": {
+      "main": [
+        [
+          {
+            "node": "Meta · Datos del archivo",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Preparar entrante",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Meta · Datos del archivo": {
+      "main": [
+        [
+          {
+            "node": "CRM · Firmar subida",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Archivo no disponible",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CRM · Firmar subida": {
+      "main": [
+        [
+          {
+            "node": "Meta · Descargar archivo",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Archivo no disponible",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Meta · Descargar archivo": {
+      "main": [
+        [
+          {
+            "node": "Storage · Subir archivo",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Archivo no disponible",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Storage · Subir archivo": {
+      "main": [
+        [
+          {
+            "node": "Archivo guardado",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Archivo no disponible",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Archivo guardado": {
+      "main": [
+        [
+          {
+            "node": "Preparar entrante",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Archivo no disponible": {
+      "main": [
+        [
+          {
+            "node": "Preparar entrante",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar entrante": {
+      "main": [
+        [
+          {
+            "node": "CRM · Registrar entrante",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CRM · Registrar entrante": {
+      "main": [
+        [
+          {
+            "node": "¿Mensaje nuevo?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Mensaje nuevo?": {
+      "main": [
+        [
+          {
+            "node": "¿Palabra clave?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Reintento de Meta: ignorar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Palabra clave?": {
+      "main": [
+        [
+          {
+            "node": "Confirmar palabra clave",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Esperar ráfaga",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Esperar ráfaga": {
+      "main": [
+        [
+          {
+            "node": "CRM · Contexto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CRM · Contexto": {
+      "main": [
+        [
+          {
+            "node": "¿Es el último mensaje?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Es el último mensaje?": {
+      "main": [
+        [
+          {
+            "node": "¿Responde el bot?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Otro mensaje más nuevo responde",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Responde el bot?": {
+      "main": [
+        [
+          {
+            "node": "¿Falta el aviso de privacidad?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Lo atiende un asesor",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Falta el aviso de privacidad?": {
+      "main": [
+        [
+          {
+            "node": "Texto del aviso",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Armar prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Texto del aviso": {
+      "main": [
+        [
+          {
+            "node": "Meta · Enviar aviso",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Meta · Enviar aviso": {
+      "main": [
+        [
+          {
+            "node": "CRM · Registrar aviso",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CRM · Registrar aviso": {
+      "main": [
+        [
+          {
+            "node": "CRM · Consentimiento AVISO",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CRM · Consentimiento AVISO": {
+      "main": [
+        [
+          {
+            "node": "Armar prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Armar prompt": {
+      "main": [
+        [
+          {
+            "node": "David · Agente IA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claude Haiku 4.5": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "David · Agente IA",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "buscar_conocimiento": {
+      "ai_tool": [
+        [
+          {
+            "node": "David · Agente IA",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "registrar_lead": {
+      "ai_tool": [
+        [
+          {
+            "node": "David · Agente IA",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "actualizar_lead": {
+      "ai_tool": [
+        [
+          {
+            "node": "David · Agente IA",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "registrar_interes": {
+      "ai_tool": [
+        [
+          {
+            "node": "David · Agente IA",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "mover_etapa": {
+      "ai_tool": [
+        [
+          {
+            "node": "David · Agente IA",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "agendar_visita": {
+      "ai_tool": [
+        [
+          {
+            "node": "David · Agente IA",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "escalar_a_humano": {
+      "ai_tool": [
+        [
+          {
+            "node": "David · Agente IA",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "descartar_lead": {
+      "ai_tool": [
+        [
+          {
+            "node": "David · Agente IA",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "registrar_autorizacion_comercial": {
+      "ai_tool": [
+        [
+          {
+            "node": "David · Agente IA",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "David · Agente IA": {
+      "main": [
+        [
+          {
+            "node": "Preparar respuesta",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respaldo por falla",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar respuesta": {
+      "main": [
+        [
+          {
+            "node": "Mensaje a enviar",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respaldo por falla",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Confirmar palabra clave": {
+      "main": [
+        [
+          {
+            "node": "Mensaje a enviar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Respaldo por falla": {
+      "main": [
+        [
+          {
+            "node": "Mensaje a enviar",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "CRM · Escalar por falla",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mensaje a enviar": {
+      "main": [
+        [
+          {
+            "node": "Uno por uno",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Uno por uno": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Meta · Enviar texto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Meta · Enviar texto": {
+      "main": [
+        [
+          {
+            "node": "CRM · Registrar saliente",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Envío fallido",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CRM · Registrar saliente": {
+      "main": [
+        [
+          {
+            "node": "Uno por uno",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CRM · Envío del asesor": {
+      "main": [
+        [
+          {
+            "node": "Config (asesor)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config (asesor)": {
+      "main": [
+        [
+          {
+            "node": "Meta · Enviar texto del asesor",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Meta · Enviar texto del asesor": {
+      "main": [
+        [
+          {
+            "node": "Responder waMessageId",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Responder error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}

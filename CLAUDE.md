@@ -314,6 +314,10 @@ src/
     (`OPENAI_API_KEY`, `text-embedding-3-small`, el mismo de la ingesta) y
     llama a `buscar_kb` con `$queryRaw`. Sin llave → 503. La ingesta sigue en
     n8n.
+- **Workflow de n8n del agente** (`n8n/`): `dicampo-agente-whatsapp.json` se genera con
+  `python3 n8n/build.py` desde `system-prompt.md` y `n8n/js/`; no se edita a mano. Ver
+  `n8n/README.md` (instalación, credenciales y prueba de punta a punta en `n8n/pruebas/`).
+  Si se agregan sabores, actualizar la tabla de SKU del prompt.
 - **WhatsApp por contacto**: `Contact.whatsappE164` es el número normalizado
   con `contactWhatsappKey()` (WhatsApp o, si falta, teléfono). Lo mantiene
   `services/clients.ts` al crear y editar; es la llave con que el agente
