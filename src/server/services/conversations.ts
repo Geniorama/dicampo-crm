@@ -369,6 +369,53 @@ export async function getConversationState(phone: string) {
   };
 }
 
+// ── Contexto para responder ──────────────────────────────────
+
+/**
+ * Todo lo que el agente necesita para contestar, en una sola llamada:
+ * estado de la conversación, ficha del lead y los últimos mensajes en orden
+ * cronológico. `pendientes` son los entrantes que siguen al último mensaje
+ * nuestro: el bloque que el cliente escribió de corrido y que se responde de
+ * una vez (buffer de ráfaga).
+ */
+export async function getConversationContext(phone: string, limit: number) {
+  const [estado, lead, recent] = await Promise.all([
+    getConversationState(phone),
+    findLeadByPhone(phone),
+    prisma.whatsappMessage.findMany({
+      where: { conversation: { phone } },
+      orderBy: { createdAt: "desc" },
+      take: limit,
+      select: {
+        waMessageId: true,
+        direction: true,
+        author: true,
+        type: true,
+        body: true,
+        mediaPath: true,
+        createdAt: true,
+      },
+    }),
+  ]);
+
+  const mensajes = recent.reverse().map((message) => ({
+    waMessageId: message.waMessageId,
+    direccion: message.direction,
+    autor: message.author,
+    tipo: message.type,
+    texto: message.body,
+    conArchivo: message.mediaPath !== null,
+    fecha: message.createdAt,
+  }));
+
+  let firstPending = mensajes.length;
+  while (firstPending > 0 && mensajes[firstPending - 1].direccion === "ENTRANTE") {
+    firstPending -= 1;
+  }
+
+  return { estado, lead, mensajes, pendientes: mensajes.slice(firstPending) };
+}
+
 // ── Consentimiento y descarte ────────────────────────────────
 
 /**

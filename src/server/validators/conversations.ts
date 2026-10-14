@@ -132,3 +132,8 @@ export const advisorReplySchema = z.object({
     .max(4096, "WhatsApp admite hasta 4.096 caracteres por mensaje"),
 });
 export type AdvisorReplyInput = z.infer<typeof advisorReplySchema>;
+
+export const contextQuerySchema = z.object({
+  telefono: phoneSchema,
+  limite: z.coerce.number().int().min(1).max(50).default(20),
+});

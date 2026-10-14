@@ -221,6 +221,41 @@ async function main() {
     check("un 'sent' tardío no retrocede", late.status === 200 && data(late)?.actualizado === false && data(late)?.estado === "delivered", late);
     const ghost = await call("POST", "/conversaciones/entregas", { waMessageId: wamid("nada"), estado: "read" });
     check("estado de un mensaje desconocido → 404", ghost.status === 404, ghost);
+
+    const answered = await call("GET", `/conversaciones/contexto?telefono=${PHONE_LEAD}`);
+    check(
+      "contexto: lead, historial en orden y nada pendiente tras nuestra respuesta",
+      answered.status === 200 &&
+        data(answered)?.lead?.cliente?.id === clientId &&
+        data(answered)?.mensajes?.at(-1)?.waMessageId === wamid("out1") &&
+        data(answered)?.pendientes?.length === 0,
+      answered,
+    );
+    await call("POST", "/conversaciones/mensajes", { telefono: PHONE_LEAD, waMessageId: wamid("in2"), direccion: "ENTRANTE", texto: "¿Cuál es el pedido mínimo?" });
+    await call("POST", "/conversaciones/mensajes", { telefono: PHONE_LEAD, waMessageId: wamid("in3"), direccion: "ENTRANTE", texto: "y el domicilio?" });
+    const burst = await call("GET", `/conversaciones/contexto?telefono=${PHONE_LEAD}&limite=3`);
+    check(
+      "contexto: dos entrantes seguidos quedan como un bloque pendiente",
+      data(burst)?.mensajes?.length === 3 &&
+        data(burst)?.pendientes?.map((m: any) => m.waMessageId).join() === [wamid("in2"), wamid("in3")].join() &&
+        data(burst)?.estado?.ultimoEntrante?.waMessageId === wamid("in3"),
+      burst,
+    );
+  }
+
+  // ── 5b. Base de conocimiento ──────────────────────────────
+  section("5b. Base de conocimiento");
+  {
+    const search = await call("POST", "/conocimiento/buscar", { consulta: "cuál es el pedido mínimo", limite: 3 });
+    if (search.status === 503) {
+      console.log("  OMITIDO La búsqueda no está configurada en este entorno (OPENAI_API_KEY)");
+    } else {
+      check("buscar → 200 con resultados", search.status === 200 && Array.isArray(data(search)?.resultados), search);
+      const empty = (data(search)?.resultados ?? []).length === 0;
+      if (empty) console.log("  AVISO La base de conocimiento está vacía");
+    }
+    const badCategory = await call("POST", "/conocimiento/buscar", { consulta: "precio", categoria: "chismes" });
+    check("categoría inexistente → 422", badCategory.status === 422, badCategory);
   }
 
   // ── 6. Multimedia ─────────────────────────────────────────

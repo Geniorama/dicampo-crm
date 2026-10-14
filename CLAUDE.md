@@ -34,7 +34,7 @@ npm run db:reset     # ⚠️ borra la base y vuelve a sembrar
 npx tsx scripts/verificar-carga-masiva.ts   # carga masiva de punta a punta
 npx tsx scripts/normalizar-whatsapp.ts      # llena Contact.whatsappE164 (--aplicar para escribir)
 
-# Regresión de la API del agente por HTTP (44 comprobaciones). DATABASE_URL
+# Regresión de la API del agente por HTTP (48 comprobaciones). DATABASE_URL
 # debe ser la base del CRM que se prueba: con ella borra lo que crea
 # (números 57300000090X, clientes ZZVERIF).
 CRM_URL=https://crm.dicampo.co AGENTE_API_KEY=... npx tsx scripts/verificar-api-agente.ts
@@ -256,6 +256,10 @@ src/
     sin baja ni descarte. n8n registra cada envío con `seguimiento: true`.
   - `GET conversaciones/estado`: quién responde, consentimientos, descarte,
     último entrante (para agrupar mensajes seguidos) y ventana de 24 h.
+  - `GET conversaciones/contexto?telefono=&limite=`: estado + ficha del lead
+    + últimos mensajes en orden y `pendientes`, los entrantes que siguen al
+    último mensaje nuestro (el bloque que se responde de una vez). Es la
+    llamada que hace n8n antes del modelo.
   - `POST conversaciones/consentimiento` (AVISO / COMERCIAL / BAJA) deja nota
     en la ficha si ya es cliente. `POST conversaciones/descartar` cierra sin
     crear cliente. `POST conversaciones/entregas`: el estado solo avanza.
@@ -305,6 +309,11 @@ src/
     `anon` y `authenticated` no tienen acceso.
   - Cambios al SQL: archivo nuevo en `supabase/kb/` y aplicarlo con el SQL
     editor o `apply_migration`; nunca con `prisma migrate`.
+  - El agente consulta por `POST /api/agente/conocimiento/buscar`
+    (`services/knowledge.ts`): el CRM pide el embedding a OpenAI
+    (`OPENAI_API_KEY`, `text-embedding-3-small`, el mismo de la ingesta) y
+    llama a `buscar_kb` con `$queryRaw`. Sin llave → 503. La ingesta sigue en
+    n8n.
 - **WhatsApp por contacto**: `Contact.whatsappE164` es el número normalizado
   con `contactWhatsappKey()` (WhatsApp o, si falta, teléfono). Lo mantiene
   `services/clients.ts` al crear y editar; es la llave con que el agente
