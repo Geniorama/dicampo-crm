@@ -1030,25 +1030,27 @@
         "model": {
           "__rl": true,
           "mode": "id",
-          "value": "claude-haiku-4-5-20251001"
+          "value": "gpt-4.1-mini"
         },
         "options": {
-          "maxTokensToSample": 800,
-          "temperature": 0.4
+          "maxTokens": 800,
+          "temperature": 0.4,
+          "timeout": 30000,
+          "maxRetries": 2
         }
       },
-      "id": "61dc7f06-85b9-5867-a4c7-414032843270",
-      "name": "Claude Haiku 4.5",
-      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
-      "typeVersion": 1.3,
+      "id": "a5c7815d-42df-5040-b559-93c9b49fec41",
+      "name": "Modelo OpenAI",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
       "position": [
         4200,
         240
       ],
       "credentials": {
-        "anthropicApi": {
+        "openAiApi": {
           "id": "REEMPLAZAR",
-          "name": "Anthropic"
+          "name": "OpenAI"
         }
       }
     },
@@ -1711,7 +1713,7 @@
     },
     {
       "parameters": {
-        "content": "## Antes de activar\n1. **Config**: `phoneNumberId`, `metaAppSecret` y, si hay, `catalogoUrl`.\n2. **¿Token de verificación correcto?**: cambia `PEGAR_VERIFY_TOKEN` por el mismo token que pongas en Meta.\n3. Credenciales: *CRM Dicampo · Agente IA* (Header Auth `Authorization: Bearer <AGENTE_API_KEY>`), *Meta WhatsApp · Token* (Bearer, token permanente del System User), *Anthropic* y *CRM → n8n · X-CRM-Secret* (Header Auth `X-CRM-Secret: <N8N_ENVIO_SECRET>`).\n4. En Meta, URL del webhook: `<n8n>/webhook/dicampo-whatsapp`, campo `messages`.\n5. En Netlify: `N8N_ENVIO_WEBHOOK_URL=<n8n>/webhook/dicampo-envio-asesor`.",
+        "content": "## Antes de activar\n1. **Config**: `phoneNumberId`, `metaAppSecret` y, si hay, `catalogoUrl`.\n2. **¿Token de verificación correcto?**: cambia `PEGAR_VERIFY_TOKEN` por el mismo token que pongas en Meta.\n3. Credenciales: *CRM Dicampo · Agente IA* (Header Auth `Authorization: Bearer <AGENTE_API_KEY>`), *Meta WhatsApp · Token* (Bearer, token permanente del System User), *OpenAI* y *CRM → n8n · X-CRM-Secret* (Header Auth `X-CRM-Secret: <N8N_ENVIO_SECRET>`).\n4. En Meta, URL del webhook: `<n8n>/webhook/dicampo-whatsapp`, campo `messages`.\n5. En Netlify: `N8N_ENVIO_WEBHOOK_URL=<n8n>/webhook/dicampo-envio-asesor`.",
         "height": 300,
         "width": 620,
         "color": 4
@@ -2152,7 +2154,7 @@
         ]
       ]
     },
-    "Claude Haiku 4.5": {
+    "Modelo OpenAI": {
       "ai_languageModel": [
         [
           {

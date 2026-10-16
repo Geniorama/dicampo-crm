@@ -27,7 +27,8 @@ Tres entradas en un mismo workflow:
      ejecución, con todo el bloque.
    - Si la conversación está en manos de un asesor (HUMANO), no responde.
    - En el primer contacto envía el aviso de privacidad y registra el consentimiento AVISO.
-   - El agente (Claude Haiku 4.5) responde con 9 herramientas del CRM.
+   - El agente responde con un modelo de OpenAI (`gpt-4.1-mini` por defecto) y 9 herramientas
+     del CRM.
    - Envía en orden (uno por uno), parte en varios mensajes con `---` y registra cada
      saliente con la traza (herramientas y fuentes) que muestra `/conversaciones`.
    - Si el modelo falla: mensaje de respaldo al cliente y escalamiento al asesor.
@@ -43,7 +44,7 @@ Tres entradas en un mismo workflow:
    |---|---|---|
    | CRM Dicampo · Agente IA | Header Auth | `Authorization` = `Bearer <AGENTE_API_KEY>` |
    | Meta WhatsApp · Token | Bearer Auth | Token permanente del System User de Meta |
-   | Anthropic | Anthropic | API key |
+   | OpenAI | OpenAI | API key (la misma sirve para los embeddings) |
    | CRM → n8n · X-CRM-Secret | Header Auth | `X-CRM-Secret` = `<N8N_ENVIO_SECRET>` |
 
 3. Nodo **Config**: `phoneNumberId`, `metaAppSecret` y, cuando exista, `catalogoUrl`.
@@ -58,7 +59,7 @@ Tres entradas en un mismo workflow:
 ## Pruebas
 
 `pruebas/` tiene una prueba de punta a punta (35 comprobaciones) contra n8n real, el CRM
-local y simuladores de Meta, Storage y Anthropic (`mocks.mjs`, puertos 4020, 4030 y 4040).
+local y simuladores de Meta, Storage y OpenAI (`mocks.mjs`, puertos 4020, 4030 y 4040).
 Pasa en n8n 1.123 y 2.43.
 
 1. CRM local con `SUPABASE_URL=http://localhost:4030`, `SUPABASE_SERVICE_ROLE_KEY` cualquiera,
@@ -67,7 +68,7 @@ Pasa en n8n 1.123 y 2.43.
 2. Importar el workflow con Config apuntando a los simuladores
    (`crmUrl=http://localhost:3000`, `graphUrl=http://localhost:4020/v23.0`,
    `phoneNumberId=PNID`, `metaAppSecret=testsecret`, `esperaRafagaSeg=3`, token de
-   verificación `vtoken`) y credenciales: Anthropic con URL `http://localhost:4040`, Meta con
+   verificación `vtoken`) y credenciales: OpenAI con URL base `http://localhost:4040/v1`, Meta con
    token `metatoken`, X-CRM-Secret `secreto-envio`.
 3. Simulador de embeddings: `node n8n/pruebas/embeddings-mock.mjs serve` (puerto 4010, llave
    `sk-test`) y `DATABASE_URL=... node n8n/pruebas/sembrar-kb.mjs` para cargar 4 fragmentos
@@ -78,6 +79,10 @@ Pasa en n8n 1.123 y 2.43.
 Usa los números `573000000901` a `904` y borra lo que crea.
 
 ## Notas
+
+- **Modelo**: nodo *Modelo OpenAI* (Chat Completions, temperatura 0,4, 800 tokens, 30 s de
+  espera). Para cambiarlo, editar `MODELO` en `build.py` y regenerar, o cambiarlo en el nodo.
+  Los modelos de razonamiento no aceptan `temperature`: quitarla si se elige uno.
 
 - Las herramientas usan el nodo "HTTP Request Tool" clásico
   (`@n8n/n8n-nodes-langchain.toolHttpRequest`). El nuevo (`httpRequestTool`) rompe los nodos

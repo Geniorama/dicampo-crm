@@ -1,4 +1,4 @@
-// Mocks de Meta Graph API (4020), Supabase Storage (4030) y Anthropic (4040).
+// Mocks de Meta Graph API (4020), Supabase Storage (4030) y OpenAI (4040).
 import http from "node:http";
 import fs from "node:fs";
 const LOG = process.env.MOCK_LOG || "/tmp/mocks.jsonl";
@@ -50,7 +50,7 @@ http.createServer(async (req, res) => {
   res.writeHead(404); res.end("{}");
 }).listen(4030);
 
-// ── Anthropic ────────────────────────────────────────────────
+// ── Modelo ───────────────────────────────────────────────────
 function script(fullPrompt, results) {
   const n = results.length;
   const prompt = fullPrompt.split("Mensajes nuevos del cliente")[1] || fullPrompt;
@@ -67,43 +67,38 @@ function script(fullPrompt, results) {
   return { text: "¡Hola! Con mucho gusto te atiendo. Soy David de Dicampo. ¿Con quién tengo el gusto?" };
 }
 
-function sse(res, msg) {
+// OpenAI Chat Completions: el primer mensaje "user" es el prompt; los
+// resultados de herramientas llegan como mensajes "tool".
+function sse(res, body, message, finish) {
   res.writeHead(200, { "Content-Type": "text/event-stream" });
-  const ev = (type, data) => res.write(`event: ${type}\ndata: ${JSON.stringify({ type, ...data })}\n\n`);
-  ev("message_start", { message: { ...msg, content: [], stop_reason: null } });
-  msg.content.forEach((block, index) => {
-    if (block.type === "text") {
-      ev("content_block_start", { index, content_block: { type: "text", text: "" } });
-      ev("content_block_delta", { index, delta: { type: "text_delta", text: block.text } });
-    } else {
-      ev("content_block_start", { index, content_block: { ...block, input: {} } });
-      ev("content_block_delta", { index, delta: { type: "input_json_delta", partial_json: JSON.stringify(block.input) } });
-    }
-    ev("content_block_stop", { index });
-  });
-  ev("message_delta", { delta: { stop_reason: msg.stop_reason }, usage: { output_tokens: 10 } });
-  ev("message_stop", {});
+  const base = { id: "chatcmpl-1", object: "chat.completion.chunk", created: Math.floor(Date.now() / 1000), model: body.model };
+  const send = (delta, finish_reason = null) => res.write(`data: ${JSON.stringify({ ...base, choices: [{ index: 0, delta, finish_reason }] })}\n\n`);
+  if (message.tool_calls) {
+    send({ role: "assistant", content: null, tool_calls: message.tool_calls.map((t, index) => ({ index, ...t })) });
+  } else {
+    send({ role: "assistant", content: message.content });
+  }
+  send({}, finish);
+  res.write("data: [DONE]\n\n");
   res.end();
 }
 
 http.createServer(async (req, res) => {
   const body = JSON.parse((await read(req)).toString() || "{}");
   const msgs = body.messages || [];
-  const first = msgs[0];
-  const prompt = typeof first?.content === "string" ? first.content : (first?.content || []).map((c) => c.text || "").join("");
-  const results = [];
-  for (const m of msgs) for (const c of Array.isArray(m.content) ? m.content : []) if (c.type === "tool_result") {
-    results.push(typeof c.content === "string" ? c.content : (c.content || []).map((x) => x.text).join(""));
-  }
+  const asText = (c) => (typeof c === "string" ? c : (c || []).map((x) => x.text || "").join(""));
+  const system = asText(msgs.find((m) => m.role === "system")?.content);
+  const prompt = asText(msgs.find((m) => m.role === "user")?.content);
+  const results = msgs.filter((m) => m.role === "tool").map((m) => asText(m.content));
   const step = script(prompt, results);
-  log({ srv: "anthropic", model: body.model, stream: !!body.stream, temperature: body.temperature, top_p: body.top_p, tools: (body.tools || []).map((t) => t.name), toolSchemas: results.length === 0 ? body.tools : undefined, system: results.length === 0 ? String(typeof body.system === "string" ? body.system : JSON.stringify(body.system)).slice(0, 20000) : undefined, prompt: results.length === 0 ? prompt : undefined, results, step });
-  if (step.error) { res.writeHead(500, { "Content-Type": "application/json" }); return res.end(JSON.stringify({ type: "error", error: { type: "api_error", message: "mock caído" } })); }
-  const content = step.tool
-    ? [{ type: "tool_use", id: `toolu_${results.length}`, name: step.tool, input: step.input }]
-    : [{ type: "text", text: step.text }];
-  const msg = { id: "msg_1", type: "message", role: "assistant", model: body.model, content, stop_reason: step.tool ? "tool_use" : "end_turn", stop_sequence: null, usage: { input_tokens: 10, output_tokens: 10 } };
-  if (body.stream) return sse(res, msg);
+  log({ srv: "llm", url: req.url, auth: req.headers.authorization, model: body.model, stream: !!body.stream, temperature: body.temperature, max_tokens: body.max_tokens ?? body.max_completion_tokens, tools: (body.tools || []).map((t) => t.function?.name), toolSchemas: results.length === 0 ? body.tools : undefined, system: results.length === 0 ? system.slice(0, 20000) : undefined, prompt: results.length === 0 ? prompt : undefined, results, step });
+  if (step.error) { res.writeHead(500, { "Content-Type": "application/json" }); return res.end(JSON.stringify({ error: { message: "mock caído", type: "server_error" } })); }
+  const message = step.tool
+    ? { role: "assistant", content: null, tool_calls: [{ id: `call_${results.length}`, type: "function", function: { name: step.tool, arguments: JSON.stringify(step.input) } }] }
+    : { role: "assistant", content: step.text };
+  const finish = step.tool ? "tool_calls" : "stop";
+  if (body.stream) return sse(res, body, message, finish);
   res.writeHead(200, { "Content-Type": "application/json" });
-  res.end(JSON.stringify(msg));
+  res.end(JSON.stringify({ id: "chatcmpl-1", object: "chat.completion", created: Math.floor(Date.now() / 1000), model: body.model, choices: [{ index: 0, message, finish_reason: finish }], usage: { prompt_tokens: 10, completion_tokens: 10, total_tokens: 20 } }));
 }).listen(4040);
 console.log("mocks listos");

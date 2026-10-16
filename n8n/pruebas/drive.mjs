@@ -46,9 +46,9 @@ try {
   check("conversación con aviso registrado (versión 2026-01)", c?.consentAt && c.consentVersion === "2026-01", c);
   let m = await msgs(PHONES[0]);
   check("CRM tiene entrante + aviso + respuesta", m.length === 3 && m[0].direction === "ENTRANTE" && m[2].author === "AGENTE_IA", m.map((x) => [x.direction, x.author, x.body?.slice(0, 30)]));
-  const an = logs().filter((l) => l.srv === "anthropic");
+  const an = logs().filter((l) => l.srv === "llm");
   const firstCall = an[0] || {};
-  check("modelo claude-haiku-4-5 con 9 herramientas", firstCall.model === "claude-haiku-4-5-20251001" && firstCall.tools?.length === 9, { model: firstCall.model, tools: firstCall.tools });
+  check("modelo de OpenAI con 9 herramientas, temperatura 0,4 y la llave", firstCall.model === "gpt-4.1-mini" && firstCall.tools?.length === 9 && firstCall.temperature === 0.4 && firstCall.auth === "Bearer sk-openai-test", { model: firstCall.model, tools: firstCall.tools, t: firstCall.temperature, auth: firstCall.auth });
   check("el prompt trae hora de Bogotá y el mensaje nuevo", /America\/Bogota/.test(firstCall.prompt) && firstCall.prompt.includes("quiero información"), firstCall.prompt);
   check("el system prompt trae la regla del catálogo", /Aún no hay enlace al catálogo/.test(firstCall.system || ""), (firstCall.system || "").slice(-300));
   fs.writeFileSync((process.env.SALIDA || "/tmp") + "/first-call.json", JSON.stringify(firstCall, null, 2));
@@ -72,9 +72,9 @@ try {
   const reply = replies.find((x) => x.body?.includes("8 jugos exactos"));
   check("en el CRM quedan en el orden en que se enviaron", replies.indexOf(reply) === replies.length - 2 && replies.at(-1).body.startsWith("¿Qué día"), replies.map((x) => x.body.slice(0, 20)));
   check("traza con herramientas y fuentes en el primer mensaje", JSON.stringify(reply?.agentTrace?.herramientas) === JSON.stringify(["registrar_lead", "buscar_conocimiento", "registrar_interes"]) && reply.agentTrace.fuentes?.length > 0, reply?.agentTrace);
-  const steps = logs().filter((l) => l.srv === "anthropic" && l.prompt?.includes("Chapinero"));
+  const steps = logs().filter((l) => l.srv === "llm" && l.prompt?.includes("Chapinero"));
   check("el prompt agrupa los dos mensajes como nuevos", steps[0]?.prompt.includes("Chapinero\nUsamos unos 16 kilos"), steps[0]?.prompt);
-  fs.writeFileSync((process.env.SALIDA || "/tmp") + "/burst-call.json", JSON.stringify(logs().filter((l) => l.srv === "anthropic").slice(-4), null, 2));
+  fs.writeFileSync((process.env.SALIDA || "/tmp") + "/burst-call.json", JSON.stringify(logs().filter((l) => l.srv === "llm").slice(-4), null, 2));
 
   console.log("S3 · Reintento de Meta y firma inválida");
   const n0 = sends(PHONES[0]).length;

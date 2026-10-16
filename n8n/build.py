@@ -14,7 +14,8 @@ def uid(name: str) -> str:
 
 CRM_CRED = {"httpHeaderAuth": {"id": "REEMPLAZAR", "name": "CRM Dicampo · Agente IA"}}
 META_CRED = {"httpBearerAuth": {"id": "REEMPLAZAR", "name": "Meta WhatsApp · Token"}}
-ANTHROPIC_CRED = {"anthropicApi": {"id": "REEMPLAZAR", "name": "Anthropic"}}
+OPENAI_CRED = {"openAiApi": {"id": "REEMPLAZAR", "name": "OpenAI"}}
+MODELO = "gpt-4.1-mini"
 CRM_SECRET_CRED = {"httpHeaderAuth": {"id": "REEMPLAZAR", "name": "CRM → n8n · X-CRM-Secret"}}
 
 CFG = "$('Config').first().json"
@@ -535,19 +536,21 @@ node(
     (4140, -20),
     onError="continueErrorOutput",
 )
+# Chat Completions (v1.2): misma configuración en n8n 1.x y 2.x. Si se elige un
+# modelo de razonamiento que no acepta temperature, quitarla de las opciones.
 node(
-    "Claude Haiku 4.5",
-    "@n8n/n8n-nodes-langchain.lmChatAnthropic",
-    1.3,
+    "Modelo OpenAI",
+    "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+    1.2,
     {
-        "model": {"__rl": True, "mode": "id", "value": "claude-haiku-4-5-20251001"},
-        "options": {"maxTokensToSample": 800, "temperature": 0.4},
+        "model": {"__rl": True, "mode": "id", "value": MODELO},
+        "options": {"maxTokens": 800, "temperature": 0.4, "timeout": 30000, "maxRetries": 2},
     },
     (3900, 260),
-    credentials=ANTHROPIC_CRED,
+    credentials=OPENAI_CRED,
 )
 connect("Armar prompt", "David · Agente IA")
-connect("Claude Haiku 4.5", "David · Agente IA", kind="ai_languageModel")
+connect("Modelo OpenAI", "David · Agente IA", kind="ai_languageModel")
 
 PHONE = "{{ $('Armar prompt').first().json.telefono }}"
 
@@ -842,7 +845,7 @@ sticky(
     "1. **Config**: `phoneNumberId`, `metaAppSecret` y, si hay, `catalogoUrl`.\n"
     "2. **¿Token de verificación correcto?**: cambia `PEGAR_VERIFY_TOKEN` por el mismo token que pongas en Meta.\n"
     "3. Credenciales: *CRM Dicampo · Agente IA* (Header Auth `Authorization: Bearer <AGENTE_API_KEY>`), "
-    "*Meta WhatsApp · Token* (Bearer, token permanente del System User), *Anthropic* y "
+    "*Meta WhatsApp · Token* (Bearer, token permanente del System User), *OpenAI* y "
     "*CRM → n8n · X-CRM-Secret* (Header Auth `X-CRM-Secret: <N8N_ENVIO_SECRET>`).\n"
     "4. En Meta, URL del webhook: `<n8n>/webhook/dicampo-whatsapp`, campo `messages`.\n"
     "5. En Netlify: `N8N_ENVIO_WEBHOOK_URL=<n8n>/webhook/dicampo-envio-asesor`.",
@@ -863,7 +866,7 @@ sticky(
 
 POS = {
     "David · Agente IA": (4420, -20),
-    "Claude Haiku 4.5": (4200, 240),
+    "Modelo OpenAI": (4200, 240),
     "Preparar respuesta": (4740, -20),
     "Respaldo por falla": (4960, -240),
     "CRM · Escalar por falla": (5180, -260),
