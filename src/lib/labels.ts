@@ -201,6 +201,17 @@ export const ROUTE_STATUS_TONE: Record<RouteStatus, BadgeTone> = {
   CANCELADA: "danger",
 };
 
+/** Días ISO (1 = lunes … 7 = domingo) de la disponibilidad de visitas. */
+export const WEEKDAY_LABEL: Record<number, string> = {
+  1: "Lunes",
+  2: "Martes",
+  3: "Miércoles",
+  4: "Jueves",
+  5: "Viernes",
+  6: "Sábado",
+  7: "Domingo",
+};
+
 /** Convierte un Record de etiquetas en opciones para un <select>. */
 export function toOptions<T extends string>(
   labels: Record<T, string>,

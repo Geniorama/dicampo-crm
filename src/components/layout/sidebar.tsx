@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import {
   BarChart3,
   Boxes,
+  CalendarDays,
   ClipboardList,
   LayoutDashboard,
   MessagesSquare,
@@ -45,6 +46,12 @@ const NAV_ITEMS: NavItem[] = [
     href: "/conversaciones",
     label: "Conversaciones",
     icon: MessagesSquare,
+    roles: ["VENDEDOR"],
+  },
+  {
+    href: "/agenda",
+    label: "Agenda",
+    icon: CalendarDays,
     roles: ["VENDEDOR"],
   },
   { href: "/pedidos", label: "Pedidos", icon: ClipboardList },

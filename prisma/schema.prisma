@@ -51,6 +51,8 @@ model User {
   assignedConversations WhatsappConversation[] @relation("ConversationAssignee")
   authoredMessages      WhatsappMessage[]      @relation("MessageAuthorUser")
 
+  visitSchedule AdvisorSchedule?
+
   @@index([role, active])
 }
 
@@ -732,4 +734,65 @@ model WhatsappMessage {
   authorUser   User?                @relation("MessageAuthorUser", fields: [authorUserId], references: [id], onDelete: SetNull)
 
   @@index([conversationId, createdAt])
+}
+
+// ─────────────────────────────────────────────────────────────
+// Disponibilidad de visitas por asesor
+// ─────────────────────────────────────────────────────────────
+//
+// Las visitas en sí son actividades VISITA con `dueAt` en la agenda del
+// asesor (ver services/agent.ts). Aquí vive en qué horario puede hacerlas:
+// el agente de WhatsApp solo ofrece y acepta franjas dentro de él. Un asesor
+// sin configuración usa el horario general de `VISIT_RULES`
+// (lib/visit-schedule.ts). Las horas son minutos desde la medianoche de
+// Bogotá: la disponibilidad es hora de pared, no un instante.
+
+model AdvisorSchedule {
+  userId        String   @id
+  /// Apagado, el agente no le ofrece ni le agenda visitas. Las franjas se
+  /// conservan.
+  acceptsVisits Boolean  @default(true)
+  /// Tiempo que se reserva por visita
+  visitMinutes  Int      @default(30)
+  /// Traslado que se deja libre entre una visita y la siguiente
+  bufferMinutes Int      @default(30)
+  /// Días de anticipación mínima: 1 = desde mañana, 0 = desde hoy
+  minLeadDays   Int      @default(1)
+  /// Hasta cuántos días adelante se puede agendar
+  maxDaysAhead  Int      @default(30)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user    User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  windows AvailabilityWindow[]
+  blocks  AvailabilityBlock[]
+}
+
+/// Franja semanal recurrente: "los martes de 8:00 a 12:00".
+model AvailabilityWindow {
+  id          String @id @default(cuid())
+  userId      String
+  /// Día ISO: 1 = lunes … 7 = domingo
+  weekday     Int
+  /// Minutos desde la medianoche de Bogotá (480 = 8:00)
+  startMinute Int
+  endMinute   Int
+
+  schedule AdvisorSchedule @relation(fields: [userId], references: [userId], onDelete: Cascade)
+
+  @@index([userId, weekday])
+}
+
+/// Ausencia puntual del asesor: vacaciones, cita médica, capacitación.
+model AvailabilityBlock {
+  id        String   @id @default(cuid())
+  userId    String
+  startsAt  DateTime
+  endsAt    DateTime
+  reason    String?
+  createdAt DateTime @default(now())
+
+  schedule AdvisorSchedule @relation(fields: [userId], references: [userId], onDelete: Cascade)
+
+  @@index([userId, endsAt])
 }

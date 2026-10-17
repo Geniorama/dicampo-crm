@@ -38,6 +38,7 @@ npx tsx scripts/normalizar-whatsapp.ts      # llena Contact.whatsappE164 (--apli
 # debe ser la base del CRM que se prueba: con ella borra lo que crea
 # (números 57300000090X, clientes ZZVERIF).
 CRM_URL=https://crm.dicampo.co AGENTE_API_KEY=... npx tsx scripts/verificar-api-agente.ts
+npx tsx scripts/verificar-disponibilidad.ts  # horario de visitas por asesor, de punta a punta
 ```
 
 ## Arquitectura
@@ -234,12 +235,13 @@ src/
     NEGOCIACION y nunca sobre una cerrada. El agente no gana ni pierde.
   - `POST actividades`: resumen tipo WHATSAPP a nombre del agente.
   - `GET visitas/disponibilidad?clientId=&desde=&dias=`: franjas libres del
-    asesor que atendería al cliente. Reglas en `lib/visit-schedule.ts`:
-    visitas de **lunes a viernes, 9:00 a. m. a 4:00 p. m.** (Bogotá), 30 min
-    reservados + 30 de traslado, desde el día siguiente y hasta 30 días. Las
-    entregas de pedidos son otra cosa (lunes a sábado, 10 a. m. a 5 p. m.).
-    `POST visitas` rechaza (422) lo que incumpla esas reglas o choque con otra
-    visita pendiente del asesor (candado por asesor). No hay festivos todavía.
+    asesor que atendería al cliente, **según el horario de ese asesor** (ver
+    "Disponibilidad de visitas por asesor"). Devuelve `horario` en palabras,
+    `duracionMinutos` y `recibeVisitas`; el prompt del agente toma el
+    horario de ahí, no lo tiene escrito. `POST visitas` rechaza (422) lo que
+    incumpla ese horario o choque con otra visita pendiente del asesor
+    (candado por asesor). Las entregas de pedidos son otra cosa (lunes a
+    sábado, 10 a. m. a 5 p. m.). No hay festivos todavía.
   - `POST visitas` (fecha ISO **con zona**): VISITA pendiente en la agenda
     del vendedor, sede principal, oportunidad a CONTACTADO si seguía en
     PROSPECTO (no retrocede) y conversación a HUMANO.
@@ -249,6 +251,21 @@ src/
     persona (visita, escalamiento) va a nombre del vendedor, porque la agenda
     de cada uno son sus actividades pendientes. Sin vendedor activo, al
     primer ADMIN activo.
+- **Disponibilidad de visitas por asesor** (`/agenda/disponibilidad`,
+  `services/visit-schedules.ts`, reglas puras en `lib/visit-schedule.ts`):
+  - Cada asesor (VENDEDOR o ADMIN) configura franjas por día, duración de la
+    visita, traslado, anticipación mínima en días (0 = desde hoy), horizonte
+    y ausencias. Un VENDEDOR solo la suya; ADMIN la de todos.
+  - **Sin franjas propias rige el horario general** (`VISIT_RULES`: lunes a
+    viernes, 9:00 a. m. a 4:00 p. m., 30 min + 30 de traslado). Borrar todas
+    las franjas vuelve a él; para no recibir visitas se apaga
+    `acceptsVisits`, y entonces el agente no ofrece ni agenda nada
+    (`recibeVisitas: false`).
+  - Las franjas se guardan en minutos desde la medianoche de Bogotá con día
+    ISO (1 = lunes); `policyFromSchedule` las traduce a la numeración de
+    `getDay` que usa el resto del módulo.
+  - Las visitas siguen siendo actividades VISITA con `dueAt`; `/agenda` las
+    lista por día y se completan con el botón de siempre.
 - **Conversaciones desde el agente** (`services/conversations.ts`, reglas
   puras en `lib/conversation-rules.ts`):
   - `POST conversaciones/mensajes`: entrante o saliente, **idempotente por
@@ -418,6 +435,7 @@ Verificado contra la base real de Supabase (PostgreSQL 17.6), además de
 | Pipeline y actividades | Listo |
 | Usuarios y perfil | Listo |
 | Rutas de despacho | Listo |
+| Disponibilidad de visitas por asesor | Listo |
 | Reportes | Listo |
 | Carga masiva (CSV / XLSX) | Listo |
 | Migración desde Contentful | Pendiente |

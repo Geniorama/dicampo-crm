@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  VISIT_HOURS_LABEL,
   bogotaMoment,
+  describeVisitHours,
+  findOverlappingWindows,
+  policyFromSchedule,
   conflictsWith,
   formatDayLabel,
   formatHour,
@@ -80,5 +84,80 @@ describe("formato", () => {
     expect(formatHour(12 * 60)).toBe("12:00 p. m.");
     expect(formatDayLabel("2026-10-19")).toBe("lunes 19 de octubre");
     expect(toBogotaIso(bogotaMoment("2026-10-19", 9 * 60))).toBe("2026-10-19T09:00:00-05:00");
+  });
+});
+
+describe("horario configurado por asesor", () => {
+  // Martes y jueves de 8:00 a 12:00, visitas de 60 min, 15 de traslado,
+  // agendable desde hoy.
+  const policy = policyFromSchedule(
+    {
+      visitMinutes: 60,
+      bufferMinutes: 15,
+      minLeadDays: 0,
+      maxDaysAhead: 10,
+      windows: [
+        { weekday: 2, startMinute: 8 * 60, endMinute: 12 * 60 },
+        { weekday: 4, startMinute: 8 * 60, endMinute: 12 * 60 },
+      ],
+    },
+    [{ startsAt: at("2026-10-22T08:00:00-05:00"), endsAt: at("2026-10-22T10:00:00-05:00") }],
+  );
+
+  it("sin configuración usa el horario general", () => {
+    expect(policyFromSchedule(null).windows).toHaveLength(5);
+    expect(
+      policyFromSchedule({ visitMinutes: 60, bufferMinutes: 0, minLeadDays: 0, maxDaysAhead: 5, windows: [] })
+        .durationMinutes,
+    ).toBe(30);
+  });
+
+  it("describe el horario en palabras", () => {
+    expect(describeVisitHours(policy)).toBe("martes y jueves, de 8:00 a. m. a 12:00 p. m. (hora de Bogotá)");
+    expect(VISIT_HOURS_LABEL).toBe("lunes a viernes, de 9:00 a. m. a 4:00 p. m. (hora de Bogotá)");
+  });
+
+  it("solo ofrece sus días, con visitas completas dentro de la franja", () => {
+    expect(visitDays(3, undefined, now, policy)).toEqual(["2026-10-15", "2026-10-20", "2026-10-22"]);
+    const slots = freeSlots("2026-10-20", [], now, policy).map(toBogotaIso);
+    expect(slots[0]).toBe("2026-10-20T08:00:00-05:00");
+    expect(slots.at(-1)).toBe("2026-10-20T11:00:00-05:00");
+    expect(visitRuleViolation(at("2026-10-20T11:30:00-05:00"), now, policy)).toMatch(/11:00 a. m./);
+    expect(visitRuleViolation(at("2026-10-19T09:00:00-05:00"), now, policy)).toMatch(/martes y jueves/);
+  });
+
+  it("con anticipación 0 agenda hoy, pero no a una hora que ya pasó", () => {
+    // Jueves 15 = hoy + 1; miércoles 14 no tiene franja. Se prueba con jueves
+    // a las 10:00 y "ahora" ese mismo jueves a las 10:30.
+    const thursday = new Date("2026-10-15T15:30:00Z");
+    expect(visitRuleViolation(at("2026-10-15T11:00:00-05:00"), thursday, policy)).toBeNull();
+    expect(visitRuleViolation(at("2026-10-15T10:00:00-05:00"), thursday, policy)).toMatch(/ya pasó/);
+  });
+
+  it("respeta las ausencias y su propio traslado", () => {
+    const thursday = freeSlots("2026-10-22", [], now, policy).map(toBogotaIso);
+    expect(thursday[0]).toBe("2026-10-22T10:00:00-05:00");
+    expect(visitRuleViolation(at("2026-10-22T09:00:00-05:00"), now, policy)).toMatch(/no está disponible/);
+
+    const busy = [at("2026-10-20T09:00:00-05:00")];
+    // 60 min + 15 de traslado: 8:00 y 9:30 chocan; 10:30 no.
+    expect(conflictsWith(at("2026-10-20T08:00:00-05:00"), busy, policy)).toBe(true);
+    expect(conflictsWith(at("2026-10-20T10:00:00-05:00"), busy, policy)).toBe(true);
+    expect(conflictsWith(at("2026-10-20T10:30:00-05:00"), busy, policy)).toBe(false);
+  });
+
+  it("detecta franjas que se cruzan el mismo día", () => {
+    expect(
+      findOverlappingWindows([
+        { weekday: 1, startMinute: 480, endMinute: 720 },
+        { weekday: 1, startMinute: 720, endMinute: 840 },
+      ]),
+    ).toEqual([]);
+    expect(
+      findOverlappingWindows([
+        { weekday: 1, startMinute: 480, endMinute: 720 },
+        { weekday: 1, startMinute: 600, endMinute: 840 },
+      ]),
+    ).toHaveLength(2);
   });
 });

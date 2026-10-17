@@ -638,8 +638,8 @@ tool(
 tool(
     "consultar_disponibilidad",
     (4720, 540),
-    "Consulta las franjas libres del asesor para una visita (lunes a viernes, 9:00 a. m. a 4:00 p. m., "
-    "hora de Bogotá). Úsala SIEMPRE antes de proponer o confirmar un día y una hora. Devuelve días con "
+    "Consulta las franjas libres del asesor para una visita, según el horario que ese asesor configuró "
+    "en el CRM (viene en 'horario', hora de Bogotá). Úsala SIEMPRE antes de proponer o confirmar un día y una hora. Devuelve días con "
     "franjas; cada franja trae 'hora' para decirle al cliente e 'inicio' para pasarlo tal cual a agendar_visita.",
     "GET",
     "=" + CRM + "/visitas/disponibilidad?clientId={clientId}&desde={desde}&dias=5",
