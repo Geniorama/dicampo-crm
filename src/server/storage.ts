@@ -43,16 +43,23 @@ async function storagePost<T>(
   extraHeaders: Record<string, string> = {},
 ): Promise<T> {
   const { base, key } = config();
-  const response = await fetch(`${base}${endpoint}`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${key}`,
-      apikey: key,
-      "Content-Type": "application/json",
-      ...extraHeaders,
-    },
-    body: JSON.stringify(body),
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${base}${endpoint}`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${key}`,
+        apikey: key,
+        "Content-Type": "application/json",
+        ...extraHeaders,
+      },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(10_000),
+    });
+  } catch (error) {
+    console.error(`[storage] ${endpoint} sin respuesta:`, error);
+    throw new StorageUnavailableError("No se pudo contactar el almacenamiento de archivos.");
+  }
 
   if (!response.ok) {
     const detail = await response.text().catch(() => "");
