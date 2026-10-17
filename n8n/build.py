@@ -562,9 +562,7 @@ def tool(name, pos, description, method, url, body, placeholders):
         "url": url,
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
-        "sendBody": True,
-        "specifyBody": "json",
-        "jsonBody": body,
+        **({"sendBody": True, "specifyBody": "json", "jsonBody": body} if body is not None else {}),
         "placeholderDefinitions": {
             "values": [{"name": n, "description": d, "type": t} for n, d, t in placeholders]
         },
@@ -635,6 +633,20 @@ tool(
     [
         ("oportunidadId", "id de la oportunidad abierta (ficha o registrar_interes)", "string"),
         ("etapa", "CONTACTADO, MUESTRA_ENVIADA o NEGOCIACION", "string"),
+    ],
+)
+tool(
+    "consultar_disponibilidad",
+    (4720, 540),
+    "Consulta las franjas libres del asesor para una visita (lunes a viernes, 9:00 a. m. a 4:00 p. m., "
+    "hora de Bogotá). Úsala SIEMPRE antes de proponer o confirmar un día y una hora. Devuelve días con "
+    "franjas; cada franja trae 'hora' para decirle al cliente e 'inicio' para pasarlo tal cual a agendar_visita.",
+    "GET",
+    "=" + CRM + "/visitas/disponibilidad?clientId={clientId}&desde={desde}&dias=5",
+    None,
+    [
+        ("clientId", "clientId del cliente", "string"),
+        ("desde", "Día desde el que buscar, AAAA-MM-DD; texto vacío para empezar desde mañana", "string"),
     ],
 )
 tool(
@@ -877,7 +889,7 @@ POS = {
     "Envío fallido": (5840, 120),
 }
 TOOLS = ["buscar_conocimiento", "registrar_lead", "actualizar_lead", "registrar_interes", "mover_etapa",
-         "agendar_visita", "escalar_a_humano", "descartar_lead", "registrar_autorizacion_comercial"]
+         "consultar_disponibilidad", "agendar_visita", "escalar_a_humano", "descartar_lead", "registrar_autorizacion_comercial"]
 for i, t in enumerate(TOOLS):
     POS[t] = (4340 + i * 150, 300 + (i % 2) * 120)
 for n in nodes:

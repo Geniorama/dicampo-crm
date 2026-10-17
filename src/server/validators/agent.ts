@@ -134,3 +134,15 @@ export const escalateSchema = z.object({
   resumen: text(3, 5000, "resumen"),
 });
 export type EscalateInput = z.infer<typeof escalateSchema>;
+
+export const visitAvailabilitySchema = z.object({
+  clientId: idSchema,
+  /** Desde qué día buscar, AAAA-MM-DD en hora de Bogotá. Vacío = mañana. */
+  desde: z
+    .string()
+    .trim()
+    .transform((value) => (value === "" ? undefined : value))
+    .pipe(z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "desde debe ser AAAA-MM-DD").optional())
+    .optional(),
+  dias: z.coerce.number().int().min(1).max(10).default(5),
+});

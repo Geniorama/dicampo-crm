@@ -9,6 +9,19 @@ import { PRESENTATION_LABEL } from "@/lib/labels";
 import { formatClientCode, formatCOP, formatOrderNumber } from "@/lib/format";
 import { OPEN_STAGES } from "@/lib/pipeline-stages";
 import {
+  VISIT_HOURS_LABEL,
+  VISIT_RULES,
+  bogotaMoment,
+  conflictsWith,
+  formatDayLabel,
+  formatHour,
+  bogotaParts,
+  freeSlots,
+  toBogotaIso,
+  visitDays,
+  visitRuleViolation,
+} from "@/lib/visit-schedule";
+import {
   agentStageBlocker,
   describeInterest,
   mergeInterest,
@@ -713,6 +726,58 @@ async function clientPhone(tx: Tx, clientId: string) {
     : null;
 }
 
+/** Visitas pendientes del asesor entre dos momentos (con margen de traslado). */
+async function busyVisits(tx: Tx, userId: string, from: Date, to: Date): Promise<Date[]> {
+  const margin = (VISIT_RULES.durationMinutes + VISIT_RULES.bufferMinutes) * 60 * 1000;
+  const rows = await tx.activity.findMany({
+    where: {
+      userId,
+      type: "VISITA",
+      completedAt: null,
+      dueAt: { gte: new Date(from.getTime() - margin), lte: new Date(to.getTime() + margin) },
+    },
+    select: { dueAt: true },
+  });
+  return rows.flatMap((row) => (row.dueAt ? [row.dueAt] : []));
+}
+
+/**
+ * Franjas libres para una visita: días hábiles desde `desde` (o mañana), en el
+ * horario de visitas, sin chocar con las visitas pendientes del asesor que
+ * atendería al cliente. El agente ofrece dos o tres y agenda con `inicio`.
+ */
+export async function getVisitAvailability(input: { clientId: string; desde?: string; dias: number }) {
+  return prisma.$transaction(async (tx) => {
+    const client = await getClientOrThrow(tx, input.clientId);
+    const person = await responsibleUser(tx, client.ownerId);
+
+    const days = visitDays(input.dias, input.desde);
+    if (days.length === 0) {
+      return { asesor: person.name, horario: VISIT_HOURS_LABEL, duracionMinutos: VISIT_RULES.durationMinutes, dias: [] };
+    }
+    const busy = await busyVisits(
+      tx,
+      person.id,
+      bogotaMoment(days[0], 0),
+      bogotaMoment(days[days.length - 1], 24 * 60),
+    );
+
+    return {
+      asesor: person.name,
+      horario: VISIT_HOURS_LABEL,
+      duracionMinutos: VISIT_RULES.durationMinutes,
+      dias: days.map((day) => ({
+        fecha: day,
+        dia: formatDayLabel(day),
+        franjas: freeSlots(day, busy).map((slot) => ({
+          hora: formatHour(bogotaParts(slot).minutes),
+          inicio: toBogotaIso(slot),
+        })),
+      })),
+    };
+  });
+}
+
 /**
  * El lead aceptó una visita presencial (el cierre principal según el
  * entrenamiento de Dicampo). Queda en la agenda del vendedor como VISITA
@@ -724,6 +789,10 @@ export async function scheduleVisit(agent: SessionUser, input: VisitInput) {
   if (when.getTime() < Date.now() - 60 * 60 * 1000) {
     throw new ValidationError("La fecha de la visita ya pasó.");
   }
+  const violation = visitRuleViolation(when);
+  if (violation) {
+    throw new BusinessRuleError(`${violation} Consulta la disponibilidad y ofrece otra franja.`);
+  }
 
   return prisma.$transaction(async (tx) => {
     const client = await getClientOrThrow(tx, input.clientId);
@@ -731,6 +800,15 @@ export async function scheduleVisit(agent: SessionUser, input: VisitInput) {
 
     const person = await responsibleUser(tx, client.ownerId);
     const name = clientDisplayName(client);
+
+    // Dos conversaciones no pueden quedarse con la misma franja del asesor.
+    await lockKey(tx, `agenda:visitas:${person.id}`);
+    const busy = await busyVisits(tx, person.id, when, when);
+    if (conflictsWith(when, busy)) {
+      throw new BusinessRuleError(
+        "El asesor ya tiene una visita a esa hora. Consulta la disponibilidad y ofrece otra franja.",
+      );
+    }
 
     await upsertPrimaryAddress(tx, client.id, {
       direccion: input.direccion,

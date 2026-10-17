@@ -55,6 +55,14 @@ function script(fullPrompt, results) {
   const n = results.length;
   const prompt = fullPrompt.split("Mensajes nuevos del cliente")[1] || fullPrompt;
   if (prompt.includes("FALLA")) return { error: true };
+  if (prompt.includes("agendar visita prueba")) {
+    const clientId = (fullPrompt.match(/"clientId": "([^"]+)"/) || [])[1];
+    if (n === 0) return { tool: "consultar_disponibilidad", input: { clientId, desde: "" } };
+    const avail = JSON.parse(results[0]);
+    const inicio = avail.data?.dias?.find((d) => d.franjas.length)?.franjas[0]?.inicio;
+    if (n === 1) return { tool: "agendar_visita", input: { clientId, fecha: inicio, direccion: "Calle 1 # 2-3", barrio: "", notas: "prueba" } };
+    return { text: `Listo, quedó agendada para ${inicio}.` };
+  }
   if (prompt.includes("Chapinero")) {
     if (n === 0) return { tool: "registrar_lead", input: { nombreContacto: "María Prueba", negocio: "ZZVERIF Restaurante María", tipo: "RESTAURANTE" } };
     const lead = JSON.parse(results[0]);

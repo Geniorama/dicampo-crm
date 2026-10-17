@@ -48,7 +48,7 @@ try {
   check("CRM tiene entrante + aviso + respuesta", m.length === 3 && m[0].direction === "ENTRANTE" && m[2].author === "AGENTE_IA", m.map((x) => [x.direction, x.author, x.body?.slice(0, 30)]));
   const an = logs().filter((l) => l.srv === "llm");
   const firstCall = an[0] || {};
-  check("modelo de OpenAI con 9 herramientas, temperatura 0,4 y la llave", firstCall.model === "gpt-4.1-mini" && firstCall.tools?.length === 9 && firstCall.temperature === 0.4 && firstCall.auth === "Bearer sk-openai-test", { model: firstCall.model, tools: firstCall.tools, t: firstCall.temperature, auth: firstCall.auth });
+  check("modelo de OpenAI con 10 herramientas, temperatura 0,4 y la llave", firstCall.model === "gpt-4.1-mini" && firstCall.tools?.length === 10 && firstCall.temperature === 0.4 && firstCall.auth === "Bearer sk-openai-test", { model: firstCall.model, tools: firstCall.tools, t: firstCall.temperature, auth: firstCall.auth });
   check("el prompt trae hora de Bogotá y el mensaje nuevo", /America\/Bogota/.test(firstCall.prompt) && firstCall.prompt.includes("quiero información"), firstCall.prompt);
   check("el system prompt trae la regla del catálogo", /Aún no hay enlace al catálogo/.test(firstCall.system || ""), (firstCall.system || "").slice(-300));
   fs.writeFileSync((process.env.SALIDA || "/tmp") + "/first-call.json", JSON.stringify(firstCall, null, 2));
@@ -143,6 +143,16 @@ try {
   check("secreto incorrecto → 403", r.status === 403, r.status);
   r = await fetch("http://localhost:5678/webhook/dicampo-envio-asesor", { method: "POST", headers: { "Content-Type": "application/json", "X-CRM-Secret": "secreto-envio" }, body: JSON.stringify({ telefono: "573000000999", texto: "x" }) });
   check("Meta rechaza → 502 para que el CRM avise", r.status === 502, r.status);
+
+  console.log("S10 · Visita con disponibilidad");
+  await post(payload([text(PHONES[0], "agendar visita prueba")]));
+  await sleep(14000);
+  const visit = (await db.query(`select a."dueAt" from "Activity" a join "Contact" k on k."clientId"=a."clientId" where k."whatsappE164"=$1 and a.type='VISITA'`, [PHONES[0]])).rows[0];
+  const local = visit && new Date(new Date(visit.dueAt).getTime() - 5 * 3600_000);
+  check("consultar_disponibilidad → agendar_visita con una franja válida (L-V, 9:00–3:30)",
+    local && local.getUTCDay() >= 1 && local.getUTCDay() <= 5 && local.getUTCHours() >= 9 && local.getUTCHours() * 60 + local.getUTCMinutes() <= 15 * 60 + 30,
+    visit);
+  check("la conversación queda en manos del asesor", (await conv(PHONES[0]))?.status === "HUMANO");
 } finally {
   await cleanup();
   await db.end();

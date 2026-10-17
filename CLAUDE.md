@@ -34,7 +34,7 @@ npm run db:reset     # ⚠️ borra la base y vuelve a sembrar
 npx tsx scripts/verificar-carga-masiva.ts   # carga masiva de punta a punta
 npx tsx scripts/normalizar-whatsapp.ts      # llena Contact.whatsappE164 (--aplicar para escribir)
 
-# Regresión de la API del agente por HTTP (48 comprobaciones). DATABASE_URL
+# Regresión de la API del agente por HTTP (52 comprobaciones). DATABASE_URL
 # debe ser la base del CRM que se prueba: con ella borra lo que crea
 # (números 57300000090X, clientes ZZVERIF).
 CRM_URL=https://crm.dicampo.co AGENTE_API_KEY=... npx tsx scripts/verificar-api-agente.ts
@@ -233,6 +233,13 @@ src/
   - `POST oportunidades/:id/etapa` solo a CONTACTADO, MUESTRA_ENVIADA o
     NEGOCIACION y nunca sobre una cerrada. El agente no gana ni pierde.
   - `POST actividades`: resumen tipo WHATSAPP a nombre del agente.
+  - `GET visitas/disponibilidad?clientId=&desde=&dias=`: franjas libres del
+    asesor que atendería al cliente. Reglas en `lib/visit-schedule.ts`:
+    visitas de **lunes a viernes, 9:00 a. m. a 4:00 p. m.** (Bogotá), 30 min
+    reservados + 30 de traslado, desde el día siguiente y hasta 30 días. Las
+    entregas de pedidos son otra cosa (lunes a sábado, 10 a. m. a 5 p. m.).
+    `POST visitas` rechaza (422) lo que incumpla esas reglas o choque con otra
+    visita pendiente del asesor (candado por asesor). No hay festivos todavía.
   - `POST visitas` (fecha ISO **con zona**): VISITA pendiente en la agenda
     del vendedor, sede principal, oportunidad a CONTACTADO si seguía en
     PROSPECTO (no retrocede) y conversación a HUMANO.

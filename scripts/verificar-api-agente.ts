@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- inspecciona JSON arbitrario de la API */
 import "dotenv/config";
 import { prisma } from "../src/server/db";
+import { toBogotaIso } from "../src/lib/visit-schedule";
 
 /**
  * Regresión de la API del agente IA (`/api/agente/*`) contra un CRM
@@ -66,6 +67,13 @@ async function call(
 }
 
 const data = (res: Res) => res.body?.data;
+
+/** Primer sábado a partir de una fecha AAAA-MM-DD. */
+function nextWeekend(date: string): string {
+  const d = new Date(`${date}T12:00:00Z`);
+  while (d.getUTCDay() !== 6) d.setUTCDate(d.getUTCDate() + 1);
+  return d.toISOString().slice(0, 10);
+}
 
 /** Borra todo lo de prueba. Solo toca los números de prueba y clientes ZZVERIF. */
 async function cleanup() {
@@ -288,21 +296,44 @@ async function main() {
   // ── 7. Visita y escalamiento ──────────────────────────────
   section("7. Visita y escalamiento");
   {
-    const tomorrow = new Date(Date.now() + 24 * 3600_000).toISOString().slice(0, 10);
+    const avail = await call("GET", `/visitas/disponibilidad?clientId=${clientId}&dias=3`);
+    const days = data(avail)?.dias ?? [];
+    const firstSlot = days.find((d: any) => d.franjas.length > 0)?.franjas[0];
+    check(
+      "disponibilidad → 3 días hábiles con franjas de 9:00 a 3:30",
+      avail.status === 200 && days.length === 3 && Boolean(firstSlot) &&
+        days.every((d: any) => !/sábado|domingo/.test(d.dia)) &&
+        days.every((d: any) => d.franjas.every((f: any) => /T(09|1[0-5]):(00|30):00-05:00$/.test(f.inicio))),
+      avail,
+    );
+    const day = String(firstSlot?.inicio ?? "").slice(0, 10);
+    const weekend = days.length ? nextWeekend(days[0].fecha) : "";
+    const onWeekend = await call("POST", "/visitas", { clientId, fecha: `${weekend}T10:00:00-05:00`, direccion: "Calle 1 # 2-3" });
+    check("visita en fin de semana → 422", onWeekend.status === 422, onWeekend);
+    const late = await call("POST", "/visitas", { clientId, fecha: `${day}T17:00:00-05:00`, direccion: "Calle 1 # 2-3" });
+    check("visita fuera de horario → 422", late.status === 422, late);
+
+    const slot = String(firstSlot?.inicio ?? "");
+    const slotPlus30 = toBogotaIso(new Date(new Date(slot).getTime() + 30 * 60_000));
     const visit = await call("POST", "/visitas", {
       clientId,
-      fecha: `${tomorrow}T10:00:00-05:00`,
+      fecha: slot,
       direccion: "Calle 1 # 2-3 (prueba)",
       notas: "Prueba automática",
     });
     check("visita → 201 en la agenda del vendedor", visit.status === 201 && data(visit)?.asignadaA?.esVendedor === true, visit);
     check("la conversación pasa a HUMANO", data(visit)?.conversacion?.estado === "HUMANO", data(visit)?.conversacion);
     check(
-      "la hora queda en Bogotá (15:00 UTC)",
-      new Date(data(visit)?.visita?.fecha).toISOString() === `${tomorrow}T15:00:00.000Z`,
+      "la hora queda en Bogotá (la misma franja ofrecida)",
+      new Date(data(visit)?.visita?.fecha).getTime() === new Date(slot).getTime(),
       data(visit)?.visita,
     );
-    const noOffset = await call("POST", "/visitas", { clientId, fecha: `${tomorrow}T10:00:00`, direccion: "Calle 1 # 2-3" });
+    const clash = await call("POST", "/visitas", { clientId, fecha: slotPlus30, direccion: "Calle 1 # 2-3" });
+    check("otra visita a los 30 min del mismo asesor → 422", clash.status === 422, clash);
+    const after = await call("GET", `/visitas/disponibilidad?clientId=${clientId}&desde=${day}&dias=1`);
+    const offered = (data(after)?.dias?.[0]?.franjas ?? []).map((f: any) => f.inicio);
+    check("la franja ocupada ya no se ofrece", !offered.includes(slot) && !offered.includes(slotPlus30), offered);
+    const noOffset = await call("POST", "/visitas", { clientId, fecha: `${day}T10:00:00`, direccion: "Calle 1 # 2-3" });
     check("fecha sin zona → 422", noOffset.status === 422, noOffset);
 
     const escalate = await call("POST", "/escalar", { telefono: PHONE_LEAD, motivo: "Pide precio especial", resumen: "Prueba automática" });
