@@ -64,3 +64,35 @@ export const lotListQuerySchema = z.object({
 });
 
 export type LotListQuery = z.infer<typeof lotListQuerySchema>;
+
+// ── Muestras y devoluciones ──────────────────────────────────
+
+/** Pulpa que sale como muestra gratis: baja stock por FEFO pero no es venta. */
+export const sampleSchema = z.object({
+  variantId: z.string().cuid(),
+  quantity: z.coerce.number().positive("La cantidad debe ser mayor que cero").max(10_000),
+  reason: optionalText(500),
+});
+
+export type SampleInput = z.output<typeof sampleSchema>;
+
+export const RETURN_CONDITIONS = ["VENDIBLE", "DANADA"] as const;
+
+/**
+ * Devolución de un cliente. Si vuelve vendible reingresa a un lote (el de
+ * donde salió); si vuelve dañada se registra pero no suma stock.
+ */
+export const returnSchema = z
+  .object({
+    variantId: z.string().cuid(),
+    quantity: z.coerce.number().positive("La cantidad debe ser mayor que cero").max(10_000),
+    condition: z.enum(RETURN_CONDITIONS),
+    lotId: z.string().cuid().optional(),
+    reason: optionalText(500),
+  })
+  .refine((data) => data.condition !== "VENDIBLE" || Boolean(data.lotId), {
+    path: ["lotId"],
+    message: "Indica el lote al que reingresa la pulpa.",
+  });
+
+export type ReturnInput = z.output<typeof returnSchema>;

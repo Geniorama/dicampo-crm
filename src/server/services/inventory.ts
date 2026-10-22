@@ -7,6 +7,8 @@ import { allocateFefo } from "@/lib/fefo";
 import type {
   LotCreateInput,
   LotListQuery,
+  ReturnInput,
+  SampleInput,
   StockAdjustmentInput,
 } from "../validators/inventory";
 
@@ -389,4 +391,117 @@ export async function expireOverdueLots() {
   });
 
   return { expired: result.count };
+}
+
+// ── Muestras y devoluciones ──────────────────────────────────
+
+/**
+ * Pulpa entregada como muestra gratis. Sale por FEFO como cualquier venta,
+ * pero con su propio tipo de movimiento: baja el stock sin contar como venta
+ * y explica por qué salió pulpa que no se facturó.
+ */
+export async function registerSample(user: SessionUser, input: SampleInput) {
+  return prisma.$transaction(async (tx) => {
+    const lots = await lockAvailableLots(tx, input.variantId);
+    const { allocations, shortfall } = allocateFefo(
+      lots.map((lot) => ({ id: lot.id, available: Number(lot.quantityAvailable) })),
+      input.quantity,
+    );
+
+    if (shortfall > 0) {
+      throw new BusinessRuleError(
+        `No hay pulpa suficiente para la muestra. Faltan ${shortfall}.`,
+        { variantId: input.variantId, missing: shortfall },
+      );
+    }
+
+    for (const allocation of allocations) {
+      await tx.lot.update({
+        where: { id: allocation.lotId },
+        data: {
+          quantityAvailable: allocation.remaining,
+          ...(allocation.remaining === 0 ? { status: LotStatus.AGOTADO } : {}),
+        },
+      });
+
+      await tx.stockMovement.create({
+        data: {
+          type: StockMovementType.MUESTRA,
+          variantId: input.variantId,
+          lotId: allocation.lotId,
+          quantity: -allocation.taken,
+          userId: user.id,
+          reason: input.reason ?? "Muestra gratis",
+        },
+      });
+    }
+
+    return { delivered: input.quantity, lots: allocations.length };
+  });
+}
+
+/**
+ * Devolución de un cliente. Vendible: reingresa al lote indicado y vuelve a
+ * estar disponible. Dañada: queda en el kardex pero no suma stock, porque
+ * la pulpa dañada no se vuelve a vender.
+ */
+export async function registerReturn(user: SessionUser, input: ReturnInput) {
+  if (input.condition === "DANADA") {
+    return prisma.stockMovement.create({
+      data: {
+        type: StockMovementType.DEVOLUCION_DANADA,
+        variantId: input.variantId,
+        lotId: input.lotId,
+        quantity: input.quantity,
+        userId: user.id,
+        reason: input.reason ?? "Devolución dañada",
+      },
+    });
+  }
+
+  return prisma.$transaction(async (tx) => {
+    const lot = await tx.lot.findUnique({
+      where: { id: input.lotId! },
+      select: {
+        id: true,
+        variantId: true,
+        status: true,
+        quantityAvailable: true,
+        expiryDate: true,
+      },
+    });
+
+    if (!lot || lot.variantId !== input.variantId) {
+      throw new NotFoundError("El lote de ese producto");
+    }
+    if (lot.status === LotStatus.BLOQUEADO) {
+      throw new BusinessRuleError("El lote está bloqueado: no se le puede reingresar pulpa.");
+    }
+
+    const isExpired = lot.expiryDate.getTime() < Date.now();
+    if (isExpired) {
+      throw new BusinessRuleError(
+        "El lote ya venció: una devolución vencida se registra como dañada.",
+      );
+    }
+
+    await tx.lot.update({
+      where: { id: lot.id },
+      data: {
+        quantityAvailable: Number(lot.quantityAvailable) + input.quantity,
+        ...(lot.status === LotStatus.AGOTADO ? { status: LotStatus.DISPONIBLE } : {}),
+      },
+    });
+
+    return tx.stockMovement.create({
+      data: {
+        type: StockMovementType.DEVOLUCION,
+        variantId: input.variantId,
+        lotId: lot.id,
+        quantity: input.quantity,
+        userId: user.id,
+        reason: input.reason ?? "Devolución vendible",
+      },
+    });
+  });
 }

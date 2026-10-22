@@ -10,12 +10,13 @@ import {
   type ProductCreateInput,
   type ProductFormValues,
 } from "@/server/validators/catalog";
-import { PRODUCT_CATEGORY_LABEL, toOptions } from "@/lib/labels";
+import { PRESENTATION_LABEL, PRODUCT_CATEGORY_LABEL, toOptions } from "@/lib/labels";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field, Input, Select, Textarea } from "@/components/ui/field";
 
 const categoryOptions = toOptions(PRODUCT_CATEGORY_LABEL);
+const presentationOptions = toOptions(PRESENTATION_LABEL);
 
 /**
  * Tarifas de IVA vigentes en Colombia. Se ofrecen como opciones en vez de un
@@ -51,6 +52,8 @@ export function ProductForm({ product }: Props) {
       description: product?.description ?? undefined,
       taxRate: product?.taxRate ?? 0,
       active: product?.active ?? true,
+      baseFruit: product?.baseFruit ?? undefined,
+      expectedYieldPct: product?.expectedYieldPct ?? undefined,
       firstPresentation: "KILO",
     },
   });
@@ -139,6 +142,33 @@ export function ProductForm({ product }: Props) {
           </Field>
 
           <Field
+            id="baseFruit"
+            label="Fruta base"
+            hint="Con ella se costea la producción. Vacío: se usa el sabor"
+            error={errors.baseFruit?.message}
+          >
+            {(props) => <Input {...props} {...register("baseFruit")} placeholder="Limón" />}
+          </Field>
+
+          <Field
+            id="expectedYieldPct"
+            label="Rendimiento esperado (%)"
+            hint="Kilos de pulpa por cada 100 de fruta; avisa si una tanda rinde mucho menos"
+            error={errors.expectedYieldPct?.message}
+          >
+            {(props) => (
+              <Input
+                {...props}
+                {...register("expectedYieldPct")}
+                type="number"
+                min={1}
+                max={100}
+                inputMode="numeric"
+              />
+            )}
+          </Field>
+
+          <Field
             id="description"
             label="Descripción"
             error={errors.description?.message}
@@ -191,8 +221,11 @@ export function ProductForm({ product }: Props) {
               >
                 {(props) => (
                   <Select {...props} {...register("firstPresentation")}>
-                    <option value="KILO">Kilo — 1.000 g</option>
-                    <option value="LIBRA">Libra — 500 g</option>
+                    {presentationOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
                   </Select>
                 )}
               </Field>

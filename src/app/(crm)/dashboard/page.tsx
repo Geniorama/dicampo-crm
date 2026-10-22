@@ -2,6 +2,11 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { requireUser } from "@/server/guards";
 import { getDashboardMetrics, getRecentOrders } from "@/server/services/reports";
+import { getGoalsProgress } from "@/server/services/goals";
+import { listReceivables } from "@/server/services/receivables";
+import { getDailyActivity } from "@/server/services/daily-activity";
+import { GoalMeter } from "@/components/goals/goal-meter";
+import { currentMonth } from "@/lib/goals";
 import { Card, CardContent, CardHeader, CardTitle, StatCard } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatCOP, formatDate, formatOrderNumber } from "@/lib/format";
@@ -17,11 +22,25 @@ function growthLabel(current: number, previous: number): string {
   return `${sign}${change.toFixed(0)}% vs. mes anterior`;
 }
 
+/** "2026-10" → "octubre de 2026" */
+function formatMonth(month: string): string {
+  const [year, number] = month.split("-").map(Number);
+  return new Intl.DateTimeFormat("es-CO", { month: "long", year: "numeric", timeZone: "UTC" }).format(
+    new Date(Date.UTC(year, number - 1, 1)),
+  );
+}
+
 export default async function DashboardPage() {
   const user = await requireUser();
-  const [metrics, recentOrders] = await Promise.all([
+  // Las metas son del equipo comercial; bodega y despacho no las ven.
+  const showGoals = user.role === "ADMIN" || user.role === "VENDEDOR";
+  const month = currentMonth();
+  const [metrics, recentOrders, goals, receivables, daily] = await Promise.all([
     getDashboardMetrics(user),
     getRecentOrders(user),
+    showGoals ? getGoalsProgress(user, month) : null,
+    showGoals ? listReceivables(user, { overdueOnly: false }) : null,
+    showGoals ? getDailyActivity(user) : null,
   ]);
 
   return (
@@ -60,6 +79,118 @@ export default async function DashboardPage() {
           hint="Con saldo y vencimiento en 30 días"
         />
       </section>
+
+      {receivables && receivables.totals.balance > 0 && (
+        <section aria-label="Cartera" className="grid gap-4 sm:grid-cols-2">
+          <StatCard
+            label="Cartera por cobrar"
+            value={formatCOP(receivables.totals.balance)}
+            hint={`${receivables.totals.clientCount} clientes con saldo`}
+          />
+          <Link href="/cartera?overdueOnly=1" className="block">
+            <StatCard
+              label="Cartera vencida"
+              value={formatCOP(receivables.totals.overdue)}
+              hint={receivables.totals.overdue > 0 ? "Ver clientes por cobrar" : "Todo al día"}
+            />
+          </Link>
+        </section>
+      )}
+
+      {goals && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Metas de {formatMonth(month)}</CardTitle>
+            {user.role === "ADMIN" && (
+              <Link href="/metas" className="text-xs font-medium text-primary hover:underline">
+                Definir metas
+              </Link>
+            )}
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="grid gap-6 md:grid-cols-2">
+              <GoalMeter label="Meta general · ventas" progress={goals.general.sales} format={formatCOP} />
+              <GoalMeter
+                label="Meta general · clientes nuevos"
+                progress={goals.general.newClients}
+                format={(value) => String(value)}
+              />
+            </div>
+
+            {goals.advisors.length > 0 && (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground">
+                      <th scope="col" className="py-2 pr-4 font-medium">Asesor</th>
+                      <th scope="col" className="px-4 py-2 font-medium">Ventas</th>
+                      <th scope="col" className="px-4 py-2 font-medium">Clientes nuevos</th>
+                      <th scope="col" className="py-2 pl-4 text-right font-medium">Visitas realizadas</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {goals.advisors.map((advisor) => (
+                      <tr key={advisor.userId} className="border-b border-border align-top last:border-0">
+                        <td className="py-3 pr-4 font-medium text-foreground">{advisor.name}</td>
+                        <td className="min-w-52 px-4 py-3">
+                          <GoalMeter label={`Ventas de ${advisor.name}`} progress={advisor.sales} format={formatCOP} />
+                        </td>
+                        <td className="min-w-44 px-4 py-3">
+                          <GoalMeter
+                            label={`Clientes nuevos de ${advisor.name}`}
+                            progress={advisor.newClients}
+                            format={(value) => String(value)}
+                          />
+                        </td>
+                        <td className="tabular py-3 pl-4 text-right text-foreground">{advisor.visitsDone}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {daily && daily.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Gestión de hoy</CardTitle>
+            <Link href="/agenda" className="text-xs font-medium text-primary hover:underline">
+              Ver agenda
+            </Link>
+          </CardHeader>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground">
+                  <th scope="col" className="px-5 py-2 font-medium">Asesor</th>
+                  <th scope="col" className="px-3 py-2 text-right font-medium">Llamadas</th>
+                  <th scope="col" className="px-3 py-2 text-right font-medium">WhatsApp</th>
+                  <th scope="col" className="px-3 py-2 text-right font-medium">Visitas</th>
+                  <th scope="col" className="px-3 py-2 text-right font-medium">Muestras</th>
+                  <th scope="col" className="px-3 py-2 text-right font-medium">Clientes tocados</th>
+                  <th scope="col" className="px-5 py-2 text-right font-medium">Cobrado</th>
+                </tr>
+              </thead>
+              <tbody>
+                {daily.map((row) => (
+                  <tr key={row.userId} className="border-b border-border last:border-0">
+                    <td className="px-5 py-2.5 font-medium text-foreground">{row.name}</td>
+                    <td className="tabular px-3 py-2.5 text-right">{row.calls}</td>
+                    <td className="tabular px-3 py-2.5 text-right">{row.whatsapp}</td>
+                    <td className="tabular px-3 py-2.5 text-right">{row.visits}</td>
+                    <td className="tabular px-3 py-2.5 text-right">{row.samples}</td>
+                    <td className="tabular px-3 py-2.5 text-right">{row.clientsTouched}</td>
+                    <td className="tabular px-5 py-2.5 text-right">{formatCOP(row.collected)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
 
       {metrics.overdueActivities > 0 && (
         <p

@@ -78,3 +78,32 @@ export const deliveryProofSchema = z.object({
 
 export type DeliveryProofFormValues = z.input<typeof deliveryProofSchema>;
 export type DeliveryProofInput = z.output<typeof deliveryProofSchema>;
+
+// ── Despacho del día ─────────────────────────────────────────
+
+/** Día de reparto como fecha de calendario ("AAAA-MM-DD"). */
+export const dispatchDayQuerySchema = z.object({
+  fecha: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "La fecha debe ser AAAA-MM-DD")
+    .optional(),
+});
+
+export type DispatchDayQuery = z.infer<typeof dispatchDayQuerySchema>;
+
+const nullableNote = z
+  .string()
+  .trim()
+  .max(500)
+  .transform((value) => (value === "" ? null : value))
+  .nullable()
+  .optional();
+
+/** Observaciones para el repartidor; `null` o vacío las borra. */
+export const dispatchNotesSchema = z
+  .object({ collectionNote: nullableNote, giftNote: nullableNote })
+  .refine((data) => data.collectionNote !== undefined || data.giftNote !== undefined, {
+    message: "No se envió ninguna observación.",
+  });
+
+export type DispatchNotesInput = z.infer<typeof dispatchNotesSchema>;

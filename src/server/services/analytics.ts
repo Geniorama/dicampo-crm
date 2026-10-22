@@ -16,7 +16,7 @@ import type { ReportQuery } from "../validators/reports";
  * cancelados nunca cuentan como venta.
  */
 
-const SOLD_STATUSES: OrderStatus[] = [
+export const SOLD_STATUSES: OrderStatus[] = [
   OrderStatus.CONFIRMADO,
   OrderStatus.EN_PREPARACION,
   OrderStatus.DESPACHADO,

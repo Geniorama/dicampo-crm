@@ -4,12 +4,15 @@ import type { Metadata } from "next";
 import { MessageCircle } from "lucide-react";
 import { requireUser } from "@/server/guards";
 import { getOrder } from "@/server/services/orders";
+import { getOrderPayments } from "@/server/services/receivables";
+import { PaymentForm } from "@/components/receivables/payment-form";
 import { NotFoundError } from "@/server/errors";
 import { PageHeader } from "@/components/layout/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { OrderStatusActions } from "@/components/orders/order-status-actions";
+import { DispatchNotesEditor } from "@/components/routes/dispatch-notes-editor";
 import {
   formatCOP,
   formatCalendarDate, formatDate,
@@ -22,6 +25,7 @@ import {
   ORDER_STATUS_LABEL,
   ORDER_STATUS_TONE,
   PAYMENT_STATUS_LABEL,
+  PAYMENT_METHOD_LABEL,
   PAYMENT_STATUS_TONE,
   PAYMENT_TERMS_LABEL,
   PRESENTATION_SHORT,
@@ -43,6 +47,9 @@ export default async function OrderDetailPage({
     if (error instanceof NotFoundError) notFound();
     throw error;
   });
+
+  const payments = await getOrderPayments(user, id);
+  const canCollect = order.status !== "BORRADOR" && order.status !== "CANCELADO";
 
   const clientName = order.client.tradeName ?? order.client.businessName;
   const contact = order.client.contacts[0];
@@ -177,6 +184,62 @@ export default async function OrderDetailPage({
               </table>
             </div>
           </Card>
+
+          {(payments.payments.length > 0 || (canCollect && payments.balance > 0)) && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Pagos</CardTitle>
+                <span className="tabular text-xs text-muted-foreground">
+                  Pagado {formatCOP(payments.paid)} de {formatCOP(payments.total)}
+                </span>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {payments.payments.length > 0 && (
+                  <ul className="divide-y divide-border text-sm">
+                    {payments.payments.map((payment) => (
+                      <li key={payment.id} className="flex items-center justify-between gap-3 py-2">
+                        <div>
+                          <p className="font-medium text-foreground">
+                            {PAYMENT_METHOD_LABEL[payment.method]}
+                            {payment.reference ? ` · ${payment.reference}` : ""}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {formatDateTime(payment.paidAt)}
+                            {payment.registeredBy ? ` · ${payment.registeredBy}` : ""}
+                          </p>
+                        </div>
+                        <span className="tabular font-medium text-success">{formatCOP(payment.amount)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+
+                {canCollect && payments.balance > 0 && (
+                  <PaymentForm
+                    orderId={order.id}
+                    orderNumber={formatOrderNumber(order.orderNumber)}
+                    balance={payments.balance}
+                  />
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {order.status !== "ENTREGADO" && order.status !== "CANCELADO" && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Observaciones de entrega</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <DispatchNotesEditor
+                  orderId={order.id}
+                  orderNumber={order.orderNumber}
+                  collectionNote={order.collectionNote}
+                  giftNote={order.giftNote}
+                />
+              </CardContent>
+            </Card>
+          )}
 
           {order.movements.length > 0 && (
             <Card>

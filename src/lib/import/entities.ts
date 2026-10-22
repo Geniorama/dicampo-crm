@@ -4,6 +4,7 @@ import {
   DOC_TYPE_LABEL,
   OPPORTUNITY_STAGE_LABEL,
   PAYMENT_TERMS_LABEL,
+  BILLING_MODE_LABEL,
   PRESENTATION_LABEL,
   PRODUCT_CATEGORY_LABEL,
   toOptions,
@@ -63,6 +64,7 @@ export const IMPORT_ENTITY_KEYS = [
   "productos",
   "precios",
   "lotes",
+  "compras",
   "oportunidades",
 ] as const;
 
@@ -199,6 +201,22 @@ const clientes: ImportEntity = {
       example: "Crédito 15 días",
     },
     {
+      key: "negotiation",
+      label: "Negociación especial",
+      group: "Cliente",
+      aliases: ["negociacion", "negociación"],
+      hint: "15-10: 15 % el primer pedido de cada sede, 10 % después. Solo la aplica un administrador.",
+      example: "15-10",
+    },
+    {
+      key: "billingMode",
+      label: "Forma de facturación",
+      group: "Cliente",
+      aliases: ["facturacion", "factura o remision", "documento"],
+      options: toOptions(BILLING_MODE_LABEL),
+      example: "Remisión",
+    },
+    {
       key: "creditLimit",
       label: "Cupo de crédito",
       group: "Cliente",
@@ -248,6 +266,14 @@ const clientes: ImportEntity = {
       group: "Sede de entrega",
       aliases: ["barrio", "sector"],
       example: "Chapinero",
+    },
+    {
+      key: "locality",
+      label: "Sede: localidad",
+      group: "Sede de entrega",
+      aliases: ["localidad"],
+      hint: "Agrupa el despacho: Engativá, Suba, Kennedy…",
+      example: "Engativá",
     },
     {
       key: "city",
@@ -444,6 +470,14 @@ const sedes: ImportEntity = {
       example: "Chapinero",
     },
     {
+      key: "locality",
+      label: "Localidad",
+      group: "Sede",
+      aliases: ["localidad"],
+      hint: "Agrupa el despacho: Engativá, Suba, Kennedy…",
+      example: "Engativá",
+    },
+    {
       key: "city",
       label: "Ciudad",
       group: "Sede",
@@ -541,6 +575,20 @@ const productos: ImportEntity = {
       label: "¿Activo?",
       aliases: ["activo", "estado", "vigente"],
       example: "Sí",
+    },
+    {
+      key: "baseFruit",
+      label: "Fruta base",
+      aliases: ["fruta base", "materia prima", "fruta de origen"],
+      hint: "Con ella se costea la producción (Limón para las limonadas). Vacío: se usa el sabor.",
+      example: "Limón",
+    },
+    {
+      key: "expectedYieldPct",
+      label: "Rendimiento esperado (%)",
+      aliases: ["rendimiento", "rendimiento esperado", "rend esperado"],
+      hint: "Kilos de pulpa por cada 100 de fruta.",
+      example: "60",
     },
     {
       key: "presentation",
@@ -674,6 +722,67 @@ const lotes: ImportEntity = {
   ],
 };
 
+const compras: ImportEntity = {
+  key: "compras",
+  label: "Compras de fruta",
+  description:
+    "Compras de materia prima, una fila por lote comprado. De ellas sale el costo de la fruta con que se mide la rentabilidad.",
+  moduleHref: "/compras",
+  moduleLabel: "Compras de fruta",
+  identity: "Fecha, fruta, proveedor, kilos y costo: una compra idéntica no se repite.",
+  // Una compra solo se crea: es un hecho contable, no un dato editable.
+  modes: ["crear"],
+  notes: [
+    "El costo es el del lote tal como lo facturó el proveedor, sin excipientes: el CRM le suma el 5 % al guardar.",
+    "Una compra no se actualiza. Si una cifra quedó mal, se registra de nuevo con la correcta y se avisa a administración.",
+    "No mueve el inventario de pulpa.",
+  ],
+  fields: [
+    {
+      key: "date",
+      label: "Fecha",
+      required: true,
+      aliases: ["fecha de compra", "dia", "fecha compra"],
+      hint: "Admite 05/09/2026 o 2026-09-05.",
+      example: "03/05/2026",
+    },
+    {
+      key: "fruit",
+      label: "Fruta",
+      required: true,
+      aliases: ["producto", "sabor", "materia prima"],
+      example: "Mango",
+    },
+    {
+      key: "supplier",
+      label: "Proveedor",
+      required: true,
+      aliases: ["vendedor", "tercero", "prov"],
+      example: "Frutas del Valle",
+    },
+    {
+      key: "kg",
+      label: "Kilos",
+      required: true,
+      aliases: ["kg", "cantidad", "peso", "kilos del lote"],
+      example: "600",
+    },
+    {
+      key: "baseCost",
+      label: "Costo del lote",
+      required: true,
+      aliases: ["costo", "valor", "total", "precio", "valor del lote", "costo total"],
+      hint: "Lo que se pagó por el lote, sin el recargo de excipientes.",
+      example: "1.620.000",
+    },
+    {
+      key: "notes",
+      label: "Notas",
+      aliases: ["observaciones", "comentarios"],
+    },
+  ],
+};
+
 const oportunidades: ImportEntity = {
   key: "oportunidades",
   label: "Oportunidades",
@@ -703,7 +812,7 @@ const oportunidades: ImportEntity = {
       group: "Oportunidad",
       aliases: ["fase", "estado", "etapa del embudo"],
       options: toOptions(OPPORTUNITY_STAGE_LABEL),
-      example: "Negociación",
+      example: "Pendiente / seguimiento",
     },
     {
       key: "estimatedValue",
@@ -751,6 +860,7 @@ export const IMPORT_ENTITIES: Record<ImportEntityKey, ImportEntity> = {
   productos,
   precios,
   lotes,
+  compras,
   oportunidades,
 };
 

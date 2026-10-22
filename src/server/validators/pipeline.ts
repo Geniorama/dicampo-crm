@@ -33,7 +33,12 @@ export const opportunityCreateSchema = opportunityBaseSchema;
 export type OpportunityFormValues = z.input<typeof opportunityCreateSchema>;
 export type OpportunityCreateInput = z.output<typeof opportunityCreateSchema>;
 
+// `.partial()` conserva los `.default()`: un PATCH parcial reiniciaría esos campos.
 export const opportunityUpdateSchema = opportunityBaseSchema
+  .extend({
+    stage: z.enum(OpportunityStage),
+    estimatedValue: z.coerce.number().min(0, "El valor no puede ser negativo"),
+  })
   .partial()
   .omit({ clientId: true })
   .refine((data) => Object.keys(data).length > 0, {

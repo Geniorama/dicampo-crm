@@ -480,7 +480,8 @@ function describeLeadChanges(input: LeadUpdateInput): string {
 
 /**
  * Registra el interés del prospecto. Hay una sola oportunidad abierta por
- * cliente: si ya existe se revalora, si no se crea en CONTACTADO. El dueño es
+ * cliente: si ya existe se revalora, si no se crea en PROSPECTO ("Sin cita"):
+ * el interés por WhatsApp no es una cita; esa etapa la fija `agendar_visita`. El dueño es
  * el vendedor del cliente y el valor lo calcula el CRM con la lista de
  * precios del cliente.
  */
@@ -556,7 +557,7 @@ export async function upsertOpportunity(
           data: {
             clientId: client.id,
             title: `WhatsApp · ${clientDisplayName(client)}`,
-            stage: "CONTACTADO",
+            stage: "PROSPECTO",
             estimatedValue: valuation.total,
             ownerId: client.ownerId,
             notes: withInterestBlock(input.notas ?? null, breakdown),

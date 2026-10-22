@@ -68,7 +68,7 @@ David: Entiendo. ¿Qué les pesa más: el tiempo de preparación, el desperdicio
 - registrar_lead: una sola vez, cuando el cliente califica. Si la ficha ya trae cliente, no la uses.
 - actualizar_lead: cuando el cliente da datos nuevos (razón social, tipo de negocio, dirección, cargo, correo). Usa el clientId de la ficha o de registrar_lead.
 - registrar_interes: cuando menciona sabores y volumen. Manda SIEMPRE la lista completa vigente de lo que le interesa, en kilos al mes, con los SKU de la tabla.
-- mover_etapa: CONTACTADO al calificar, NEGOCIACION cuando habla de pedido o precio concreto. Nunca ganes ni pierdas oportunidades.
+- mover_etapa: solo NEGOCIACION ("Pendiente / seguimiento") cuando habla de pedido o precio concreto. No marques CONTACTADO: "Cita programada" la deja agendar_visita. Nunca ganes ni pierdas oportunidades.
 - consultar_disponibilidad: franjas libres del asesor. Úsala antes de ofrecer cualquier día u hora de visita.
 - agendar_visita: con el 'inicio' de la franja que eligió el cliente (formato ISO con zona de Bogotá, ej. 2026-10-16T10:00:00-05:00) y la dirección exacta.
 - escalar_a_humano: ver reglas. Escribe un resumen útil para el asesor.

@@ -56,8 +56,8 @@ async function load(
   }
 
   return runImport(user, key, {
-    // Los lotes solo admiten crear.
-    mode: options.mode ?? (key === "lotes" ? "crear" : "mezclar"),
+    // Los lotes y las compras solo admiten crear.
+    mode: options.mode ?? (key === "lotes" || key === "compras" ? "crear" : "mezclar"),
     dryRun: options.dryRun,
     mapping: analysis.suggestion,
     rows: analysis.rows,
@@ -100,6 +100,8 @@ async function clean() {
   });
   await prisma.lot.deleteMany({ where: { lotCode: { startsWith: TAG } } });
   await prisma.priceListItem.deleteMany({ where: { minQty: TIER } });
+  await prisma.fruitPurchase.deleteMany({ where: { supplier: { startsWith: TAG } } });
+  await prisma.user.deleteMany({ where: { email: { startsWith: TAG.toLowerCase() } } });
   await prisma.product.deleteMany({ where: { flavor: { startsWith: TAG } } });
 }
 
@@ -113,7 +115,7 @@ async function sessionUser(role: SessionUser["role"]): Promise<SessionUser> {
 }
 
 async function totals() {
-  const [clients, contacts, addresses, products, variants, prices, lots, moves, opps] =
+  const [clients, contacts, addresses, products, variants, prices, lots, moves, opps, purchases] =
     await Promise.all([
       prisma.client.count(),
       prisma.contact.count(),
@@ -124,8 +126,9 @@ async function totals() {
       prisma.lot.count(),
       prisma.stockMovement.count(),
       prisma.opportunity.count(),
+      prisma.fruitPurchase.count(),
     ]);
-  return JSON.stringify({ clients, contacts, addresses, products, variants, prices, lots, moves, opps });
+  return JSON.stringify({ clients, contacts, addresses, products, variants, prices, lots, moves, opps, purchases });
 }
 
 async function main() {
@@ -146,6 +149,8 @@ async function main() {
   check("un vendedor no puede subir lotes", !canImport(seller, importAccess("lotes")));
   check("bodega sí puede subir lotes", canImport(warehouse, importAccess("lotes")));
   check("bodega no puede subir clientes", !canImport(warehouse, importAccess("clientes")));
+  check("bodega no puede subir compras de fruta", !canImport(warehouse, importAccess("compras")));
+  check("un vendedor no puede subir compras de fruta", !canImport(seller, importAccess("compras")));
   check("un vendedor sí puede subir clientes", canImport(seller, importAccess("clientes")));
 
   // ── Clientes ───────────────────────────────────────────────
@@ -297,6 +302,42 @@ async function main() {
   check("la fecha 01/03/2027 no se corrió de día", expiry?.getFullYear() === 2027 && expiry.getMonth() === 2 && expiry.getDate() === 1, expiry?.toISOString());
   const lotsAgain = await load(warehouse, "lotes", lotsCsv, { dryRun: false });
   check(`reimportar lotes no crea ni reescribe (${countsOf(lotsAgain)})`, lotsAgain.counts.crear === 0 && lotsAgain.counts.omitir === 3);
+
+  // ── Compras de fruta ───────────────────────────────────────
+  console.log("\nCompras de fruta");
+  const buyerRow = await prisma.user.create({
+    data: {
+      name: `${TAG} Compras`,
+      email: `${TAG.toLowerCase()}-compras@example.com`,
+      role: "COMPRAS",
+    },
+    select: { id: true, name: true, email: true, role: true },
+  });
+  const buyer: SessionUser = buyerRow;
+  check("compras sí puede subir compras de fruta", canImport(buyer, importAccess("compras")));
+  check("compras no puede subir clientes", !canImport(buyer, importAccess("clientes")));
+
+  const purchasesCsv = [
+    "Fecha;Fruta;Proveedor;Kilos;Costo del lote",
+    `03/05/2026;Mango;${TAG} Frutas del Valle;600;1.620.000`,
+    `14/05/2026;Mango;${TAG} La Cosecha;580,5;1.566.000`,
+    `03/05/2026;Mango;${TAG} Frutas del Valle;600;1.620.000`,
+    `31/05/2026;Mora;${TAG} Agro Sabana;0;500.000`,
+    `xx/05/2026;Lulo;${TAG} Agro Sabana;100;300.000`,
+  ].join("\n");
+  const purchasesReport = await dryThenReal(buyer, "compras", purchasesCsv, "crear=2 actualizar=0 omitir=1 error=2");
+  const saved = await prisma.fruitPurchase.findMany({
+    where: { supplier: { startsWith: TAG } },
+    orderBy: { date: "asc" },
+  });
+  check("se guardaron dos compras; la repetida del archivo se omitió", saved.length === 2, String(saved.length));
+  check("el costo guardado suma 5 % de excipientes (1.620.000 → 1.701.000)", Number(saved[0]?.cost) === 1_701_000 && Number(saved[0]?.baseCost) === 1_620_000, `${saved[0]?.baseCost}/${saved[0]?.cost}`);
+  check("los kilos con coma decimal se leyeron bien (580,5)", saved.some((row) => Number(row.kg) === 580.5));
+  check("la fecha 03/05/2026 no se corrió de día", saved[0]?.date.toISOString().slice(0, 10) === "2026-05-03", saved[0]?.date.toISOString());
+  check("quedó registrado quién cargó la compra", saved.every((row) => row.userId === buyer.id));
+  check("las filas con kilos en cero o fecha ilegible se rechazan", purchasesReport.counts.error === 2, errorsOf(purchasesReport));
+  const purchasesAgain = await load(buyer, "compras", purchasesCsv, { dryRun: false, mode: "crear" });
+  check(`reimportar compras no duplica el gasto (${countsOf(purchasesAgain)})`, purchasesAgain.counts.crear === 0 && purchasesAgain.counts.omitir === 3);
 
   // ── Oportunidades ──────────────────────────────────────────
   console.log("\nOportunidades");

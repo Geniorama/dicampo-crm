@@ -41,7 +41,11 @@ export type OrderFormValues = z.input<typeof orderCreateSchema>;
 export type OrderCreateInput = z.output<typeof orderCreateSchema>;
 
 /** Solo se puede editar el contenido mientras el pedido esté en BORRADOR. */
-export const orderUpdateSchema = orderCreateSchema.partial().omit({ clientId: true });
+// `.partial()` conserva los `.default()`: un PATCH parcial reiniciaría esos campos.
+export const orderUpdateSchema = orderCreateSchema
+  .extend({ channel: z.enum(OrderChannel) })
+  .partial()
+  .omit({ clientId: true });
 
 export type OrderUpdateInput = z.infer<typeof orderUpdateSchema>;
 

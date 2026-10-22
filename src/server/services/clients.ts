@@ -8,7 +8,12 @@ import {
 import { scopeToOwnPortfolio, type SessionUser } from "../guards";
 import { UserRole } from "@/generated/prisma/enums";
 import { calculateNitDv } from "@/lib/nit";
+import { parseNegotiation } from "@/lib/quote-discount";
 import { contactWhatsappKey } from "@/lib/whatsapp";
+import {
+  computePurchaseProfile,
+  type ProfileOrder,
+} from "@/lib/purchase-profile";
 import type {
   AddressCreateInput,
   ClientCreateInput,
@@ -47,12 +52,28 @@ const listSelect = {
 } as const;
 
 export async function listClients(user: SessionUser, query: ClientListQuery) {
-  const { search, status, type, ownerId, page, pageSize } = query;
+  const { search, status, type, ownerId, locality, orderDay, page, pageSize } = query;
+
+  // Los clientes que suelen pedir ese día salen de sus pedidos: no hay un
+  // campo guardado que se desactualice.
+  const dayClientIds =
+    orderDay === undefined ? undefined : await clientIdsOrderingOn(user, orderDay);
 
   const where = {
     ...scopeToOwnPortfolio(user),
     ...(status ? { status } : {}),
     ...(type ? { type } : {}),
+    ...(locality
+      ? {
+          addresses: {
+            some: {
+              active: true,
+              locality: { equals: locality, mode: "insensitive" as const },
+            },
+          },
+        }
+      : {}),
+    ...(dayClientIds ? { id: { in: dayClientIds } } : {}),
     // El filtro explícito por vendedor solo tiene sentido para quien ve todo;
     // a un VENDEDOR el scope ya lo limita a su propia cartera.
     ...(ownerId && user.role !== UserRole.VENDEDOR ? { ownerId } : {}),
@@ -85,6 +106,62 @@ export async function listClients(user: SessionUser, query: ClientListQuery) {
     pageSize,
     totalPages: Math.max(1, Math.ceil(total / pageSize)),
   };
+}
+
+/**
+ * Clientes cuyo día habitual de pedido es el indicado (0 = domingo, hora de
+ * Bogotá). Se calcula sobre pedidos reales, sin cancelados, de la cartera que
+ * el usuario puede ver.
+ */
+async function clientIdsOrderingOn(user: SessionUser, weekday: number): Promise<string[]> {
+  const orders = await prisma.order.findMany({
+    where: {
+      status: { not: "CANCELADO" },
+      client: scopeToOwnPortfolio(user),
+    },
+    select: { clientId: true, orderDate: true, total: true },
+  });
+
+  const byClient = new Map<string, ProfileOrder[]>();
+  for (const order of orders) {
+    const list = byClient.get(order.clientId) ?? [];
+    list.push({ orderDate: order.orderDate, total: Number(order.total), items: [] });
+    byClient.set(order.clientId, list);
+  }
+
+  return [...byClient.entries()]
+    .filter(([, list]) => computePurchaseProfile(list).usualWeekdays.includes(weekday))
+    .map(([clientId]) => clientId);
+}
+
+/** Hábitos de compra del cliente: frecuencia, día, sabores y pedido habitual. */
+export async function getClientPurchaseProfile(user: SessionUser, clientId: string) {
+  const client = await prisma.client.findUnique({
+    where: { id: clientId },
+    select: { ownerId: true },
+  });
+  if (!client) throw new NotFoundError("El cliente");
+  assertCanAccess(user, client.ownerId);
+
+  const orders = await prisma.order.findMany({
+    where: { clientId, status: { not: "CANCELADO" } },
+    select: {
+      orderDate: true,
+      total: true,
+      items: { select: { productNameSnapshot: true, quantity: true } },
+    },
+  });
+
+  return computePurchaseProfile(
+    orders.map((order) => ({
+      orderDate: order.orderDate,
+      total: Number(order.total),
+      items: order.items.map((item) => ({
+        name: item.productNameSnapshot,
+        quantity: Number(item.quantity),
+      })),
+    })),
+  );
 }
 
 /** Ficha completa del cliente, con contactos, sedes y actividad reciente. */
@@ -158,6 +235,23 @@ async function assertNitIsFree(nit: string, excludeClientId?: string) {
   }
 }
 
+/** "15-10" → columnas de la negociación; null la quita; undefined no la toca. */
+function negotiationColumns(negotiation: string | null | undefined) {
+  if (negotiation === undefined) return {};
+  const parsed = negotiation === null ? null : parseNegotiation(negotiation);
+  return {
+    negotiationFirstPct: parsed?.first ?? null,
+    negotiationNextPct: parsed?.next ?? null,
+  };
+}
+
+/** Las condiciones comerciales especiales las fija administración, no el vendedor. */
+function assertCanSetNegotiation(user: SessionUser, changing: boolean) {
+  if (changing && user.role !== UserRole.ADMIN) {
+    throw new ForbiddenError("Solo un administrador puede definir la negociación especial.");
+  }
+}
+
 export async function createClient(user: SessionUser, input: ClientCreateInput) {
   if (input.nit) await assertNitIsFree(input.nit);
 
@@ -176,9 +270,13 @@ export async function createClient(user: SessionUser, input: ClientCreateInput) 
       })
     )?.id;
 
+  const { negotiation, ...clientData } = input;
+  assertCanSetNegotiation(user, negotiation !== undefined && negotiation !== null);
+
   return prisma.client.create({
     data: {
-      ...input,
+      ...clientData,
+      ...negotiationColumns(negotiation),
       ownerId,
       priceListId,
       // Si dieron el NIT sin DV, se calcula en vez de dejarlo vacío.
@@ -194,7 +292,13 @@ export async function updateClient(
 ) {
   const current = await prisma.client.findUnique({
     where: { id },
-    select: { id: true, ownerId: true, nit: true },
+    select: {
+      id: true,
+      ownerId: true,
+      nit: true,
+      negotiationFirstPct: true,
+      negotiationNextPct: true,
+    },
   });
 
   if (!current) throw new NotFoundError("El cliente");
@@ -205,7 +309,19 @@ export async function updateClient(
   }
 
   // Reasignar la cartera es decisión de administración.
-  const { ownerId, ...rest } = input;
+  const { ownerId, negotiation, ...rest } = input;
+
+  // El formulario reenvía el valor actual: solo cuenta si de verdad cambia.
+  const currentNegotiation =
+    current.negotiationFirstPct === null || current.negotiationNextPct === null
+      ? null
+      : `${current.negotiationFirstPct}-${current.negotiationNextPct}`;
+  const requested = negotiation ? parseNegotiation(negotiation) : null;
+  const requestedText = requested ? `${requested.first}-${requested.next}` : null;
+  assertCanSetNegotiation(
+    user,
+    negotiation !== undefined && requestedText !== currentNegotiation,
+  );
   if (ownerId !== undefined && user.role !== UserRole.ADMIN) {
     throw new ForbiddenError("Solo un administrador puede reasignar clientes.");
   }
@@ -216,6 +332,7 @@ export async function updateClient(
     where: { id },
     data: {
       ...rest,
+      ...negotiationColumns(negotiation),
       ...(ownerId !== undefined ? { ownerId } : {}),
       ...(nit ? { nitDv: input.nitDv ?? calculateNitDv(nit) } : {}),
     },

@@ -33,6 +33,8 @@ export default async function EditProductPage({
           description: product.description ?? undefined,
           taxRate: Number(product.taxRate),
           active: product.active,
+          baseFruit: product.baseFruit ?? undefined,
+          expectedYieldPct: product.expectedYieldPct ?? undefined,
         }}
       />
     </div>

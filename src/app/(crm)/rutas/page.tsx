@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { Plus } from "lucide-react";
+import { Plus, Truck } from "lucide-react";
 import { DISPATCH_ROLES, isAdmin, requireUser } from "@/server/guards";
 import { listRoutes } from "@/server/services/routes";
 import { routeListQuerySchema } from "@/server/validators/routes";
@@ -38,10 +38,16 @@ export default async function RoutesPage({
         description={`${routes.length} ${routes.length === 1 ? "ruta" : "rutas"}`}
         actions={
           canEdit && (
-            <Link href="/rutas/nueva" className={buttonVariants()}>
-              <Plus aria-hidden="true" />
-              Nueva ruta
-            </Link>
+            <>
+              <Link href="/rutas/dia" className={buttonVariants({ variant: "secondary" })}>
+                <Truck aria-hidden="true" />
+                Despacho del día
+              </Link>
+              <Link href="/rutas/nueva" className={buttonVariants()}>
+                <Plus aria-hidden="true" />
+                Nueva ruta
+              </Link>
+            </>
           )
         }
       />

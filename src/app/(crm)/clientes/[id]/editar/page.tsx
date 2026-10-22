@@ -25,6 +25,7 @@ export default async function EditClientPage({
     <div className="mx-auto max-w-3xl space-y-5">
       <PageHeader title={`Editar ${client.tradeName ?? client.businessName}`} />
       <ClientForm
+        canEditNegotiation={user.role === "ADMIN"}
         client={{
           id: client.id,
           businessName: client.businessName,
@@ -36,6 +37,11 @@ export default async function EditClientPage({
           email: client.email ?? undefined,
           phone: client.phone ?? undefined,
           paymentTerms: client.paymentTerms,
+          billingMode: client.billingMode,
+          negotiation:
+            client.negotiationFirstPct !== null && client.negotiationNextPct !== null
+              ? `${client.negotiationFirstPct}-${client.negotiationNextPct}`
+              : undefined,
           creditLimit: Number(client.creditLimit),
           notes: client.notes ?? undefined,
         }}

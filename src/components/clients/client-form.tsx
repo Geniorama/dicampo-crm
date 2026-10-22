@@ -16,6 +16,7 @@ import {
   CLIENT_TYPE_LABEL,
   PAYMENT_TERMS_LABEL,
   toOptions,
+  BILLING_MODE_LABEL,
 } from "@/lib/labels";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -24,13 +25,16 @@ import { Field, Input, Select, Textarea } from "@/components/ui/field";
 const typeOptions = toOptions(CLIENT_TYPE_LABEL);
 const statusOptions = toOptions(CLIENT_STATUS_LABEL);
 const paymentTermsOptions = toOptions(PAYMENT_TERMS_LABEL);
+const billingModeOptions = toOptions(BILLING_MODE_LABEL);
 
 type Props = {
   /** Cliente a editar; si falta, el formulario crea uno nuevo. */
   client?: Partial<ClientCreateInput> & { id: string };
+  /** Solo administración define la negociación especial. */
+  canEditNegotiation?: boolean;
 };
 
-export function ClientForm({ client }: Props) {
+export function ClientForm({ client, canEditNegotiation = false }: Props) {
   const router = useRouter();
   const [formError, setFormError] = useState<string | null>(null);
   const isEditing = Boolean(client);
@@ -54,6 +58,8 @@ export function ClientForm({ client }: Props) {
       email: client?.email ?? undefined,
       phone: client?.phone ?? undefined,
       paymentTerms: client?.paymentTerms ?? "CONTADO",
+      billingMode: client?.billingMode ?? "FACTURA",
+      negotiation: client?.negotiation ?? undefined,
       creditLimit: client?.creditLimit ?? 0,
       notes: client?.notes ?? undefined,
     },
@@ -195,6 +201,35 @@ export function ClientForm({ client }: Props) {
               </Select>
             )}
           </Field>
+
+          <Field
+            id="billingMode"
+            label="Forma de facturación"
+            error={errors.billingMode?.message}
+          >
+            {(props) => (
+              <Select {...props} {...register("billingMode")}>
+                {billingModeOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </Select>
+            )}
+          </Field>
+
+          {canEditNegotiation && (
+            <Field
+              id="negotiation"
+              label="Negociación especial"
+              hint="15-10: 15 % el primer pedido de cada sede, 10 % después. Vacío si no tiene."
+              error={errors.negotiation?.message}
+            >
+              {(props) => (
+                <Input {...props} {...register("negotiation")} placeholder="15-10" />
+              )}
+            </Field>
+          )}
 
           <Field
             id="creditLimit"

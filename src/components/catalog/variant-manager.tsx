@@ -54,7 +54,7 @@ export function VariantManager({
   const [priceDraft, setPriceDraft] = useState("");
 
   const usedPresentations = new Set(variants.map((v) => v.presentation));
-  const availablePresentations = (["KILO", "LIBRA"] as const).filter(
+  const availablePresentations = (Object.keys(PRESENTATION_LABEL) as Presentation[]).filter(
     (p) => !usedPresentations.has(p),
   );
 

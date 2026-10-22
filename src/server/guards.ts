@@ -119,6 +119,9 @@ export function scopeToOwnPortfolio(
 /** Roles que pueden operar inventario. */
 export const INVENTORY_ROLES = [UserRole.BODEGA] as const;
 
+/** Roles que registran compras de fruta y ven sus costos. */
+export const PURCHASING_ROLES = [UserRole.COMPRAS] as const;
+
 /** Roles que pueden planear y ejecutar despachos. */
 export const DISPATCH_ROLES = [UserRole.DESPACHO, UserRole.BODEGA] as const;
 

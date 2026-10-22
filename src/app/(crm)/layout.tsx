@@ -17,8 +17,8 @@ export default async function CrmLayout({
   if (!user) redirect("/login");
 
   return (
-    <div className="flex min-h-screen bg-muted">
-      <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col border-r border-border bg-card md:flex">
+    <div className="flex min-h-screen bg-muted print:bg-white">
+      <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col border-r border-border bg-card md:flex print:hidden">
         <div className="px-5 py-5">
           <Logo height={28} priority />
           <p className="mt-1.5 text-xs text-muted-foreground">
@@ -41,7 +41,7 @@ export default async function CrmLayout({
       <div className="flex min-w-0 flex-1 flex-col">
         {/* En móvil la barra lateral se reemplaza por un encabezado con la
             navegación desplazable horizontalmente. */}
-        <div className="border-b border-border bg-card md:hidden">
+        <div className="border-b border-border bg-card md:hidden print:hidden">
           <div className="flex items-center justify-between gap-3 px-4 pt-3">
             <Logo height={24} priority />
           </div>
@@ -49,7 +49,7 @@ export default async function CrmLayout({
           <Sidebar role={user.role} orientation="horizontal" />
         </div>
 
-        <main className="min-w-0 flex-1 p-4 md:p-6">{children}</main>
+        <main className="min-w-0 flex-1 p-4 md:p-6 print:p-0">{children}</main>
       </div>
     </div>
   );

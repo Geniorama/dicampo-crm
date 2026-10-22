@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import { MessageCircle } from "lucide-react";
+import { MapIcon, MessageCircle, Navigation } from "lucide-react";
 import { DISPATCH_ROLES, isAdmin, requireUser } from "@/server/guards";
 import {
   getRoute,
@@ -32,6 +32,7 @@ import {
   ROUTE_STATUS_TONE,
 } from "@/lib/labels";
 import { whatsappLink } from "@/lib/whatsapp";
+import { googleMapsRoute, wazeLink } from "@/lib/dispatch";
 
 export const metadata: Metadata = { title: "Ruta" };
 
@@ -64,6 +65,7 @@ export default async function RouteDetailPage({
     address: {
       label: string;
       address: string;
+      locality: string | null;
       zone: { name: string } | null;
     } | null;
   }): PlannableOrder => ({
@@ -75,8 +77,10 @@ export default async function RouteDetailPage({
     addressLabel: order.address?.label ?? null,
     addressText: order.address?.address ?? null,
     zoneName: order.address?.zone?.name ?? null,
+    localityName: order.address?.locality ?? null,
   });
 
+  const mapsRoute = googleMapsRoute(route.orders.map((order) => order.address?.address));
   const delivered = route.orders.filter((order) => order.status === "ENTREGADO");
   const total = route.orders.reduce((acc, order) => acc + Number(order.total), 0);
 
@@ -91,9 +95,27 @@ export default async function RouteDetailPage({
           </>
         }
         actions={
-          <Badge tone={ROUTE_STATUS_TONE[route.status]}>
-            {ROUTE_STATUS_LABEL[route.status]}
-          </Badge>
+          <>
+            {mapsRoute && (
+              <a
+                href={mapsRoute.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={buttonVariants({ variant: "secondary" })}
+                title={
+                  mapsRoute.truncated
+                    ? "Google Maps admite 10 paradas: se abre con las primeras 10."
+                    : undefined
+                }
+              >
+                <MapIcon aria-hidden="true" />
+                Abrir recorrido{mapsRoute.truncated ? " (10 primeras)" : ""}
+              </a>
+            )}
+            <Badge tone={ROUTE_STATUS_TONE[route.status]}>
+              {ROUTE_STATUS_LABEL[route.status]}
+            </Badge>
+          </>
         }
       />
 
@@ -175,9 +197,19 @@ export default async function RouteDetailPage({
                         </p>
                         <p className="text-xs text-muted-foreground">
                           {order.address
-                            ? `${order.address.label} · ${order.address.address}`
+                            ? `${order.address.label} · ${order.address.address}${order.address.locality ? ` (${order.address.locality})` : ""}`
                             : "Sin dirección"}
                         </p>
+                        {order.collectionNote && (
+                          <p className="mt-1 text-xs font-medium text-foreground">
+                            Cobrar: {order.collectionNote}
+                          </p>
+                        )}
+                        {order.giftNote && (
+                          <p className="mt-1 text-xs font-medium text-foreground">
+                            Obsequio: {order.giftNote}
+                          </p>
+                        )}
                         {order.address?.deliveryNotes && (
                           <p className="mt-1 text-xs text-warning">
                             {order.address.deliveryNotes}
@@ -202,6 +234,20 @@ export default async function RouteDetailPage({
                       <span className="tabular text-sm font-medium text-foreground">
                         {formatCOP(order.total)}
                       </span>
+                      {wazeLink(order.address?.address) && (
+                        <a
+                          href={wazeLink(order.address?.address)!}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className={buttonVariants({
+                            variant: "ghost",
+                            size: "sm",
+                          })}
+                        >
+                          <Navigation aria-hidden="true" />
+                          Waze
+                        </a>
+                      )}
                       {waLink && (
                         <a
                           href={waLink}

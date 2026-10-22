@@ -89,6 +89,7 @@ export const addressesImporter: Importer<Ctx> = {
       label,
       address,
       neighborhood: text(record, "neighborhood"),
+      locality: text(record, "locality"),
       city: text(record, "city"),
       zoneId: zone?.id,
       lat: decimal(record, "lat", "Latitud"),

@@ -7,12 +7,16 @@ import {
   Boxes,
   CalendarDays,
   ClipboardList,
+  FileText,
+  Flag,
+  ShoppingBasket,
   LayoutDashboard,
   MessagesSquare,
   Package,
   Truck,
   Upload,
   Users,
+  Wallet,
   UserCog,
   Target,
   type LucideIcon,
@@ -54,7 +58,14 @@ const NAV_ITEMS: NavItem[] = [
     icon: CalendarDays,
     roles: ["VENDEDOR"],
   },
+  {
+    href: "/cotizaciones",
+    label: "Cotizaciones",
+    icon: FileText,
+    roles: ["VENDEDOR"],
+  },
   { href: "/pedidos", label: "Pedidos", icon: ClipboardList },
+  { href: "/cartera", label: "Cartera", icon: Wallet, roles: ["VENDEDOR"] },
   {
     href: "/catalogo",
     label: "Catálogo",
@@ -65,7 +76,14 @@ const NAV_ITEMS: NavItem[] = [
     href: "/inventario",
     label: "Inventario",
     icon: Boxes,
-    roles: ["BODEGA"],
+    // Vendedores consultan existencias; solo bodega y administración editan.
+    roles: ["BODEGA", "VENDEDOR"],
+  },
+  {
+    href: "/compras",
+    label: "Compras de fruta",
+    icon: ShoppingBasket,
+    roles: ["COMPRAS"],
   },
   {
     href: "/rutas",
@@ -79,8 +97,9 @@ const NAV_ITEMS: NavItem[] = [
     label: "Carga masiva",
     icon: Upload,
     // DESPACHO no tiene ninguna carga a su alcance: el enlace no le sirve.
-    roles: ["VENDEDOR", "BODEGA"],
+    roles: ["VENDEDOR", "BODEGA", "COMPRAS"],
   },
+  { href: "/metas", label: "Metas", icon: Flag, roles: [] },
   // roles: [] significa "ningún rol adicional": solo ADMIN, que ve todo.
   { href: "/usuarios", label: "Usuarios", icon: UserCog, roles: [] },
 ];

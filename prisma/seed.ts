@@ -36,7 +36,7 @@ const prisma = new PrismaClient({ adapter });
 //
 // ⚠️ CONFIRMAR CON DICAMPO los precios por libra antes de usar en producción.
 // ─────────────────────────────────────────────────────────────
-const NET_WEIGHT_G: Record<Presentation, number> = {
+const NET_WEIGHT_G: Record<"KILO" | "LIBRA", number> = {
   KILO: 1000,
   LIBRA: 500,
 };

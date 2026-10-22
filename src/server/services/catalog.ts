@@ -22,6 +22,15 @@ import {
  * Genera un SKU legible a partir del sabor: "Limón Hierbabuena" + KILO →
  * "LIMHIE-K". Se normalizan los acentos para que el código sea ASCII.
  */
+/** Sufijo del SKU por presentación: MAN-K (kilo), MAN-L (libra), ZNA-1L (litro). */
+const PRESENTATION_SKU_SUFFIX: Record<Presentation, string> = {
+  KILO: "K",
+  LIBRA: "L",
+  MEDIO_LITRO: "500ML",
+  LITRO: "1L",
+  TRES_LITROS: "3L",
+};
+
 export function buildSku(flavor: string, presentation: Presentation): string {
   const slug = flavor
     // NFD separa la letra de su tilde; el rango borra las tildes sueltas.
@@ -31,7 +40,7 @@ export function buildSku(flavor: string, presentation: Presentation): string {
     .toUpperCase()
     .slice(0, 6);
 
-  return `${slug}-${presentation === Presentation.KILO ? "K" : "L"}`;
+  return `${slug}-${PRESENTATION_SKU_SUFFIX[presentation]}`;
 }
 
 export async function listProducts(query: ProductListQuery) {

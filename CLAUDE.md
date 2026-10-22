@@ -39,6 +39,8 @@ npx tsx scripts/normalizar-whatsapp.ts      # llena Contact.whatsappE164 (--apli
 # (números 57300000090X, clientes ZZVERIF).
 CRM_URL=https://crm.dicampo.co AGENTE_API_KEY=... npx tsx scripts/verificar-api-agente.ts
 npx tsx scripts/verificar-disponibilidad.ts  # horario de visitas por asesor, de punta a punta
+npx tsx scripts/cargar-catalogo.ts               # productos, fruta base, rendimientos y listas por nivel (--aplicar); DATABASE_URL = la base a cargar
+npx tsx scripts/importar-cotizaciones.ts Base.xlsx   # histórico del Excel comercial (--aplicar, --crear-clientes)
 ```
 
 ## Arquitectura
@@ -180,12 +182,31 @@ src/
   empiezan por `= + - @` se neutralizan con un apostrofe (inyeccion de
   formulas). Ojo al probar: `Response.text()` **elimina el BOM** al decodificar;
   hay que mirar los bytes con `arrayBuffer()`.
+- **PATCH parciales**: `.partial()` de Zod **conserva los `.default()`**; un PATCH con solo las notas reiniciaba estado, tipo, canal, valor estimado, etc. Los esquemas de actualización sobrescriben esos campos sin default con `.extend()` antes de `.partial()` (ver `validators/patch-defaults.test.ts`). Al añadir un campo con default a un esquema de creación, repite el patrón en el de edición.
+- **Cotizaciones** (`services/quotes.ts`, reglas puras en `lib/quote-rules.ts` y `lib/quote-discount.ts`): replican el cotizador de Apps Script (Excel `Base_Comercial_Dicampo`) que reemplazan. Propuesta de precio previa al pedido; **no reserva inventario**. El nivel de precio (Distribuidor / Mayorista / Público general / listas de Super distribuidor) es una **`PriceList`** asignada al cliente; `ClientType` sigue siendo el giro del negocio. El servidor calcula con la lista del cliente y congela precios (snapshots). Número `COT-AAAAMMDD-NNN` (`Quote.code`): consecutivo del día en Bogotá, tomado como máximo+1 bajo `lockKey` — el mismo formato que ya recibieron los clientes. Vigencia de **15 días**; pedido mínimo 8 kg; 1 kg = 8 porciones de 125 g (constantes en `quote-rules.ts`).
+  - **Descuento** (`discountPolicy`, validado en el servidor; ADMIN puede salirse de los topes): negociación especial `Client.negotiationFirstPct/NextPct` ("15-10", solo la define un ADMIN) = X % el primer pedido de cada **sede** y Y % después, fija; cliente sin historial = 15 % de primer pedido o 0; con historial = manual 0 a 8 %. "Historial" cuenta cotizaciones y pedidos no cancelados. El rótulo (`discountLabel`) lo arma el servidor con los mismos textos del Excel. `discountPercent` se reparte **por línea** antes del IVA. El formulario consulta `GET /api/cotizaciones/descuento`.
+  - Estados: BORRADOR → ENVIADA → ACEPTADA/RECHAZADA/VENCIDA; ENVIADA vence sola al pasar `validUntil` (se materializa al consultar). **Aceptar = convertir en pedido** (`/convertir`): el pedido BORRADOR conserva precios y descuentos; no hay aceptación sin pedido. Rechazar exige motivo.
+  - `/cotizaciones/:id/imprimir` es la hoja para el cliente (formato del PDF actual, datos de D'CAMPO FRUTAS S.A.S.); se guarda como PDF desde el navegador, sin servicio de PDF. `Client.billingMode` (FACTURA/REMISION) se hereda a la cotización.
+  - **Sin portar todavía**: el pedido de "Empleados" (tarifa Distribuidor, remisión, sin descuento) y la imagen de facturación interna.
+- **Hábitos de compra** (`lib/purchase-profile.ts`): frecuencia, día habitual, sabores top y pedido habitual se **calculan** desde los pedidos, no se capturan: el pedido habitual solo incluye lo pedido en al menos la mitad de los pedidos. El día de la semana es el de Bogotá. La localidad vive en `ClientAddress.locality` (agrupa el despacho; `DeliveryZone` sigue siendo la zona amplia).
+- **Cartera y pagos** (`services/receivables.ts`, fechas y antigüedad en `lib/receivables.ts`, `/cartera`): `Payment` es solo-inserción (un error se compensa con otro pago); el saldo de un pedido es total − pagos y `Order.paymentStatus` **se recalcula** con cada pago, nunca se escribe a mano. Cartera = pedidos **ENTREGADOS** con saldo; vence al cumplirse el plazo del pedido (`paymentTerms`: contado, 8, 15 o 30 días) contado desde el **día de entrega en Bogotá**, y el día de vencimiento todavía es plazo. Antigüedad: al día, 1–30, 31–60, más de 60. No se admite pagar de más (candado por pedido). Cobran ventas (en sus pedidos), despacho (al entregar) y ADMIN. Si el saldo del cliente pasa su `creditLimit` se marca, pero hoy **no bloquea** nuevos pedidos.
+- **Gestión de hoy** (`services/daily-activity.ts`, tablero): por asesor, llamadas/WhatsApp/visitas/muestras registradas hoy en la bitácora, clientes distintos tocados y lo cobrado, con el día de Bogotá.
+- **Compras de fruta por archivo** (`importers/purchases.ts`, rol `COMPRAS` + ADMIN): solo crea; el costo del archivo es el del lote **sin excipientes** y el servidor suma el 5 %. Una compra idéntica (fecha, fruta, proveedor, kilos y costo) se omite, así que subir dos veces el mismo archivo no duplica el gasto. `scripts/datos/compras-iniciales.csv` trae las 11 compras de ejemplo de la app de inventario (5.390 kg, $15.706.950 con excipientes): **son datos de ejemplo; no cargarlas en producción sin confirmar que son reales**.
+- **Catálogo de Dicampo** (`scripts/datos/catalogo-dicampo.ts` + `scripts/cargar-catalogo.ts`): datos de la hoja `Config` del Excel comercial y de la app de inventario. Los niveles Distribuidor / Mayorista / Público general son listas de precios; la carga es idempotente y solo completa lo que falta (nunca pisa precios ni productos existentes; informa las diferencias con la "Lista General"). Los **bloques de 500 g** de la app son la presentación LIBRA de Mango, Fresa, Lulo, Mora, Guanábana y Maracuyá. Los **zumos** usan las presentaciones `MEDIO_LITRO`, `LITRO` y `TRES_LITROS` y la categoría `ZUMO`; no suman kilos de pulpa en los paneles (`toKilos` devuelve 0). El SKU de un zumo lleva el volumen (ZNA-1L); si hay que fijar uno a mano, va en `variantCreateSchema.sku`.
+- **Materia prima y producción** (basado en la app `inventario_dicampo_v2`; `services/purchases.ts`, `production.ts`, `inventory-panel.ts`, aritmética en `lib/production.ts`):
+  - **Compras de fruta** (`/compras`, rol `COMPRAS` + ADMIN, que son quienes ven costos): cada compra es un registro propio (`FruitPurchase`) con fecha, proveedor, kilos y costo; el costo de materia prima suma **5 % de excipientes** (`EXCIPIENT_RATE`) y se fija en el servidor. No mueve el inventario de pulpa.
+  - **Tanda de producción** (`/inventario/produccion`, BODEGA + ADMIN): fruta recibida → pulpa pública + granel; el desperdicio **se calcula** (fruta − pulpa), no se digita, y la pulpa no puede pesar más que la fruta. La pulpa pública crea un `Lot` de la variante de 1 kg (código `L-AAAAMMDD-SKU`, con `-2`, `-3` si repite el día) y su `ENTRADA_PRODUCCION`; el granel solo se contabiliza. Vencimiento: se propone 365 días (`DEFAULT_SHELF_LIFE_DAYS`, **supuesto**: ajustar a la vida útil real). La tanda guarda `fruitCost`, una foto del costo de la fruta (compras de los 60 días previos, o la última conocida; nulo si no hay) para que cambiar precios no reescriba el pasado. Quien registra no corrige: las correcciones van por ajuste de inventario.
+  - **Muestras y devoluciones** (`/inventario/salidas`): `MUESTRA` baja stock por FEFO sin ser venta. Devolución vendible reingresa a un lote vigente y no bloqueado (`DEVOLUCION`); dañada solo queda en el kardex (`DEVOLUCION_DANADA`) y **no** suma stock. Las devoluciones por cancelación de pedido (`orderId`) no cuentan como devolución de cliente en el panel.
+  - **Panel** (`/inventario/panel`, ADMIN): embudo fruta → pulpa → vendido, salidas que no son venta, rentabilidad por producto, días de stock y rendimiento vs esperado (`Product.expectedYieldPct`; "revisar" a 8 puntos o más por debajo). El costo de un kilo de pulpa sale de las tandas (fruta usada × costo de la fruta ÷ pulpa, últimos 120 días) y el de lo vendido es ese valor × kilos vendidos: así dos sabores que comparten fruta (`Product.baseFruit`, p. ej. las limonadas) no se cargan el mismo costo dos veces. Lo que no tiene costo queda fuera de los totales y se avisa. Las libras valen medio kilo.
+  - Vendedores consultan existencias en `/inventario` (solo lectura).
+- **Metas** (`services/goals.ts`, aritmética en `lib/goals.ts`, `/metas` solo ADMIN, bloque en el tablero): mensuales, en **pesos** y **clientes nuevos**, por asesor y general. `SalesGoal.scopeKey` ("2026-10:id" / "2026-10:GENERAL") es la llave única: un índice sobre `userId` nulo no impediría duplicar la general. Ventas = pedidos vendidos (`SOLD_STATUSES`) del mes por `sellerId`; **cliente nuevo = el que hace su primer pedido vendido en el mes**, atribuido al responsable del cliente (crear un prospecto no cuenta). Los meses se manejan como "AAAA-MM" con límites a medianoche de Bogotá. El ritmo (adelantado / en ritmo / atrasado, ±10 puntos) compara el avance con la fracción transcurrida del mes. Un VENDEDOR ve su fila y la general; bodega y despacho no ven metas.
 - **Rutas**: el estado de la ruta arrastra el de sus pedidos, porque describen
   el mismo hecho. Salir a ruta los pasa a DESPACHADO; cada entrega se registra
   por pedido con su evidencia y lo pasa a ENTREGADO; la ruta se cierra sola al
   caer la ultima pendiente. **Cancelar una ruta NO cancela sus pedidos**: los
   devuelve a EN_PREPARACION y los libera, conservando el inventario ya
   reservado, para poder reprogramarlos.
+- **Despacho del día** (`/rutas/dia`, `getDispatchDay` en `services/routes.ts`, reglas puras en `lib/dispatch.ts`): pedidos CONFIRMADO a ENTREGADO cuya `requestedDeliveryDate` es ese día (fecha de calendario, medianoche UTC; el "hoy" por defecto es el de Bogotá), agrupados por `ClientAddress.locality` y barrio (sin localidad cae a la zona, y al final "Sin localidad"). Vista "alistamiento": totales por sabor y presentación — kilos y libras no se suman. `Order.collectionNote` / `giftNote` son las observaciones de cobro y obsequios para el repartidor: se editan hasta ENTREGADO por `PATCH /api/pedidos/:id/despacho` (un VENDEDOR solo en sus pedidos). La ruta ofrece Google Maps (máx. 10 paradas, avisa si recorta) y Waze por parada; **no calcula tiempos de ruta** (haría falta la API de Google/Mapbox).
 - Solo se montan en ruta pedidos que ya descontaron inventario (CONFIRMADO o
   EN_PREPARACION): despachar sin stock reservado seria prometer mercancia que
   no existe.
@@ -228,7 +249,7 @@ src/
   - `POST oportunidades` recibe `interes: [{ sku, kilosMes }]` — **el
     interés completo vigente, no un incremento** — y el CRM lo valora con
     `buildPriceResolver()` (kilos → unidades de la variante). Una sola
-    oportunidad abierta por cliente: crea en CONTACTADO o revalora (201/200).
+    oportunidad abierta por cliente: crea en PROSPECTO o revalora (201/200).
     Las notas terminan en un bloque "Interés declarado por WhatsApp" que se
     reemplaza; lo que escriba el vendedor arriba se conserva.
   - `POST oportunidades/:id/etapa` solo a CONTACTADO, MUESTRA_ENVIADA o
@@ -353,6 +374,7 @@ src/
   solo como conversación, sin crear cliente. Los seguimientos exigen
   `marketingConsentAt` y respetan `optOutAt`: es lo que pide la política de
   datos de Dicampo.
+- **Etapas del pipeline**: los nombres en pantalla son los del embudo comercial (Sin cita · Cita programada · Visita / capacitación realizada · Pendiente / seguimiento · Cliente cerrado · Cliente perdido) pero los valores del enum son los de siempre (PROSPECTO, CONTACTADO, MUESTRA_ENVIADA, NEGOCIACION, GANADA, PERDIDA): la API del agente y los datos dependen de ellos. Cambia el texto solo en `OPPORTUNITY_STAGE_LABEL`. El agente crea la oportunidad en PROSPECTO; "Cita programada" la fija `POST visitas`. Tras editar `n8n/system-prompt.md` hay que regenerar el JSON con `python3 n8n/build.py`.
 - **Pipeline**: a diferencia de los pedidos, NO es una máquina de estados
   rígida — en ventas se retrocede de etapa con normalidad. Las únicas reglas
   están en `src/lib/pipeline-stages.ts`: perder exige motivo, cerrar estampa
@@ -372,9 +394,9 @@ src/
 
 ## Carga masiva
 
-Siete entidades se pueden subir por archivo desde `/importar` (y desde el botón
+Ocho entidades se pueden subir por archivo desde `/importar` (y desde el botón
 "Importar" de cada módulo): clientes, contactos, sedes, productos, precios,
-lotes y oportunidades. Pedidos no: una fila por renglón con FEFO y precios es
+lotes, compras de fruta y oportunidades. Pedidos no: una fila por renglón con FEFO y precios es
 otro problema.
 
 - **No depende de una plantilla.** El archivo se lee, se proponen las columnas
@@ -436,6 +458,7 @@ Verificado contra la base real de Supabase (PostgreSQL 17.6), además de
 | Usuarios y perfil | Listo |
 | Rutas de despacho | Listo |
 | Disponibilidad de visitas por asesor | Listo |
+| Cotizaciones, despacho por localidad, metas, materia prima y producción, cartera | Listo (migraciones hasta `20261022160000_cartera_pagos` aplicadas en Supabase el 22/10/2026; `20261022170000_zumos_presentaciones` también aplicada) |
 | Reportes | Listo |
 | Carga masiva (CSV / XLSX) | Listo |
 | Migración desde Contentful | Pendiente |

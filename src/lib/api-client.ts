@@ -45,7 +45,7 @@ async function unwrap<T>(response: Response): Promise<T> {
 }
 
 async function request<T>(
-  method: "POST" | "PUT" | "PATCH" | "DELETE",
+  method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE",
   url: string,
   body?: unknown,
 ): Promise<T> {
@@ -71,6 +71,7 @@ async function upload<T>(url: string, body: FormData): Promise<T> {
 }
 
 export const api = {
+  get: <T>(url: string) => request<T>("GET", url),
   post: <T>(url: string, body?: unknown) => request<T>("POST", url, body),
   upload: <T>(url: string, body: FormData) => upload<T>(url, body),
   put: <T>(url: string, body?: unknown) => request<T>("PUT", url, body),

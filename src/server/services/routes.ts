@@ -1,9 +1,12 @@
 import { prisma } from "../db";
-import { BusinessRuleError, NotFoundError } from "../errors";
-import { OrderStatus, RouteStatus } from "@/generated/prisma/enums";
+import { BusinessRuleError, ForbiddenError, NotFoundError } from "../errors";
+import { OrderStatus, RouteStatus, UserRole } from "@/generated/prisma/enums";
+import { TZDate } from "@date-fns/tz";
+import { BUSINESS_TIME_ZONE } from "@/lib/format";
 import type { SessionUser } from "../guards";
 import type {
   DeliveryProofInput,
+  DispatchNotesInput,
   RouteCreateInput,
   RouteListQuery,
   RouteOrdersInput,
@@ -86,6 +89,8 @@ export async function getRoute(id: string) {
           total: true,
           routeSequence: true,
           requestedDeliveryDate: true,
+          collectionNote: true,
+          giftNote: true,
           client: { select: { id: true, businessName: true, tradeName: true, phone: true } },
           address: {
             select: {
@@ -93,6 +98,7 @@ export async function getRoute(id: string) {
               label: true,
               address: true,
               neighborhood: true,
+              locality: true,
               deliveryNotes: true,
               zone: { select: { id: true, name: true } },
             },
@@ -128,6 +134,7 @@ export async function listAssignableOrders(zoneId?: string | null) {
         select: {
           label: true,
           address: true,
+          locality: true,
           zone: { select: { id: true, name: true } },
         },
       },
@@ -369,5 +376,130 @@ export async function registerDelivery(
     }
 
     return updated;
+  });
+}
+
+// ─────────────────────────────────────────────────────────────
+// Despacho del día
+// ─────────────────────────────────────────────────────────────
+
+/** Pedidos que cuentan para el reparto de un día (ni borradores ni cancelados). */
+const DISPATCH_DAY_STATUSES: OrderStatus[] = [
+  OrderStatus.CONFIRMADO,
+  OrderStatus.EN_PREPARACION,
+  OrderStatus.DESPACHADO,
+  OrderStatus.ENTREGADO,
+];
+
+/** Hoy en Bogotá como "AAAA-MM-DD"; el servidor corre en UTC. */
+export function todayInBogota(now: Date = new Date()): string {
+  const local = new TZDate(now, BUSINESS_TIME_ZONE);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${local.getFullYear()}-${pad(local.getMonth() + 1)}-${pad(local.getDate())}`;
+}
+
+/**
+ * Todo lo que hay que entregar un día, con la localidad y las observaciones
+ * de cobro y obsequios. La entrega pedida es una fecha de calendario
+ * (medianoche UTC), no un momento.
+ */
+export async function getDispatchDay(fecha?: string) {
+  const day = fecha ?? todayInBogota();
+  const start = new Date(`${day}T00:00:00.000Z`);
+  const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
+
+  const orders = await prisma.order.findMany({
+    where: {
+      status: { in: DISPATCH_DAY_STATUSES },
+      requestedDeliveryDate: { gte: start, lt: end },
+    },
+    orderBy: { orderNumber: "asc" },
+    select: {
+      id: true,
+      orderNumber: true,
+      status: true,
+      total: true,
+      collectionNote: true,
+      giftNote: true,
+      notes: true,
+      route: { select: { id: true, name: true } },
+      client: { select: { businessName: true, tradeName: true, phone: true } },
+      address: {
+        select: {
+          address: true,
+          neighborhood: true,
+          locality: true,
+          deliveryNotes: true,
+          zone: { select: { name: true } },
+        },
+      },
+      items: {
+        select: {
+          productNameSnapshot: true,
+          presentationSnapshot: true,
+          quantity: true,
+        },
+      },
+    },
+  });
+
+  return {
+    day,
+    orders: orders.map((order) => ({
+      id: order.id,
+      orderNumber: order.orderNumber,
+      status: order.status,
+      clientName: order.client.tradeName ?? order.client.businessName,
+      phone: order.client.phone,
+      // Sin localidad escrita, la zona amplia es mejor que nada.
+      locality: order.address?.locality ?? order.address?.zone?.name ?? null,
+      neighborhood: order.address?.neighborhood ?? null,
+      address: order.address?.address ?? null,
+      deliveryNotes: order.address?.deliveryNotes ?? null,
+      total: Number(order.total),
+      collectionNote: order.collectionNote,
+      giftNote: order.giftNote,
+      notes: order.notes,
+      route: order.route,
+      items: order.items.map((item) => ({
+        name: item.productNameSnapshot,
+        presentation: item.presentationSnapshot,
+        quantity: Number(item.quantity),
+      })),
+    })),
+  };
+}
+
+/**
+ * Observaciones para el repartidor: qué cobrar y qué obsequio lleva el pedido.
+ * Se pueden editar hasta que el pedido se entrega; un VENDEDOR solo en los suyos.
+ */
+export async function updateDispatchNotes(
+  user: SessionUser,
+  orderId: string,
+  input: DispatchNotesInput,
+) {
+  const order = await prisma.order.findUnique({
+    where: { id: orderId },
+    select: { id: true, status: true, sellerId: true },
+  });
+
+  if (!order) throw new NotFoundError("El pedido");
+  if (user.role === UserRole.VENDEDOR && order.sellerId !== user.id) {
+    throw new ForbiddenError("Este pedido no es tuyo.");
+  }
+  if (order.status === OrderStatus.ENTREGADO || order.status === OrderStatus.CANCELADO) {
+    throw new BusinessRuleError(
+      "El pedido ya está cerrado: las observaciones de entrega no se modifican.",
+    );
+  }
+
+  return prisma.order.update({
+    where: { id: orderId },
+    data: {
+      ...(input.collectionNote !== undefined ? { collectionNote: input.collectionNote } : {}),
+      ...(input.giftNote !== undefined ? { giftNote: input.giftNote } : {}),
+    },
+    select: { id: true, collectionNote: true, giftNote: true },
   });
 }

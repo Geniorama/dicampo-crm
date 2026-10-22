@@ -1,6 +1,8 @@
 import type { BadgeTone } from "@/components/ui/badge";
 import type {
   ActivityType,
+  BillingMode,
+  QuoteStatus,
   ClientStatus,
   ClientType,
   ConversationStatus,
@@ -12,6 +14,7 @@ import type {
   OpportunityStage,
   OrderChannel,
   OrderStatus,
+  PaymentMethod,
   PaymentStatus,
   PaymentTerms,
   Presentation,
@@ -32,6 +35,7 @@ export const USER_ROLE_LABEL: Record<UserRole, string> = {
   VENDEDOR: "Vendedor",
   BODEGA: "Bodega",
   DESPACHO: "Despacho",
+  COMPRAS: "Compras",
   AGENTE_IA: "Agente IA",
 };
 
@@ -86,26 +90,39 @@ export const PRODUCT_CATEGORY_LABEL: Record<ProductCategory, string> = {
   PULPA: "Pulpa",
   LIMONADA: "Limonada",
   MEZCLA: "Mezcla",
+  ZUMO: "Zumo",
 };
 
 export const PRESENTATION_LABEL: Record<Presentation, string> = {
   KILO: "Kilo",
   LIBRA: "Libra",
+  MEDIO_LITRO: "Medio litro",
+  LITRO: "Litro",
+  TRES_LITROS: "Tres litros",
 };
 
 /** Abreviatura para tablas y remisiones. */
 export const PRESENTATION_SHORT: Record<Presentation, string> = {
   KILO: "kg",
   LIBRA: "lb",
+  MEDIO_LITRO: "½ L",
+  LITRO: "L",
+  TRES_LITROS: "3 L",
 };
 
+/**
+ * Los nombres siguen el embudo del equipo comercial. Los valores del enum no
+ * cambian (la API del agente de WhatsApp y los datos existentes dependen de
+ * ellos): CONTACTADO es "Cita programada", MUESTRA_ENVIADA es "Visita /
+ * capacitación realizada" y NEGOCIACION es "Pendiente / seguimiento".
+ */
 export const OPPORTUNITY_STAGE_LABEL: Record<OpportunityStage, string> = {
-  PROSPECTO: "Prospecto",
-  CONTACTADO: "Contactado",
-  MUESTRA_ENVIADA: "Muestra enviada",
-  NEGOCIACION: "Negociación",
-  GANADA: "Ganada",
-  PERDIDA: "Perdida",
+  PROSPECTO: "Sin cita",
+  CONTACTADO: "Cita programada",
+  MUESTRA_ENVIADA: "Visita / capacitación realizada",
+  NEGOCIACION: "Pendiente / seguimiento",
+  GANADA: "Cliente cerrado",
+  PERDIDA: "Cliente perdido",
 };
 
 /** Orden de las columnas del tablero de pipeline. */
@@ -145,6 +162,27 @@ export const ORDER_STATUS_TONE: Record<OrderStatus, BadgeTone> = {
   CANCELADO: "danger",
 };
 
+export const QUOTE_STATUS_LABEL: Record<QuoteStatus, string> = {
+  BORRADOR: "Borrador",
+  ENVIADA: "Enviada",
+  ACEPTADA: "Aceptada",
+  RECHAZADA: "Rechazada",
+  VENCIDA: "Vencida",
+};
+
+export const QUOTE_STATUS_TONE: Record<QuoteStatus, BadgeTone> = {
+  BORRADOR: "neutral",
+  ENVIADA: "info",
+  ACEPTADA: "success",
+  RECHAZADA: "danger",
+  VENCIDA: "warning",
+};
+
+export const BILLING_MODE_LABEL: Record<BillingMode, string> = {
+  FACTURA: "Factura",
+  REMISION: "Remisión",
+};
+
 export const ORDER_CHANNEL_LABEL: Record<OrderChannel, string> = {
   WHATSAPP: "WhatsApp",
   TELEFONO: "Teléfono",
@@ -163,6 +201,12 @@ export const PAYMENT_STATUS_TONE: Record<PaymentStatus, BadgeTone> = {
   PENDIENTE: "warning",
   PARCIAL: "info",
   PAGADO: "success",
+};
+
+export const PAYMENT_METHOD_LABEL: Record<PaymentMethod, string> = {
+  EFECTIVO: "Efectivo",
+  TRANSFERENCIA: "Transferencia",
+  OTRO: "Otro",
 };
 
 export const LOT_STATUS_LABEL: Record<LotStatus, string> = {
@@ -185,6 +229,8 @@ export const STOCK_MOVEMENT_LABEL: Record<StockMovementType, string> = {
   AJUSTE: "Ajuste",
   DEVOLUCION: "Devolución",
   MERMA: "Merma",
+  MUESTRA: "Muestra entregada",
+  DEVOLUCION_DANADA: "Devolución dañada",
 };
 
 export const ROUTE_STATUS_LABEL: Record<RouteStatus, string> = {

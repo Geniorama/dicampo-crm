@@ -27,6 +27,7 @@ const ROLE_HELP: Record<string, string> = {
   VENDEDOR: "Solo su propia cartera de clientes, oportunidades y pedidos.",
   BODEGA: "Inventario, lotes y preparación de pedidos.",
   DESPACHO: "Rutas de reparto y registro de entregas.",
+  COMPRAS: "Compras de fruta y su costo. Ve costos; no toca el inventario.",
 };
 
 export function UserForm() {

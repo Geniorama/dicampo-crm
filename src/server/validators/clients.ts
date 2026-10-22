@@ -1,11 +1,13 @@
 import { z } from "zod";
 import {
+  BillingMode,
   ClientStatus,
   ClientType,
   DocType,
   PaymentTerms,
 } from "@/generated/prisma/enums";
 import { calculateNitDv, onlyDigits } from "@/lib/nit";
+import { parseNegotiation } from "@/lib/quote-discount";
 
 /**
  * Validación de clientes, contactos y sedes.
@@ -49,7 +51,18 @@ const clientBaseSchema = z
     ownerId: z.string().cuid().optional(),
     priceListId: z.string().cuid().optional(),
     paymentTerms: z.enum(PaymentTerms).default(PaymentTerms.CONTADO),
+    billingMode: z.enum(BillingMode).default(BillingMode.FACTURA),
     creditLimit: z.coerce.number().min(0, "El cupo no puede ser negativo").default(0),
+    /** Negociación especial "15-10": 15 % el primer pedido de cada sede, 10 % después. Vacío la quita. */
+    negotiation: z
+      .string()
+      .trim()
+      .transform((value) => (value === "" ? null : value))
+      .refine((value) => value === null || parseNegotiation(value) !== null, {
+        message: "Usa el formato 15-10",
+      })
+      .nullable()
+      .optional(),
     notes: optionalText(2000),
   });
 
@@ -88,6 +101,15 @@ export type ClientCreateInput = z.output<typeof clientCreateSchema>;
  * el objeto completo y no aplican a una actualización parcial.
  */
 export const clientUpdateSchema = clientBaseSchema
+  // `.partial()` conserva los `.default()`: un PATCH con solo las notas
+  // reiniciaría el estado, el tipo y las condiciones. Se anulan primero.
+  .extend({
+    type: z.enum(ClientType),
+    status: z.enum(ClientStatus),
+    paymentTerms: z.enum(PaymentTerms),
+    billingMode: z.enum(BillingMode),
+    creditLimit: z.coerce.number().min(0, "El cupo no puede ser negativo"),
+  })
   .partial()
   .refine((data) => Object.keys(data).length > 0, {
     message: "No se envió ningún campo para actualizar.",
@@ -101,6 +123,10 @@ export const clientListQuerySchema = z.object({
   status: z.enum(ClientStatus).optional(),
   type: z.enum(ClientType).optional(),
   ownerId: z.string().cuid().optional(),
+  /** Localidad de alguna de sus sedes activas. */
+  locality: z.string().trim().max(100).optional(),
+  /** Día de la semana (0 = domingo) en que suele pedir. */
+  orderDay: z.coerce.number().int().min(0).max(6).optional(),
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(25),
 });
@@ -125,7 +151,10 @@ export const contactCreateSchema = z.object({
 export type ContactFormValues = z.input<typeof contactCreateSchema>;
 export type ContactCreateInput = z.output<typeof contactCreateSchema>;
 
-export const contactUpdateSchema = contactCreateSchema.partial();
+// Sin los `.default()` de la creación: un PATCH parcial no debe quitar lo principal.
+export const contactUpdateSchema = contactCreateSchema
+  .extend({ isPrimary: z.boolean() })
+  .partial();
 export type ContactUpdateInput = z.infer<typeof contactUpdateSchema>;
 
 // ── Sedes de entrega ─────────────────────────────────────────
@@ -134,6 +163,7 @@ export const addressCreateSchema = z.object({
   label: z.string().trim().min(2, "Ponle un nombre a la sede").max(100),
   address: z.string().trim().min(5, "La dirección es obligatoria").max(200),
   neighborhood: optionalText(100),
+  locality: optionalText(100),
   city: z.string().trim().max(100).default("Bogotá"),
   zoneId: z.string().cuid().optional(),
   lat: z.coerce.number().min(-90).max(90).optional(),
@@ -145,5 +175,7 @@ export const addressCreateSchema = z.object({
 export type AddressFormValues = z.input<typeof addressCreateSchema>;
 export type AddressCreateInput = z.output<typeof addressCreateSchema>;
 
-export const addressUpdateSchema = addressCreateSchema.partial();
+export const addressUpdateSchema = addressCreateSchema
+  .extend({ city: z.string().trim().max(100), isPrimary: z.boolean() })
+  .partial();
 export type AddressUpdateInput = z.infer<typeof addressUpdateSchema>;

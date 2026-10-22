@@ -1,9 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import { Pencil } from "lucide-react";
+import { FileText, Pencil } from "lucide-react";
 import { requireUser } from "@/server/guards";
-import { getClient } from "@/server/services/clients";
+import { getClient, getClientPurchaseProfile } from "@/server/services/clients";
 import { NotFoundError } from "@/server/errors";
 import { PageHeader } from "@/components/layout/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -27,7 +27,9 @@ import {
   ORDER_STATUS_TONE,
   OPPORTUNITY_STAGE_LABEL,
   PAYMENT_TERMS_LABEL,
+  BILLING_MODE_LABEL,
 } from "@/lib/labels";
+import { WEEKDAY_LABEL } from "@/lib/purchase-profile";
 import { ActivityForm } from "@/components/pipeline/activity-form";
 import { ContactManager } from "@/components/clients/contact-manager";
 import { AddressManager } from "@/components/clients/address-manager";
@@ -41,7 +43,7 @@ export default async function ClientDetailPage({ params }: Props) {
   const user = await requireUser();
   const { id } = await params;
 
-  const [client, zones] = await Promise.all([
+  const [client, zones, profile] = await Promise.all([
     getClient(user, id).catch((error) => {
       // Un cliente inexistente es un 404 de la aplicación, no un fallo.
       if (error instanceof NotFoundError) notFound();
@@ -52,6 +54,10 @@ export default async function ClientDetailPage({ params }: Props) {
       orderBy: { name: "asc" },
       select: { id: true, name: true },
     }),
+    getClientPurchaseProfile(user, id).catch((error) => {
+      if (error instanceof NotFoundError) notFound();
+      throw error;
+    }),
   ]);
 
   return (
@@ -60,13 +66,22 @@ export default async function ClientDetailPage({ params }: Props) {
         title={client.tradeName ?? client.businessName}
         description={`${formatClientCode(client.sequence)} · ${CLIENT_TYPE_LABEL[client.type]}`}
         actions={
-          <Link
-            href={`/clientes/${client.id}/editar`}
-            className={buttonVariants({ variant: "secondary" })}
-          >
-            <Pencil aria-hidden="true" />
-            Editar
-          </Link>
+          <>
+            <Link
+              href={`/cotizaciones/nuevo?clientId=${client.id}`}
+              className={buttonVariants({ variant: "secondary" })}
+            >
+              <FileText aria-hidden="true" />
+              Cotizar
+            </Link>
+            <Link
+              href={`/clientes/${client.id}/editar`}
+              className={buttonVariants({ variant: "secondary" })}
+            >
+              <Pencil aria-hidden="true" />
+              Editar
+            </Link>
+          </>
         }
       />
 
@@ -148,6 +163,41 @@ export default async function ClientDetailPage({ params }: Props) {
 
           <Card>
             <CardHeader>
+              <CardTitle>Hábitos de compra</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {profile.orderCount === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  Aún no tiene pedidos: los hábitos aparecen a partir del primero.
+                </p>
+              ) : (
+                <dl className="space-y-3 text-sm">
+                  <DataRow label="Pedidos">{profile.orderCount}</DataRow>
+                  <DataRow label="Último pedido">{formatDate(profile.lastOrderAt)}</DataRow>
+                  <DataRow label="Pide cada">
+                    {profile.avgIntervalDays === null
+                      ? "—"
+                      : `${profile.avgIntervalDays.toLocaleString("es-CO")} días`}
+                  </DataRow>
+                  <DataRow label="Día habitual">
+                    {profile.usualWeekdays.map((day) => WEEKDAY_LABEL[day]).join(" / ") || "—"}
+                  </DataRow>
+                  <DataRow label="Ticket promedio">{formatCOP(profile.avgTicket)}</DataRow>
+                  <DataRow label="Sabores top">{profile.topFlavors.join(", ") || "—"}</DataRow>
+                  <DataRow label="Pedido habitual">
+                    {profile.habitualOrder.length === 0
+                      ? "—"
+                      : profile.habitualOrder
+                          .map((item) => `${item.name} ${item.quantity.toLocaleString("es-CO")}`)
+                          .join(", ")}
+                  </DataRow>
+                </dl>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
               <CardTitle>Pedidos recientes</CardTitle>
               <Link
                 href={`/pedidos?clientId=${client.id}`}
@@ -217,6 +267,14 @@ export default async function ClientDetailPage({ params }: Props) {
                 <DataRow label="Condición de pago">
                   {PAYMENT_TERMS_LABEL[client.paymentTerms]}
                 </DataRow>
+                <DataRow label="Facturación">
+                  {BILLING_MODE_LABEL[client.billingMode]}
+                </DataRow>
+                {client.negotiationFirstPct !== null && (
+                  <DataRow label="Negociación">
+                    {client.negotiationFirstPct}-{client.negotiationNextPct}
+                  </DataRow>
+                )}
                 <DataRow label="Cupo de crédito">
                   {formatCOP(client.creditLimit)}
                 </DataRow>

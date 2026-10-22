@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { MapPinOff, Pencil, Plus } from "lucide-react";
 import { api, ApiClientError } from "@/lib/api-client";
+import { LOCALITIES } from "@/lib/localities";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -16,6 +17,7 @@ export type AddressRow = {
   label: string;
   address: string;
   neighborhood: string | null;
+  locality: string | null;
   city: string;
   deliveryNotes: string | null;
   isPrimary: boolean;
@@ -26,6 +28,7 @@ type Draft = {
   label: string;
   address: string;
   neighborhood: string;
+  locality: string;
   city: string;
   zoneId: string;
   deliveryNotes: string;
@@ -36,6 +39,7 @@ const emptyDraft: Draft = {
   label: "",
   address: "",
   neighborhood: "",
+  locality: "",
   city: "Bogotá",
   zoneId: "",
   deliveryNotes: "",
@@ -46,6 +50,7 @@ const toDraft = (address: AddressRow): Draft => ({
   label: address.label,
   address: address.address,
   neighborhood: address.neighborhood ?? "",
+  locality: address.locality ?? "",
   city: address.city,
   zoneId: address.zone?.id ?? "",
   deliveryNotes: address.deliveryNotes ?? "",
@@ -57,6 +62,7 @@ function toPayload(draft: Draft) {
     label: draft.label.trim(),
     address: draft.address.trim(),
     neighborhood: draft.neighborhood.trim() || undefined,
+    locality: draft.locality.trim() || undefined,
     city: draft.city.trim() || "Bogotá",
     zoneId: draft.zoneId || undefined,
     deliveryNotes: draft.deliveryNotes.trim() || undefined,
@@ -204,6 +210,23 @@ export function AddressManager({
             />
           )}
         </Field>
+        <Field id="a-locality" label="Localidad">
+          {(props) => (
+            <>
+              <Input
+                {...props}
+                list="localities-list"
+                value={draft.locality}
+                onChange={(e) => setDraft({ ...draft, locality: e.target.value })}
+              />
+              <datalist id="localities-list">
+                {LOCALITIES.map((name) => (
+                  <option key={name} value={name} />
+                ))}
+              </datalist>
+            </>
+          )}
+        </Field>
         <Field id="a-city" label="Ciudad">
           {(props) => (
             <Input
@@ -287,7 +310,8 @@ export function AddressManager({
                   </p>
                   <p className="text-xs text-muted-foreground">
                     {address.address}
-                    {address.neighborhood ? `, ${address.neighborhood}` : ""} ·{" "}
+                    {address.neighborhood ? `, ${address.neighborhood}` : ""}
+                    {address.locality ? ` (${address.locality})` : ""} ·{" "}
                     {address.city}
                   </p>
                   {address.deliveryNotes && (

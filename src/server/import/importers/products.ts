@@ -176,6 +176,8 @@ export const productsImporter: Importer<Ctx> = {
       description: text(record, "description"),
       taxRate: readTaxRate(record),
       active: boolean(record, "active", "¿Activo?"),
+      baseFruit: text(record, "baseFruit"),
+      expectedYieldPct: decimal(record, "expectedYieldPct", "Rendimiento esperado"),
     };
 
     if (!existing) {

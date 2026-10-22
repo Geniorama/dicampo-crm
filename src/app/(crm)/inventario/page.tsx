@@ -55,9 +55,20 @@ export default async function InventoryPage({
             <>
               <ExpireLotsButton />
               <ImportLink entity="lotes" user={user} />
-              <Link href="/inventario/lotes/nuevo" className={buttonVariants()}>
+              {isAdmin(user) && (
+                <Link href="/inventario/panel" className={buttonVariants({ variant: "secondary" })}>
+                  Panel y rentabilidad
+                </Link>
+              )}
+              <Link href="/inventario/salidas" className={buttonVariants({ variant: "secondary" })}>
+                Muestras y devoluciones
+              </Link>
+              <Link href="/inventario/lotes/nuevo" className={buttonVariants({ variant: "secondary" })}>
+                Lote manual
+              </Link>
+              <Link href="/inventario/produccion" className={buttonVariants()}>
                 <Plus aria-hidden="true" />
-                Registrar producción
+                Registrar tanda
               </Link>
             </>
           )

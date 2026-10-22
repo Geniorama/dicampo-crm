@@ -6,7 +6,7 @@ import { ClientForm } from "@/components/clients/client-form";
 export const metadata: Metadata = { title: "Nuevo cliente" };
 
 export default async function NewClientPage() {
-  await requireUser();
+  const user = await requireUser();
 
   return (
     <div className="mx-auto max-w-3xl space-y-5">
@@ -14,7 +14,7 @@ export default async function NewClientPage() {
         title="Nuevo cliente"
         description="Registra el negocio; después podrás añadirle contactos y sedes de entrega."
       />
-      <ClientForm />
+      <ClientForm canEditNegotiation={user.role === "ADMIN"} />
     </div>
   );
 }

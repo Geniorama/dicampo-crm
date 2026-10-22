@@ -19,6 +19,7 @@ export type PlannableOrder = {
   addressLabel: string | null;
   addressText: string | null;
   zoneName: string | null;
+  localityName: string | null;
 };
 
 /**
@@ -123,7 +124,7 @@ export function RoutePlanner({
                     </p>
                     <p className="truncate text-xs text-muted-foreground">
                       {order.addressText ?? "Sin dirección"}
-                      {order.zoneName ? ` · ${order.zoneName}` : ""}
+                      {order.localityName ? ` · ${order.localityName}` : order.zoneName ? ` · ${order.zoneName}` : ""}
                     </p>
                   </div>
                 </div>
@@ -215,7 +216,7 @@ export function RoutePlanner({
                       {order.clientName}
                     </p>
                     <p className="truncate text-xs text-muted-foreground">
-                      {order.zoneName ?? "Sin zona"}
+                      {order.localityName ?? order.zoneName ?? "Sin zona"}
                       {order.requestedDeliveryDate
                         ? ` · pide ${formatCalendarDate(order.requestedDeliveryDate)}`
                         : ""}

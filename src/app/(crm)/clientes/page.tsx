@@ -12,6 +12,8 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input, Select } from "@/components/ui/field";
 import { formatClientCode, formatNit } from "@/lib/format";
+import { LOCALITIES } from "@/lib/localities";
+import { WEEKDAY_LABEL } from "@/lib/purchase-profile";
 import { flattenSearchParams, type RawSearchParams } from "@/lib/search-params";
 import {
   CLIENT_STATUS_LABEL,
@@ -93,6 +95,39 @@ export default async function ClientsPage({
               {typeOptions.map((option) => (
                 <option key={option.value} value={option.value}>
                   {option.label}
+                </option>
+              ))}
+            </Select>
+          </div>
+
+          <div>
+            <label htmlFor="locality" className="text-xs font-medium text-muted-foreground">
+              Localidad
+            </label>
+            <Select id="locality" name="locality" defaultValue={query.locality ?? ""} className="mt-1">
+              <option value="">Todas</option>
+              {LOCALITIES.map((name) => (
+                <option key={name} value={name}>
+                  {name}
+                </option>
+              ))}
+            </Select>
+          </div>
+
+          <div>
+            <label htmlFor="orderDay" className="text-xs font-medium text-muted-foreground">
+              Día de pedido
+            </label>
+            <Select
+              id="orderDay"
+              name="orderDay"
+              defaultValue={query.orderDay?.toString() ?? ""}
+              className="mt-1"
+            >
+              <option value="">Cualquiera</option>
+              {WEEKDAY_LABEL.map((name, day) => (
+                <option key={name} value={day}>
+                  {name}
                 </option>
               ))}
             </Select>

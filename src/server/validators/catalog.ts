@@ -18,6 +18,10 @@ const optionalText = (max = 255) =>
 export const NET_WEIGHT_G: Record<Presentation, number> = {
   KILO: 1000,
   LIBRA: 500,
+  // Zumos: ml, que para este fin pesan lo mismo que los gramos.
+  MEDIO_LITRO: 500,
+  LITRO: 1000,
+  TRES_LITROS: 3000,
 };
 
 export const productCreateSchema = z.object({
@@ -31,6 +35,20 @@ export const productCreateSchema = z.object({
    */
   taxRate: z.coerce.number().min(0).max(1).default(0),
   active: z.boolean().default(true),
+
+  /** Fruta de la que sale ("Mango", "Limón"); con ella se costea la producción. */
+  baseFruit: z
+    .string()
+    .trim()
+    .max(60)
+    .transform((value) => (value === "" ? null : value))
+    .nullable()
+    .optional(),
+  /** Rendimiento esperado al despulpar, en %. Vacío = sin referencia. */
+  expectedYieldPct: z.preprocess(
+    (value) => (value === "" || value === undefined ? null : value),
+    z.coerce.number().int().min(1).max(100).nullable(),
+  ).optional(),
 
   /**
    * Primera presentación con su precio.
@@ -46,8 +64,14 @@ export const productCreateSchema = z.object({
 export type ProductFormValues = z.input<typeof productCreateSchema>;
 export type ProductCreateInput = z.output<typeof productCreateSchema>;
 
+// `.partial()` conserva los `.default()`: un PATCH parcial reiniciaría esos campos.
 export const productUpdateSchema = productCreateSchema
   .omit({ firstPresentation: true, firstPrice: true })
+  .extend({
+    category: z.enum(ProductCategory),
+    taxRate: z.coerce.number().min(0).max(1),
+    active: z.boolean(),
+  })
   .partial()
   .refine((data) => Object.keys(data).length > 0, {
     message: "No se envió ningún campo para actualizar.",

@@ -5,13 +5,14 @@ import {
   type ImportEntityKey,
 } from "@/lib/import/entities";
 import type { ColumnMapping, ImportReport } from "@/lib/import/types";
-import { INVENTORY_ROLES, SALES_ROLES } from "../guards";
+import { INVENTORY_ROLES, PURCHASING_ROLES, SALES_ROLES } from "../guards";
 import { addressesImporter } from "./importers/addresses";
 import { clientsImporter } from "./importers/clients";
 import { contactsImporter } from "./importers/contacts";
 import { lotsImporter } from "./importers/lots";
 import { opportunitiesImporter } from "./importers/opportunities";
 import { pricesImporter } from "./importers/prices";
+import { purchasesImporter } from "./importers/purchases";
 import { productsImporter } from "./importers/products";
 import { runImport, type Importer, type ProcessOptions } from "./runner";
 
@@ -72,6 +73,7 @@ export const IMPORT_REGISTRY: Record<ImportEntityKey, ImportRegistryEntry> = {
   productos: entry(IMPORT_ENTITIES.productos, "admin", productsImporter),
   precios: entry(IMPORT_ENTITIES.precios, "admin", pricesImporter),
   lotes: entry(IMPORT_ENTITIES.lotes, INVENTORY_ROLES, lotsImporter),
+  compras: entry(IMPORT_ENTITIES.compras, PURCHASING_ROLES, purchasesImporter),
   oportunidades: entry(
     IMPORT_ENTITIES.oportunidades,
     SALES_ROLES,

@@ -2,6 +2,7 @@ import {
   CLIENT_STATUS_LABEL,
   CLIENT_TYPE_LABEL,
   PAYMENT_TERMS_LABEL,
+  BILLING_MODE_LABEL,
 } from "@/lib/labels";
 import { prisma } from "../../db";
 import { ConflictError } from "../../errors";
@@ -114,6 +115,7 @@ function readAddress(record: RowRecord, ctx: Ctx) {
       label: text(record, "addressLabel") ?? "Sede principal",
       address,
       neighborhood: text(record, "neighborhood"),
+      locality: text(record, "locality"),
       city: text(record, "city"),
       zoneId: zone?.id,
       deliveryNotes: text(record, "deliveryNotes"),
@@ -202,6 +204,13 @@ export const clientsImporter: Importer<Ctx> = {
         "paymentTerms",
         PAYMENT_TERMS_LABEL,
         "Condición de pago",
+      ),
+      negotiation: text(record, "negotiation"),
+      billingMode: enumValue(
+        record,
+        "billingMode",
+        BILLING_MODE_LABEL,
+        "Forma de facturación",
       ),
       creditLimit: decimal(record, "creditLimit", "Cupo de crédito"),
       ownerId: owner?.id,
