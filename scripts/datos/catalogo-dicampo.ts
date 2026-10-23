@@ -37,16 +37,21 @@ const kilo = (sku: string, tiers?: PriceTier): CatalogVariant => ({ presentation
 
 export const CATALOG: CatalogProduct[] = [
   // ── Pulpas ────────────────────────────────────────────────
-  { flavor: "Mango", name: "Pulpa de Mango", category: "PULPA", expectedYieldPct: 60, variants: [kilo("MAN-K", [13260, 15450, 16450])] },
-  { flavor: "Fresa", name: "Pulpa de Fresa", category: "PULPA", expectedYieldPct: 62, variants: [kilo("FRE-K", [12760, 14950, 15950])] },
-  { flavor: "Lulo", name: "Pulpa de Lulo", category: "PULPA", variants: [kilo("LUL-K", [13200, 14950, 15950])] },
-  { flavor: "Mora", name: "Pulpa de Mora", category: "PULPA", expectedYieldPct: 65, variants: [kilo("MOR-K", [13200, 14950, 15950])] },
-  { flavor: "Guanábana", name: "Pulpa de Guanábana", category: "PULPA", variants: [kilo("GUA-K", [14850, 17700, 18700])] },
-  { flavor: "Maracuyá", name: "Pulpa de Maracuyá", category: "PULPA", expectedYieldPct: 34, variants: [kilo("MAR-K", [20350, 22100, 23100])] },
+  { flavor: "Mango", name: "Pulpa de Mango", category: "PULPA", expectedYieldPct: 60, variants: [kilo("MAN-K", [13260, 15450, 16450]), { presentation: "LIBRA", sku: "MAN-L" }] },
+  { flavor: "Fresa", name: "Pulpa de Fresa", category: "PULPA", expectedYieldPct: 62, variants: [kilo("FRE-K", [12760, 14950, 15950]), { presentation: "LIBRA", sku: "FRE-L" }] },
+  { flavor: "Lulo", name: "Pulpa de Lulo", category: "PULPA", variants: [kilo("LUL-K", [13200, 14950, 15950]), { presentation: "LIBRA", sku: "LUL-L" }] },
+  { flavor: "Mora", name: "Pulpa de Mora", category: "PULPA", expectedYieldPct: 65, variants: [kilo("MOR-K", [13200, 14950, 15950]), { presentation: "LIBRA", sku: "MOR-L" }] },
+  { flavor: "Guanábana", name: "Pulpa de Guanábana", category: "PULPA", variants: [kilo("GUA-K", [14850, 17700, 18700]), { presentation: "LIBRA", sku: "GUA-L" }] },
+  { flavor: "Maracuyá", name: "Pulpa de Maracuyá", category: "PULPA", expectedYieldPct: 34, variants: [kilo("MAR-K", [20350, 22100, 23100]), { presentation: "LIBRA", sku: "MAR-L" }] },
   { flavor: "Mandarina", name: "Pulpa de Mandarina", category: "PULPA", variants: [kilo("MND-K", [19250, 21000, 22000])] },
   { flavor: "Uva", name: "Pulpa de Uva", category: "PULPA", variants: [kilo("UVA-K", [11500, 13000, 14000])] },
-  { flavor: "Piña", name: "Pulpa de Piña", category: "PULPA", variants: [kilo("PIN-K", [13750, 14950, 15950])] },
+  { flavor: "Piña", name: "Pulpa de Piña", category: "PULPA", variants: [kilo("PIN-K", [13750, 14950, 15950]), { presentation: "LIBRA", sku: "PIN-L" }] },
   { flavor: "Naranja", name: "Pulpa de Naranja", category: "PULPA", variants: [kilo("NAR-K", [15000, 17000, 18000])] },
+
+  // Productos aparte del histórico comercial: solo se cotizaron a Super distribuidor,
+  // así que no hay tarifa por nivel (los precios van en la lista de ese cliente).
+  { flavor: "Maracuyá Semilla", name: "Pulpa de Maracuyá con Semilla", category: "PULPA", variants: [kilo("MSE-K")] },
+  { flavor: "Mora Despitonada", name: "Pulpa de Mora Despitonada", category: "PULPA", variants: [kilo("MDE-K")] },
 
   // ── Mezclas ───────────────────────────────────────────────
   { flavor: "Frutos Rojos", name: "Mezcla de Frutos Rojos", category: "MEZCLA", variants: [kilo("FRO-K", [14800, 15500, 16500])] },
@@ -84,11 +89,19 @@ export const CATALOG: CatalogProduct[] = [
       { presentation: "LITRO", sku: "ZLI-1L", tiers: [18000, 18000, 18000] },
     ],
   },
+  // El histórico solo registra 2 ventas a $11.000 el litro (Público general): se asume el mismo precio en todos los niveles, como los demás zumos.
+  {
+    flavor: "Zumo de Mandarina",
+    name: "Zumo de Mandarina",
+    category: "ZUMO",
+    baseFruit: "Mandarina",
+    variants: [{ presentation: "LITRO", sku: "ZMN-1L", tiers: [11000, 11000, 11000] }],
+  },
 ];
 
 /**
- * Los "Bloques de pulpa x 500 g" de la app de inventario ya existen en el CRM
- * como la presentación Libra (500 g) de estos sabores: no hay productos que
- * crear. Sus precios por nivel no están en la hoja Config.
+ * Los "Bloques de pulpa x 500 g" de la app de inventario son la presentación
+ * Libra (500 g) de estos sabores; este catálogo la crea en cada uno. Sus
+ * precios por nivel no están en la hoja Config.
  */
-export const BLOCK_500G_FLAVORS = ["Mango", "Fresa", "Lulo", "Mora", "Guanábana", "Maracuyá"] as const;
+export const BLOCK_500G_FLAVORS = ["Mango", "Fresa", "Lulo", "Mora", "Guanábana", "Maracuyá", "Piña"] as const;

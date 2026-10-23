@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   flavorKey,
   groupLegacyQuotes,
+  legacyProduct,
   parseDiscountPercent,
   parseLegacyDate,
   parseLegacyNit,
@@ -56,6 +57,27 @@ describe("lectura de celdas del Excel", () => {
     expect(flavorKey("Limonada de coco")).toBe(flavorKey("Limón Coco"));
     expect(flavorKey("Guanábana")).toBe(flavorKey("guanabana"));
     expect(flavorKey("Piña colada")).toBe(flavorKey("Piña Colada"));
+  });
+});
+
+describe("legacyProduct", () => {
+  it("los bloques de 500 g son la presentación libra del sabor", () => {
+    expect(legacyProduct("Bloque pulpa x 500g Maracuya")).toEqual({
+      flavorKey: flavorKey("Maracuyá"),
+      presentation: "LIBRA",
+    });
+    expect(legacyProduct("Bloque pulpa x 500g Guanabana").flavorKey).toBe(flavorKey("Guanábana"));
+  });
+
+  it("los zumos se resuelven por sabor y volumen", () => {
+    const limon = flavorKey("Zumo de Limón");
+    expect(legacyProduct("Zumo Limon  1/2 litro (500 ml)")).toEqual({ flavorKey: limon, presentation: "MEDIO_LITRO" });
+    expect(legacyProduct("Zumo Limon 1 litro")).toEqual({ flavorKey: limon, presentation: "LITRO" });
+    expect(legacyProduct("Zumo Naranja 1 litro")).toEqual({ flavorKey: flavorKey("Zumo de Naranja"), presentation: "LITRO" });
+  });
+
+  it("lo demás se cotiza por kilo", () => {
+    expect(legacyProduct("Limonada de coco")).toEqual({ flavorKey: flavorKey("Limón Coco"), presentation: "KILO" });
   });
 });
 

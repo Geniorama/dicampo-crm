@@ -10,6 +10,7 @@ import {
 import { UserRole } from "@/generated/prisma/enums";
 import type { SessionUser } from "../guards";
 import type {
+  OwnProfileInput,
   PasswordChangeInput,
   PasswordResetInput,
   UserCreateInput,
@@ -226,4 +227,17 @@ export async function changeOwnPassword(
   await prisma.user.update({ where: { id: user.id }, data: { passwordHash } });
 
   return { ok: true };
+}
+
+/**
+ * Cada persona pone su propio nombre y teléfono. Las cuentas se crean con un
+ * nombre genérico ("Vendedor 1") porque la rotación es alta; el rol y el
+ * correo siguen siendo cosa de un ADMIN.
+ */
+export async function updateOwnProfile(actor: SessionUser, input: OwnProfileInput) {
+  return prisma.user.update({
+    where: { id: actor.id },
+    data: { name: input.name, phone: input.phone ?? null },
+    select: { id: true, name: true, phone: true },
+  });
 }

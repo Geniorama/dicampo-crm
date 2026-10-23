@@ -107,3 +107,11 @@ export const userListQuerySchema = z.object({
 });
 
 export type UserListQuery = z.infer<typeof userListQuerySchema>;
+
+/** Lo que cada persona puede cambiar de sí misma: nombre y teléfono, no el rol. */
+export const ownProfileSchema = z.object({
+  name: z.string().trim().min(3, "El nombre es obligatorio").max(120),
+  phone: optionalText(50),
+});
+
+export type OwnProfileInput = z.output<typeof ownProfileSchema>;

@@ -5,7 +5,9 @@ import { PrismaClient } from "../src/generated/prisma/client";
 import {
   flavorKey,
   groupLegacyQuotes,
+  legacyProduct,
   totalsAgree,
+  variantKey,
   type LegacyRow,
 } from "../src/lib/legacy-quotes";
 import { computeOrderTotals } from "../src/lib/order-math";
@@ -104,7 +106,7 @@ async function main() {
 
   // ── Catálogo, usuarios y clientes existentes ───────────────
   const variants = await prisma.productVariant.findMany({
-    where: { presentation: "KILO" },
+    where: { active: true },
     select: {
       id: true,
       sku: true,
@@ -112,7 +114,14 @@ async function main() {
       product: { select: { name: true, flavor: true, taxRate: true } },
     },
   });
-  const variantByFlavor = new Map(variants.map((v) => [flavorKey(v.product.flavor), v]));
+  const variantByFlavor = new Map(
+    variants.map((v) => [variantKey(flavorKey(v.product.flavor), v.presentation), v]),
+  );
+
+  const variantByLine = (legacyName: string) => {
+    const { flavorKey: flavor, presentation } = legacyProduct(legacyName);
+    return variantByFlavor.get(variantKey(flavor, presentation));
+  };
 
   const users = await prisma.user.findMany({
     where: { role: { in: ["VENDEDOR", "ADMIN"] } },
@@ -169,7 +178,7 @@ async function main() {
       continue;
     }
 
-    const unmatched = quote.lines.filter((line) => !variantByFlavor.has(flavorKey(line.flavor)));
+    const unmatched = quote.lines.filter((line) => !variantByLine(line.flavor));
     if (unmatched.length > 0) {
       stats.noFlavor += 1;
       for (const line of unmatched) {
@@ -221,7 +230,7 @@ async function main() {
     }
 
     const lines = quote.lines.map((line) => {
-      const variant = variantByFlavor.get(flavorKey(line.flavor))!;
+      const variant = variantByLine(line.flavor)!;
       return {
         variant,
         quantity: line.kilos,

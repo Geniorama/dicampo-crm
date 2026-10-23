@@ -2,13 +2,17 @@ import type { Metadata } from "next";
 import { requireUser } from "@/server/guards";
 import { PageHeader } from "@/components/layout/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ProfileForm } from "@/components/users/profile-form";
 import { PasswordChangeForm } from "@/components/users/password-change-form";
 import { USER_ROLE_LABEL } from "@/lib/labels";
+import { getUser } from "@/server/services/users";
 
 export const metadata: Metadata = { title: "Mi perfil" };
 
 export default async function ProfilePage() {
   const user = await requireUser();
+  // El nombre de la sesión no cambia hasta volver a entrar: el formulario parte de la base.
+  const profile = await getUser(user.id);
 
   return (
     <div className="mx-auto max-w-2xl space-y-5">
@@ -21,10 +25,6 @@ export default async function ProfilePage() {
         <CardContent>
           <dl className="space-y-3 text-sm">
             <div className="flex justify-between gap-4">
-              <dt className="text-muted-foreground">Nombre</dt>
-              <dd className="font-medium text-foreground">{user.name}</dd>
-            </div>
-            <div className="flex justify-between gap-4">
               <dt className="text-muted-foreground">Correo</dt>
               <dd className="font-medium text-foreground">{user.email}</dd>
             </div>
@@ -36,8 +36,17 @@ export default async function ProfilePage() {
             </div>
           </dl>
           <p className="mt-4 text-xs text-muted-foreground">
-            Para cambiar tu nombre o tu rol, pídeselo a un administrador.
+            Para cambiar tu rol o tu correo, pídeselo a un administrador.
           </p>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Mi nombre</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ProfileForm name={profile.name} phone={profile.phone} />
         </CardContent>
       </Card>
 

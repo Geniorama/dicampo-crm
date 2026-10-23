@@ -53,18 +53,18 @@ describe("datos del catálogo de Dicampo", () => {
     }
   });
 
-  it("los zumos usan presentaciones en litros y los demás en kilo", () => {
+  it("los zumos usan presentaciones en litros y los demás en kilo (o libra)", () => {
     for (const { product, variant } of variants) {
       if (product.category === "ZUMO") {
         expect(["MEDIO_LITRO", "LITRO", "TRES_LITROS"]).toContain(variant.presentation);
       } else {
-        expect(variant.presentation, variant.sku).toBe("KILO");
+        expect(["KILO", "LIBRA"], variant.sku).toContain(variant.presentation);
       }
     }
   });
 
   it("los SKU coinciden con los que generaría el CRM, salvo los fijados a mano", () => {
-    const manual = new Set(["LPN-K", "MIX-K", "NAR-K"]);
+    const manual = new Set(["LPN-K", "MIX-K", "NAR-K", "MSE-K", "MDE-K"]);
     for (const { product, variant } of variants) {
       if (product.category === "ZUMO" || manual.has(variant.sku) || EXISTING_SKUS[product.flavor]) continue;
       expect(variant.sku).toBe(buildSku(product.flavor, variant.presentation));
