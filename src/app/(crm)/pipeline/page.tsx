@@ -25,7 +25,11 @@ export default async function PipelinePage({
 }) {
   const user = await requireUser();
   const params = await searchParams;
-  const query = opportunityListQuerySchema.parse(flattenSearchParams(params));
+  // El tablero muestra Ganado y Perdido salvo que se pida solo las abiertas.
+  const query = opportunityListQuerySchema.parse({
+    includeClosed: "1",
+    ...flattenSearchParams(params),
+  });
 
   const { columns, total, value } = await listOpportunities(user, query);
 
