@@ -5,6 +5,7 @@ import { requireUser } from "@/server/guards";
 import { listClients } from "@/server/services/clients";
 import { clientListQuerySchema } from "@/server/validators/clients";
 import { PageHeader } from "@/components/layout/page-header";
+import { Pagination } from "@/components/ui/pagination";
 import { ImportLink } from "@/components/import/import-link";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -203,51 +204,8 @@ export default async function ClientsPage({
           </div>
         )}
 
-        {totalPages > 1 && (
-          <nav
-            aria-label="Paginación"
-            className="flex items-center justify-between border-t border-border px-4 py-3 text-sm"
-          >
-            <p className="text-muted-foreground">
-              Página {page} de {totalPages}
-            </p>
-            <div className="flex gap-2">
-              {page > 1 && (
-                <Link
-                  href={buildPageHref(params, page - 1)}
-                  className="rounded-md border border-border px-3 py-1.5 text-muted-foreground hover:bg-muted"
-                >
-                  Anterior
-                </Link>
-              )}
-              {page < totalPages && (
-                <Link
-                  href={buildPageHref(params, page + 1)}
-                  className="rounded-md border border-border px-3 py-1.5 text-muted-foreground hover:bg-muted"
-                >
-                  Siguiente
-                </Link>
-              )}
-            </div>
-          </nav>
-        )}
+        <Pagination pathname="/clientes" params={params} page={page} totalPages={totalPages} total={total} />
       </Card>
     </div>
   );
-}
-
-/** Conserva los filtros activos al cambiar de página. */
-function buildPageHref(
-  params: RawSearchParams,
-  page: number,
-): string {
-  const search = new URLSearchParams();
-
-  for (const [key, value] of Object.entries(params)) {
-    if (key === "page" || value === undefined) continue;
-    search.set(key, Array.isArray(value) ? value[0] : value);
-  }
-  search.set("page", String(page));
-
-  return `/clientes?${search.toString()}`;
 }

@@ -5,6 +5,7 @@ import { requireUserPage, SALES_ROLES } from "@/server/guards";
 import { listAdvisors, listConversations } from "@/server/services/supervision";
 import { conversationListQuerySchema } from "@/server/validators/conversations";
 import { PageHeader } from "@/components/layout/page-header";
+import { Pagination } from "@/components/ui/pagination";
 import { AutoRefresh } from "@/components/conversations/auto-refresh";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -160,20 +161,7 @@ export default async function ConversationsPage({
           </ul>
         )}
 
-        {totalPages > 1 && (
-          <nav
-            aria-label="Paginación"
-            className="flex items-center justify-between border-t border-border px-4 py-3 text-sm"
-          >
-            <p className="text-muted-foreground">
-              Página {page} de {totalPages}
-            </p>
-            <div className="flex gap-2">
-              {page > 1 && <PageLink params={flat} page={page - 1} label="Anterior" />}
-              {page < totalPages && <PageLink params={flat} page={page + 1} label="Siguiente" />}
-            </div>
-          </nav>
-        )}
+        <Pagination pathname="/conversaciones" params={params} page={page} totalPages={totalPages} total={total} />
       </Card>
     </div>
   );
@@ -204,25 +192,5 @@ function FilterSelect({
         ))}
       </Select>
     </div>
-  );
-}
-
-function PageLink({
-  params,
-  page,
-  label,
-}: {
-  params: Record<string, string>;
-  page: number;
-  label: string;
-}) {
-  const search = new URLSearchParams({ ...params, page: String(page) });
-  return (
-    <Link
-      href={`/conversaciones?${search.toString()}`}
-      className="rounded-md border border-border px-3 py-1.5 text-muted-foreground hover:bg-muted"
-    >
-      {label}
-    </Link>
   );
 }

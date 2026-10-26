@@ -6,6 +6,7 @@ import { requireUser, INVENTORY_ROLES, isAdmin } from "@/server/guards";
 import { getStockSummary, listLots } from "@/server/services/inventory";
 import { lotListQuerySchema } from "@/server/validators/inventory";
 import { PageHeader } from "@/components/layout/page-header";
+import { Pagination } from "@/components/ui/pagination";
 import { ImportLink } from "@/components/import/import-link";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { buttonVariants } from "@/components/ui/button";
@@ -256,6 +257,14 @@ export default async function InventoryPage({
             </table>
           </div>
         )}
+
+        <Pagination
+          pathname="/inventario"
+          params={params}
+          page={lots.page}
+          totalPages={lots.totalPages}
+          total={lots.total}
+        />
       </Card>
     </div>
   );

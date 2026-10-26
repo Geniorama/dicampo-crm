@@ -5,6 +5,7 @@ import { requireUserPage, SALES_ROLES } from "@/server/guards";
 import { listQuotes } from "@/server/services/quotes";
 import { quoteListQuerySchema } from "@/server/validators/quotes";
 import { PageHeader } from "@/components/layout/page-header";
+import { Pagination } from "@/components/ui/pagination";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -141,48 +142,8 @@ export default async function QuotesPage({
           </div>
         )}
 
-        {totalPages > 1 && (
-          <nav
-            aria-label="Paginación"
-            className="flex items-center justify-between border-t border-border px-4 py-3 text-sm"
-          >
-            <p className="text-muted-foreground">
-              Página {page} de {totalPages}
-            </p>
-            <div className="flex gap-2">
-              {page > 1 && (
-                <Link
-                  href={buildPageHref(params, page - 1)}
-                  className="rounded-md border border-border px-3 py-1.5 text-muted-foreground hover:bg-muted"
-                >
-                  Anterior
-                </Link>
-              )}
-              {page < totalPages && (
-                <Link
-                  href={buildPageHref(params, page + 1)}
-                  className="rounded-md border border-border px-3 py-1.5 text-muted-foreground hover:bg-muted"
-                >
-                  Siguiente
-                </Link>
-              )}
-            </div>
-          </nav>
-        )}
+        <Pagination pathname="/cotizaciones" params={params} page={page} totalPages={totalPages} total={total} />
       </Card>
     </div>
   );
-}
-
-/** Conserva los filtros activos al cambiar de página. */
-function buildPageHref(params: RawSearchParams, page: number): string {
-  const search = new URLSearchParams();
-
-  for (const [key, value] of Object.entries(params)) {
-    if (key === "page" || value === undefined) continue;
-    search.set(key, Array.isArray(value) ? value[0] : value);
-  }
-  search.set("page", String(page));
-
-  return `/cotizaciones?${search.toString()}`;
 }
