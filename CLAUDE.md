@@ -461,7 +461,6 @@ Verificado contra la base real de Supabase (PostgreSQL 17.6), además de
 | Cotizaciones, despacho por localidad, metas, materia prima y producción, cartera | Listo (migraciones hasta `20261022160000_cartera_pagos` aplicadas en Supabase el 22/10/2026; `20261022170000_zumos_presentaciones` también aplicada) |
 | Reportes | Listo |
 | Carga masiva (CSV / XLSX) | Listo |
-| Migración desde Contentful | Pendiente |
 
 Todos los módulos listos tienen interfaz completa de lectura y escritura.
 
