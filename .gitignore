@@ -48,3 +48,6 @@ next-env.d.ts
 
 # netlify
 .netlify
+
+# Copia local de CLAUDE.md para otros agentes
+AGENTS.md
