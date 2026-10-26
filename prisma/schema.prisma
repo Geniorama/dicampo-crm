@@ -510,6 +510,7 @@ model Order {
   payments   Payment[]
 
   @@index([clientId, orderDate])
+  @@index([status, orderDate])
   @@index([status, requestedDeliveryDate])
   @@index([sellerId])
   @@index([routeId, routeSequence])

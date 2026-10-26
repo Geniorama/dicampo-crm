@@ -29,6 +29,9 @@ export async function listReceivables(
     where: {
       status: OrderStatus.ENTREGADO,
       deliveredAt: { not: null },
+      // Un pedido pagado no tiene saldo: se descarta en la consulta en vez de
+      // traer todo el histórico. `paymentStatus` se recalcula con cada pago.
+      paymentStatus: { not: "PAGADO" },
       client: {
         ...scopeToOwnPortfolio(user),
         ...(query.ownerId && user.role !== UserRole.VENDEDOR ? { ownerId: query.ownerId } : {}),
