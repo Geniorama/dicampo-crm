@@ -20,6 +20,7 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input, Select } from "@/components/ui/field";
 import { TrendChart } from "@/components/reports/trend-chart";
+import { BarList } from "@/components/ui/bar-list";
 import { formatCOP, formatDate, formatQuantity } from "@/lib/format";
 import { flattenSearchParams, type RawSearchParams } from "@/lib/search-params";
 import { PRESENTATION_SHORT } from "@/lib/labels";
@@ -64,7 +65,11 @@ export default async function ReportsPage({
   };
 
   const topProducts = byProduct.slice(0, 10);
-  const maxProductRevenue = topProducts[0]?.revenue ?? 0;
+  // Los 10 productos que antes se agotan; sin ventas no hay cobertura que graficar.
+  const coverage = turnover
+    .filter((row) => row.coverageDays !== null)
+    .sort((a, b) => a.coverageDays! - b.coverageDays!)
+    .slice(0, 10);
 
   return (
     <div className="space-y-5">
@@ -184,38 +189,16 @@ export default async function ReportsPage({
           {topProducts.length === 0 ? (
             <EmptyState title="Sin ventas en el período" />
           ) : (
-            <ul className="divide-y divide-border">
-              {topProducts.map((row) => (
-                <li key={row.variantId} className="px-5 py-2.5">
-                  <div className="flex items-baseline justify-between gap-3">
-                    <p className="truncate text-sm text-foreground">
-                      {row.productName}
-                      <span className="ml-1 text-xs text-muted-foreground">
-                        {row.presentation
-                          ? PRESENTATION_SHORT[row.presentation]
-                          : ""}
-                      </span>
-                    </p>
-                    <span className="tabular shrink-0 text-sm font-medium text-foreground">
-                      {formatCOP(row.revenue)}
-                    </span>
-                  </div>
-                  <div className="mt-1 flex items-center gap-2">
-                    <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
-                      <div
-                        className="h-full rounded-full bg-brand-green"
-                        style={{
-                          width: `${maxProductRevenue > 0 ? (row.revenue / maxProductRevenue) * 100 : 0}%`,
-                        }}
-                      />
-                    </div>
-                    <span className="tabular shrink-0 text-xs text-muted-foreground">
-                      {formatQuantity(row.quantity)}
-                    </span>
-                  </div>
-                </li>
-              ))}
-            </ul>
+            <BarList
+              label="Productos más vendidos por valor"
+              rows={topProducts.map((row) => ({
+                key: row.variantId,
+                label: row.productName,
+                hint: row.presentation ? PRESENTATION_SHORT[row.presentation] : undefined,
+                value: row.revenue,
+                display: `${formatCOP(row.revenue)} · ${formatQuantity(row.quantity)}`,
+              }))}
+            />
           )}
         </Card>
 
@@ -228,33 +211,16 @@ export default async function ReportsPage({
           {bySeller.length === 0 ? (
             <EmptyState title="Sin ventas en el período" />
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground">
-                    <th scope="col" className="px-5 py-2 font-medium">Vendedor</th>
-                    <th scope="col" className="px-5 py-2 text-right font-medium">Pedidos</th>
-                    <th scope="col" className="px-5 py-2 text-right font-medium">Ventas</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {bySeller.map((row) => (
-                    <tr
-                      key={row.sellerId ?? "sin-vendedor"}
-                      className="border-b border-border last:border-0"
-                    >
-                      <td className="px-5 py-2.5 text-foreground">{row.name}</td>
-                      <td className="tabular px-5 py-2.5 text-right text-muted-foreground">
-                        {row.orders}
-                      </td>
-                      <td className="tabular px-5 py-2.5 text-right font-medium text-foreground">
-                        {formatCOP(row.revenue)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <BarList
+              label="Ventas por vendedor"
+              rows={bySeller.map((row) => ({
+                key: row.sellerId ?? "sin-vendedor",
+                label: row.name,
+                hint: `${row.orders} ${row.orders === 1 ? "pedido" : "pedidos"}`,
+                value: row.revenue,
+                display: formatCOP(row.revenue),
+              }))}
+            />
           )}
         </Card>
       </div>
@@ -342,6 +308,21 @@ export default async function ReportsPage({
             <CardTitle>Rotación de inventario</CardTitle>
             <ExportLink href={exportHref("inventario")} />
           </CardHeader>
+
+          {coverage.length > 0 && (
+            <BarList
+              className="border-b border-border"
+              label="Días de cobertura del saldo actual, de menor a mayor"
+              rows={coverage.map((row) => ({
+                key: row.variantId,
+                label: row.productName,
+                hint: row.presentation ? PRESENTATION_SHORT[row.presentation] : undefined,
+                value: row.coverageDays ?? 0,
+                display: `${row.coverageDays} días`,
+                barClass: row.coverageDays !== null && row.coverageDays < 7 ? "bg-warning" : "bg-primary",
+              }))}
+            />
+          )}
 
           <div className="overflow-x-auto">
             <table className="w-full text-sm">

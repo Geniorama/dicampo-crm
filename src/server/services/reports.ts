@@ -151,3 +151,60 @@ export async function getRecentOrders(user: SessionUser, take = 8) {
     },
   });
 }
+
+export type MonthlySalesPoint = { key: string; revenue: number; orders: number };
+
+/**
+ * Ventas de los últimos `months` meses (el actual incluido), mes a mes y en
+ * hora de Bogotá. Los meses sin ventas salen en cero para que la gráfica no
+ * salte de uno a otro.
+ */
+export async function getMonthlySales(
+  user: SessionUser,
+  months = 6,
+): Promise<MonthlySalesPoint[]> {
+  const now = TZDate.tz(BUSINESS_TIME_ZONE);
+  const from = new Date(
+    new TZDate(now.getFullYear(), now.getMonth() - (months - 1), 1, BUSINESS_TIME_ZONE).getTime(),
+  );
+
+  const orders = await prisma.order.findMany({
+    where: { ...orderScope(user), status: { in: SOLD_STATUSES }, orderDate: { gte: from } },
+    select: { orderDate: true, total: true },
+  });
+
+  const buckets = new Map<string, MonthlySalesPoint>();
+  for (let i = 0; i < months; i++) {
+    const month = new TZDate(now.getFullYear(), now.getMonth() - (months - 1) + i, 1, BUSINESS_TIME_ZONE);
+    const key = `${month.getFullYear()}-${String(month.getMonth() + 1).padStart(2, "0")}`;
+    buckets.set(key, { key, revenue: 0, orders: 0 });
+  }
+
+  for (const order of orders) {
+    const date = new TZDate(order.orderDate, BUSINESS_TIME_ZONE);
+    const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+    const bucket = buckets.get(key);
+    if (bucket) {
+      bucket.revenue += Number(order.total);
+      bucket.orders += 1;
+    }
+  }
+
+  return [...buckets.values()];
+}
+
+/** Pedidos del mes en curso por estado (incluye cancelados: es un reparto, no una venta). */
+export async function getMonthOrdersByStatus(user: SessionUser) {
+  const now = TZDate.tz(BUSINESS_TIME_ZONE);
+  const monthStart = new Date(
+    new TZDate(now.getFullYear(), now.getMonth(), 1, BUSINESS_TIME_ZONE).getTime(),
+  );
+
+  const grouped = await prisma.order.groupBy({
+    by: ["status"],
+    where: { ...orderScope(user), orderDate: { gte: monthStart } },
+    _count: true,
+  });
+
+  return grouped.map((row) => ({ status: row.status, count: row._count }));
+}

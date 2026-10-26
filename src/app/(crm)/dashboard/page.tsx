@@ -1,16 +1,41 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { requireUser } from "@/server/guards";
-import { getDashboardMetrics, getRecentOrders } from "@/server/services/reports";
+import {
+  getDashboardMetrics,
+  getMonthlySales,
+  getMonthOrdersByStatus,
+  getRecentOrders,
+} from "@/server/services/reports";
 import { getGoalsProgress } from "@/server/services/goals";
 import { listReceivables } from "@/server/services/receivables";
 import { getDailyActivity } from "@/server/services/daily-activity";
 import { GoalMeter } from "@/components/goals/goal-meter";
+import { TrendChart } from "@/components/reports/trend-chart";
+import { BarList } from "@/components/ui/bar-list";
+import { DonutChart } from "@/components/ui/donut-chart";
 import { currentMonth } from "@/lib/goals";
 import { Card, CardContent, CardHeader, CardTitle, StatCard } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatCOP, formatDate, formatOrderNumber } from "@/lib/format";
 import { ORDER_STATUS_LABEL, ORDER_STATUS_TONE } from "@/lib/labels";
+
+/** Color de cada estado en la dona; los mismos tonos que sus insignias. */
+const ORDER_STATUS_COLOR: Record<string, string> = {
+  BORRADOR: "var(--muted-foreground)",
+  CONFIRMADO: "var(--info)",
+  EN_PREPARACION: "var(--warning)",
+  DESPACHADO: "var(--primary)",
+  ENTREGADO: "var(--primary-strong)",
+  CANCELADO: "var(--destructive)",
+};
+
+const AGING_BAR: Record<string, string> = {
+  AL_DIA: "bg-primary",
+  "1_30": "bg-warning",
+  "31_60": "bg-brand-orange",
+  MAS_60: "bg-destructive",
+};
 
 export const metadata: Metadata = { title: "Tablero" };
 
@@ -35,8 +60,10 @@ export default async function DashboardPage() {
   // Las metas son del equipo comercial; bodega y despacho no las ven.
   const showGoals = user.role === "ADMIN" || user.role === "VENDEDOR";
   const month = currentMonth();
-  const [metrics, recentOrders, goals, receivables, daily] = await Promise.all([
+  const [metrics, monthly, byStatus, recentOrders, goals, receivables, daily] = await Promise.all([
     getDashboardMetrics(user),
+    getMonthlySales(user),
+    getMonthOrdersByStatus(user),
     getRecentOrders(user),
     showGoals ? getGoalsProgress(user, month) : null,
     showGoals ? listReceivables(user, { overdueOnly: false }) : null,
@@ -80,6 +107,35 @@ export default async function DashboardPage() {
         />
       </section>
 
+      <div className="grid gap-5 lg:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle>Ventas de los últimos 6 meses</CardTitle>
+            <Link href="/reportes" className="text-xs font-medium text-primary hover:underline">
+              Ver reportes
+            </Link>
+          </CardHeader>
+          <TrendChart points={monthly} granularity="mes" />
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Pedidos del mes por estado</CardTitle>
+          </CardHeader>
+          <DonutChart
+            label="Reparto de los pedidos del mes por estado"
+            centerLabel="pedidos"
+            centerValue={String(byStatus.reduce((sum, row) => sum + row.count, 0))}
+            slices={byStatus.map((row) => ({
+              key: row.status,
+              label: ORDER_STATUS_LABEL[row.status],
+              value: row.count,
+              color: ORDER_STATUS_COLOR[row.status],
+            }))}
+          />
+        </Card>
+      </div>
+
       {receivables && receivables.totals.balance > 0 && (
         <section aria-label="Cartera" className="grid gap-4 sm:grid-cols-2">
           <StatCard
@@ -95,6 +151,27 @@ export default async function DashboardPage() {
             />
           </Link>
         </section>
+      )}
+
+      {receivables && receivables.totals.balance > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Cartera por antigüedad</CardTitle>
+            <Link href="/cartera" className="text-xs font-medium text-primary hover:underline">
+              Ver cartera
+            </Link>
+          </CardHeader>
+          <BarList
+            label="Saldo por cobrar según los días de vencimiento"
+            rows={receivables.aging.map((row) => ({
+              key: row.bucket,
+              label: row.label,
+              value: row.amount,
+              display: formatCOP(row.amount),
+              barClass: AGING_BAR[row.bucket],
+            }))}
+          />
+        </Card>
       )}
 
       {goals && (
