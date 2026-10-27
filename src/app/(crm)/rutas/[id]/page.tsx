@@ -22,6 +22,7 @@ import { DeliveryForm } from "@/components/routes/delivery-form";
 import {
   formatCOP,
   formatCalendarDate,
+  formatBogotaTime,
   formatDateTime,
   formatOrderNumber,
 } from "@/lib/format";
@@ -32,6 +33,7 @@ import {
   ROUTE_STATUS_TONE,
 } from "@/lib/labels";
 import { whatsappLink } from "@/lib/whatsapp";
+import { computeRouteTiming, formatDuration } from "@/lib/route-timing";
 import { googleMapsRoute, wazeLink } from "@/lib/dispatch";
 
 export const metadata: Metadata = { title: "Ruta" };
@@ -51,6 +53,12 @@ export default async function RouteDetailPage({
 
   const canEdit = isAdmin(user) || DISPATCH_ROLES.includes(user.role as never);
   const isPlanning = route.status === "PLANEADA";
+  const timing = computeRouteTiming(
+    route.startedAt,
+    route.orders.map((order) => ({ id: order.id, arrivedAt: order.arrivedAt, closedAt: order.deliveredAt })),
+    route.completedAt ?? new Date(),
+  );
+  const timingById = new Map(timing.stops.map((stop) => [stop.id, stop]));
 
   // Solo hace falta la bolsa de pedidos disponibles mientras se planea.
   const available =
@@ -151,7 +159,12 @@ export default async function RouteDetailPage({
           <CardHeader>
             <CardTitle>Estado de la ruta</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-3">
+            {route.startedAt && (
+              <p className="tabular text-sm text-muted-foreground">
+                Salió a las {formatBogotaTime(route.startedAt)} · recorrido {formatDuration(timing.totalMs)} (trayectos {formatDuration(timing.travelMs)}, en sitio {formatDuration(timing.onSiteMs)})
+              </p>
+            )}
             <RouteStatusActions
               routeId={route.id}
               status={route.status}
@@ -222,6 +235,12 @@ export default async function RouteDetailPage({
                               ? ` (${order.proof.receivedDoc})`
                               : ""}{" "}
                             · {formatDateTime(order.proof.deliveredAt)}
+                            {timingById.get(order.id)?.onSiteMs != null && ` · en sitio ${formatDuration(timingById.get(order.id)!.onSiteMs)}`}
+                          </p>
+                        )}
+                        {order.proof?.notes && (
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            Observaciones: {order.proof.notes}
                           </p>
                         )}
                       </div>

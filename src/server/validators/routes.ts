@@ -1,5 +1,6 @@
 import { z } from "zod";
-import { RouteStatus } from "@/generated/prisma/enums";
+import { DeliveryFailReason, RouteStatus } from "@/generated/prisma/enums";
+import { paymentCreateSchema } from "./payments";
 
 /** Validación de rutas de reparto y evidencias de entrega. */
 
@@ -73,11 +74,22 @@ export type RouteListQuery = z.infer<typeof routeListQuerySchema>;
 export const deliveryProofSchema = z.object({
   receivedBy: z.string().trim().min(3, "¿Quién recibió?").max(120),
   receivedDoc: optionalText(30),
+  /** Observaciones de la entrega, texto libre. */
   notes: optionalText(1000),
+  /** Cobro hecho en la puerta; opcional porque hay clientes a crédito. */
+  payment: paymentCreateSchema.optional(),
 });
 
 export type DeliveryProofFormValues = z.input<typeof deliveryProofSchema>;
 export type DeliveryProofInput = z.output<typeof deliveryProofSchema>;
+
+/** Visita de entrega que no se completó: el motivo es obligatorio. */
+export const deliveryFailureSchema = z.object({
+  reason: z.enum(DeliveryFailReason),
+  notes: optionalText(1000),
+});
+
+export type DeliveryFailureInput = z.output<typeof deliveryFailureSchema>;
 
 // ── Despacho del día ─────────────────────────────────────────
 

@@ -12,6 +12,7 @@ import {
   ShoppingBasket,
   LayoutDashboard,
   MessagesSquare,
+  Navigation,
   Package,
   Truck,
   Upload,
@@ -84,6 +85,13 @@ const NAV_ITEMS: NavItem[] = [
     label: "Compras de fruta",
     icon: ShoppingBasket,
     roles: ["COMPRAS"],
+  },
+  {
+    href: "/mi-ruta",
+    label: "Mi ruta",
+    icon: Navigation,
+    // El repartidor trabaja desde aquí; ADMIN y bodega la ven para acompañarlo.
+    roles: ["DESPACHO", "BODEGA"],
   },
   {
     href: "/rutas",

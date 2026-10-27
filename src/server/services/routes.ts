@@ -1,10 +1,13 @@
 import { prisma } from "../db";
+import type { Prisma } from "@/generated/prisma/client";
 import { BusinessRuleError, ForbiddenError, NotFoundError } from "../errors";
 import { OrderStatus, RouteStatus, UserRole } from "@/generated/prisma/enums";
 import { TZDate } from "@date-fns/tz";
 import { BUSINESS_TIME_ZONE } from "@/lib/format";
 import type { SessionUser } from "../guards";
+import { recordPayment } from "./receivables";
 import type {
+  DeliveryFailureInput,
   DeliveryProofInput,
   DispatchNotesInput,
   RouteCreateInput,
@@ -91,6 +94,8 @@ export async function getRoute(id: string) {
           requestedDeliveryDate: true,
           collectionNote: true,
           giftNote: true,
+          arrivedAt: true,
+          deliveredAt: true,
           client: { select: { id: true, businessName: true, tradeName: true, phone: true } },
           address: {
             select: {
@@ -256,10 +261,12 @@ export async function changeRouteStatus(
     select: {
       id: true,
       status: true,
+      driverId: true,
       orders: { select: { id: true, status: true, orderNumber: true } },
     },
   });
   if (!route) throw new NotFoundError("La ruta");
+  assertCanWorkRoute(user, route.driverId);
 
   if (route.status === input.status) return route;
 
@@ -318,6 +325,8 @@ export async function changeRouteStatus(
       data: {
         status: input.status,
         ...(input.reason ? { notes: input.reason } : {}),
+        ...(input.status === RouteStatus.EN_RUTA ? { startedAt: now } : {}),
+        ...(input.status === RouteStatus.COMPLETADA ? { completedAt: now } : {}),
         updatedAt: now,
       },
     });
@@ -325,19 +334,92 @@ export async function changeRouteStatus(
 }
 
 /**
+ * Un repartidor (DESPACHO) solo trabaja las rutas que tiene asignadas; las
+ * que no tienen repartidor las puede atender cualquiera de despacho. BODEGA y
+ * ADMIN no tienen esa restricción.
+ */
+function assertCanWorkRoute(user: SessionUser, driverId: string | null | undefined) {
+  if (user.role === UserRole.DESPACHO && driverId && driverId !== user.id) {
+    throw new ForbiddenError("Esta ruta está asignada a otro repartidor.");
+  }
+}
+
+/** Pedido en reparto, con lo necesario para validar quién puede tocarlo. */
+async function getOrderInRoute(orderId: string) {
+  const order = await prisma.order.findUnique({
+    where: { id: orderId },
+    select: {
+      id: true,
+      status: true,
+      routeId: true,
+      orderNumber: true,
+      arrivedAt: true,
+      route: { select: { driverId: true } },
+    },
+  });
+  if (!order) throw new NotFoundError("El pedido");
+  return order;
+}
+
+/** Cierra la ruta si ya no le queda ninguna parada pendiente. */
+async function completeRouteIfDone(
+  tx: Prisma.TransactionClient,
+  routeId: string | null,
+  now: Date,
+) {
+  if (!routeId) return;
+
+  const pending = await tx.order.count({
+    where: {
+      routeId,
+      status: { notIn: [OrderStatus.ENTREGADO, OrderStatus.CANCELADO] },
+    },
+  });
+
+  if (pending === 0) {
+    await tx.deliveryRoute.update({
+      where: { id: routeId },
+      data: { status: RouteStatus.COMPLETADA, completedAt: now },
+    });
+  }
+}
+
+/**
+ * El repartidor marca que llegó a la parada. Es idempotente: la primera marca
+ * manda, para que tocar el botón dos veces no mueva la hora.
+ */
+export async function markArrival(user: SessionUser, orderId: string) {
+  const order = await getOrderInRoute(orderId);
+  assertCanWorkRoute(user, order.route?.driverId);
+
+  if (order.status !== OrderStatus.DESPACHADO) {
+    throw new BusinessRuleError(
+      "Solo se puede llegar a una parada de un pedido que ya salió a ruta.",
+    );
+  }
+  if (order.arrivedAt) return { arrivedAt: order.arrivedAt };
+
+  const updated = await prisma.order.update({
+    where: { id: orderId },
+    data: { arrivedAt: new Date() },
+    select: { arrivedAt: true },
+  });
+  return { arrivedAt: updated.arrivedAt! };
+}
+
+/**
  * Registra la entrega de un pedido con su evidencia y lo marca ENTREGADO.
- * Si con esta cae la última pendiente, la ruta se cierra sola.
+ * Si el repartidor cobró en la puerta, el pago entra en la misma transacción:
+ * o queda entregado y cobrado, o no queda nada. Si con esta cae la última
+ * pendiente, la ruta se cierra sola.
  */
 export async function registerDelivery(
   user: SessionUser,
   orderId: string,
   input: DeliveryProofInput,
 ) {
-  const order = await prisma.order.findUnique({
-    where: { id: orderId },
-    select: { id: true, status: true, routeId: true, orderNumber: true },
-  });
-  if (!order) throw new NotFoundError("El pedido");
+  const order = await getOrderInRoute(orderId);
+  assertCanWorkRoute(user, order.route?.driverId);
 
   if (order.status !== OrderStatus.DESPACHADO) {
     throw new BusinessRuleError(
@@ -345,38 +427,144 @@ export async function registerDelivery(
     );
   }
 
+  const { payment, ...proof } = input;
   const now = new Date();
 
   return prisma.$transaction(async (tx) => {
     await tx.deliveryProof.upsert({
       where: { orderId },
-      update: { ...input, deliveredAt: now },
-      create: { ...input, orderId, deliveredAt: now },
+      update: { ...proof, deliveredAt: now },
+      create: { ...proof, orderId, deliveredAt: now },
     });
 
     const updated = await tx.order.update({
       where: { id: orderId },
-      data: { status: OrderStatus.ENTREGADO, deliveredAt: now },
+      data: {
+        status: OrderStatus.ENTREGADO,
+        deliveredAt: now,
+        // Entregar sin haber marcado la llegada deja la hora de la entrega.
+        ...(order.arrivedAt ? {} : { arrivedAt: now }),
+      },
     });
 
-    if (order.routeId) {
-      const pending = await tx.order.count({
-        where: {
-          routeId: order.routeId,
-          status: { notIn: [OrderStatus.ENTREGADO, OrderStatus.CANCELADO] },
-        },
-      });
+    if (payment) await recordPayment(tx, user, orderId, payment);
 
-      if (pending === 0) {
-        await tx.deliveryRoute.update({
-          where: { id: order.routeId },
-          data: { status: RouteStatus.COMPLETADA },
-        });
-      }
-    }
+    await completeRouteIfDone(tx, order.routeId, now);
 
     return updated;
   });
+}
+
+/**
+ * Visita en la que no se pudo entregar. Queda el intento con su motivo y el
+ * pedido vuelve a preparación, fuera de la ruta, para reprogramarse: igual
+ * que cuando se cancela una ruta, el inventario sigue reservado.
+ */
+export async function registerFailedDelivery(
+  user: SessionUser,
+  orderId: string,
+  input: DeliveryFailureInput,
+) {
+  const order = await getOrderInRoute(orderId);
+  assertCanWorkRoute(user, order.route?.driverId);
+
+  if (order.status !== OrderStatus.DESPACHADO) {
+    throw new BusinessRuleError(
+      "Solo se puede reportar que no se entregó un pedido que ya salió a ruta.",
+    );
+  }
+
+  const now = new Date();
+
+  return prisma.$transaction(async (tx) => {
+    await tx.deliveryAttempt.create({
+      data: {
+        orderId,
+        routeId: order.routeId,
+        userId: user.id,
+        reason: input.reason,
+        notes: input.notes,
+        arrivedAt: order.arrivedAt,
+      },
+    });
+
+    const updated = await tx.order.update({
+      where: { id: orderId },
+      data: {
+        status: OrderStatus.EN_PREPARACION,
+        routeId: null,
+        routeSequence: null,
+        arrivedAt: null,
+      },
+    });
+
+    await completeRouteIfDone(tx, order.routeId, now);
+
+    return updated;
+  });
+}
+
+/**
+ * Las rutas que le tocan al repartidor hoy, con sus paradas en orden: lo que
+ * ve en su teléfono. Incluye una ruta que sigue en la calle de un día
+ * anterior. ADMIN y BODEGA ven las de todos, para poder acompañar el reparto.
+ */
+export async function getDriverDay(user: SessionUser, fecha?: string) {
+  const day = fecha ?? todayInBogota();
+  const date = new Date(`${day}T00:00:00.000Z`);
+  const ownOnly = user.role === UserRole.DESPACHO;
+
+  const routes = await prisma.deliveryRoute.findMany({
+    where: {
+      ...(ownOnly ? { driverId: user.id } : {}),
+      status: { not: RouteStatus.CANCELADA },
+      OR: [{ date }, { status: RouteStatus.EN_RUTA }],
+    },
+    orderBy: [{ date: "asc" }, { name: "asc" }],
+    include: {
+      driver: { select: { id: true, name: true } },
+      orders: {
+        where: { status: { not: OrderStatus.CANCELADO } },
+        orderBy: { routeSequence: "asc" },
+        select: {
+          id: true,
+          orderNumber: true,
+          status: true,
+          total: true,
+          routeSequence: true,
+          collectionNote: true,
+          giftNote: true,
+          arrivedAt: true,
+          deliveredAt: true,
+          client: { select: { id: true, businessName: true, tradeName: true, phone: true } },
+          address: {
+            select: {
+              label: true,
+              address: true,
+              neighborhood: true,
+              locality: true,
+              deliveryNotes: true,
+            },
+          },
+          proof: { select: { receivedBy: true, notes: true } },
+          payments: { select: { amount: true } },
+          _count: { select: { items: true } },
+        },
+      },
+    },
+  });
+
+  return routes.map((route) => ({
+    ...route,
+    orders: route.orders.map(({ payments, total, ...order }) => {
+      const paid = payments.reduce((sum, payment) => sum + Number(payment.amount), 0);
+      return {
+        ...order,
+        total: Number(total),
+        balance: Math.max(0, Math.round(Number(total) - paid)),
+      };
+    }),
+  }));
 }
 
 // ─────────────────────────────────────────────────────────────

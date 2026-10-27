@@ -5,6 +5,7 @@ import type {
   QuoteStatus,
   ClientStatus,
   ClientType,
+  DeliveryFailReason,
   ConversationStatus,
   DisqualificationReason,
   MessageAuthor,
@@ -207,6 +208,15 @@ export const PAYMENT_METHOD_LABEL: Record<PaymentMethod, string> = {
   EFECTIVO: "Efectivo",
   TRANSFERENCIA: "Transferencia",
   OTRO: "Otro",
+};
+
+export const DELIVERY_FAIL_REASON_LABEL: Record<DeliveryFailReason, string> = {
+  CLIENTE_AUSENTE: "El cliente no estaba",
+  LOCAL_CERRADO: "Local cerrado",
+  RECHAZO_PEDIDO: "Rechazó el pedido",
+  DIRECCION_NO_ENCONTRADA: "No encontré la dirección",
+  SIN_DINERO: "No tenía con qué pagar",
+  OTRO: "Otro motivo",
 };
 
 export const LOT_STATUS_LABEL: Record<LotStatus, string> = {

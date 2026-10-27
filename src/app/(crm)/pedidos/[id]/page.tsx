@@ -21,6 +21,7 @@ import {
   formatQuantity,
 } from "@/lib/format";
 import {
+  DELIVERY_FAIL_REASON_LABEL,
   ORDER_CHANNEL_LABEL,
   ORDER_STATUS_LABEL,
   ORDER_STATUS_TONE,
@@ -237,6 +238,39 @@ export default async function OrderDetailPage({
                   collectionNote={order.collectionNote}
                   giftNote={order.giftNote}
                 />
+              </CardContent>
+            </Card>
+          )}
+
+          {(order.proof || order.deliveryAttempts.length > 0) && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Entrega</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3 text-sm">
+                {order.proof && (
+                  <div>
+                    <p className="font-medium text-success">
+                      Recibió {order.proof.receivedBy}
+                      {order.proof.receivedDoc ? ` (${order.proof.receivedDoc})` : ""} · {formatDateTime(order.proof.deliveredAt)}
+                    </p>
+                    {order.proof.notes && (
+                      <p className="mt-1 text-muted-foreground">Observaciones: {order.proof.notes}</p>
+                    )}
+                  </div>
+                )}
+                {order.deliveryAttempts.map((attempt) => (
+                  <div key={attempt.id}>
+                    <p className="font-medium text-foreground">
+                      Intento fallido · {DELIVERY_FAIL_REASON_LABEL[attempt.reason]}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {formatDateTime(attempt.createdAt)}
+                      {attempt.user ? ` · ${attempt.user.name}` : ""}
+                    </p>
+                    {attempt.notes && <p className="mt-1 text-muted-foreground">{attempt.notes}</p>}
+                  </div>
+                ))}
               </CardContent>
             </Card>
           )}

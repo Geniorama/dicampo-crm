@@ -1,4 +1,5 @@
 import { prisma } from "../db";
+import type { Prisma } from "@/generated/prisma/client";
 import { BusinessRuleError, ForbiddenError, NotFoundError } from "../errors";
 import { OrderStatus, UserRole } from "@/generated/prisma/enums";
 import { scopeToOwnPortfolio, type SessionUser } from "../guards";
@@ -176,55 +177,66 @@ export async function registerPayment(
   orderId: string,
   input: PaymentCreateInput,
 ) {
-  return prisma.$transaction(async (tx) => {
-    await lockKey(tx, `order-payment:${orderId}`);
+  return prisma.$transaction((tx) => recordPayment(tx, user, orderId, input));
+}
 
-    const order = await tx.order.findUnique({
-      where: { id: orderId },
-      select: {
-        id: true,
-        total: true,
-        status: true,
-        sellerId: true,
-        payments: { select: { amount: true } },
-      },
-    });
+/**
+ * El cobro en sí, dentro de una transacción ajena: así la entrega puede
+ * registrarse y cobrarse como una sola operación (o ninguna).
+ */
+export async function recordPayment(
+  tx: Prisma.TransactionClient,
+  user: SessionUser,
+  orderId: string,
+  input: PaymentCreateInput,
+) {
+  await lockKey(tx, `order-payment:${orderId}`);
 
-    if (!order) throw new NotFoundError("El pedido");
-    if (user.role === UserRole.VENDEDOR && order.sellerId !== user.id) {
-      throw new ForbiddenError("Este pedido no es tuyo.");
-    }
-    if (order.status === OrderStatus.CANCELADO || order.status === OrderStatus.BORRADOR) {
-      throw new BusinessRuleError("Este pedido no admite pagos: está cancelado o sin confirmar.");
-    }
-
-    const total = Number(order.total);
-    const paid = order.payments.reduce((sum, payment) => sum + Number(payment.amount), 0);
-    const balance = Math.round(total - paid);
-
-    if (input.amount > balance) {
-      throw new BusinessRuleError(
-        `El pago supera el saldo del pedido (saldo: ${balance.toLocaleString("es-CO")}).`,
-        { balance },
-      );
-    }
-
-    const payment = await tx.payment.create({
-      data: {
-        orderId,
-        amount: input.amount,
-        method: input.method,
-        paidAt: input.paidAt ?? new Date(),
-        reference: input.reference,
-        userId: user.id,
-      },
-    });
-
-    await tx.order.update({
-      where: { id: orderId },
-      data: { paymentStatus: paymentStatusFor(total, paid + input.amount) },
-    });
-
-    return { payment, balance: Math.round(balance - input.amount) };
+  const order = await tx.order.findUnique({
+    where: { id: orderId },
+    select: {
+      id: true,
+      total: true,
+      status: true,
+      sellerId: true,
+      payments: { select: { amount: true } },
+    },
   });
+
+  if (!order) throw new NotFoundError("El pedido");
+  if (user.role === UserRole.VENDEDOR && order.sellerId !== user.id) {
+    throw new ForbiddenError("Este pedido no es tuyo.");
+  }
+  if (order.status === OrderStatus.CANCELADO || order.status === OrderStatus.BORRADOR) {
+    throw new BusinessRuleError("Este pedido no admite pagos: está cancelado o sin confirmar.");
+  }
+
+  const total = Number(order.total);
+  const paid = order.payments.reduce((sum, payment) => sum + Number(payment.amount), 0);
+  const balance = Math.round(total - paid);
+
+  if (input.amount > balance) {
+    throw new BusinessRuleError(
+      `El pago supera el saldo del pedido (saldo: ${balance.toLocaleString("es-CO")}).`,
+      { balance },
+    );
+  }
+
+  const payment = await tx.payment.create({
+    data: {
+      orderId,
+      amount: input.amount,
+      method: input.method,
+      paidAt: input.paidAt ?? new Date(),
+      reference: input.reference,
+      userId: user.id,
+    },
+  });
+
+  await tx.order.update({
+    where: { id: orderId },
+    data: { paymentStatus: paymentStatusFor(total, paid + input.amount) },
+  });
+
+  return { payment, balance: Math.round(balance - input.amount) };
 }

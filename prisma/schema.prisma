@@ -42,19 +42,20 @@ model User {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
-  accounts       Account[]
-  sessions       Session[]
-  ownedClients   Client[]          @relation("ClientOwner")
-  opportunities  Opportunity[]
-  activities     Activity[]
-  soldOrders     Order[]           @relation("OrderSeller")
-  quotes         Quote[]           @relation("QuoteSeller")
-  salesGoals     SalesGoal[]
-  purchases      FruitPurchase[]
-  payments       Payment[]
-  batches        ProductionBatch[]
-  drivenRoutes   DeliveryRoute[]   @relation("RouteDriver")
-  stockMovements StockMovement[]
+  accounts         Account[]
+  sessions         Session[]
+  ownedClients     Client[]          @relation("ClientOwner")
+  opportunities    Opportunity[]
+  activities       Activity[]
+  soldOrders       Order[]           @relation("OrderSeller")
+  quotes           Quote[]           @relation("QuoteSeller")
+  salesGoals       SalesGoal[]
+  purchases        FruitPurchase[]
+  payments         Payment[]
+  batches          ProductionBatch[]
+  drivenRoutes     DeliveryRoute[]   @relation("RouteDriver")
+  deliveryAttempts DeliveryAttempt[] @relation("DeliveryAttemptUser")
+  stockMovements   StockMovement[]
 
   assignedConversations WhatsappConversation[] @relation("ConversationAssignee")
   authoredMessages      WhatsappMessage[]      @relation("MessageAuthorUser")
@@ -493,21 +494,25 @@ model Order {
   stockAppliedAt        DateTime?
   confirmedAt           DateTime?
   deliveredAt           DateTime?
+  /// Cuándo el repartidor marcó que llegó a la parada; con `deliveredAt` da
+  /// el tiempo en sitio, y contra la parada anterior, el del trayecto.
+  arrivedAt             DateTime?
   cancelledAt           DateTime?
   cancelReason          String?
   createdAt             DateTime      @default(now())
   updatedAt             DateTime      @updatedAt
 
-  client     Client          @relation(fields: [clientId], references: [id])
-  address    ClientAddress?  @relation(fields: [addressId], references: [id], onDelete: SetNull)
-  seller     User?           @relation("OrderSeller", fields: [sellerId], references: [id], onDelete: SetNull)
-  route      DeliveryRoute?  @relation(fields: [routeId], references: [id], onDelete: SetNull)
-  quote      Quote?
-  items      OrderItem[]
-  movements  StockMovement[]
-  activities Activity[]
-  proof      DeliveryProof?
-  payments   Payment[]
+  client           Client            @relation(fields: [clientId], references: [id])
+  address          ClientAddress?    @relation(fields: [addressId], references: [id], onDelete: SetNull)
+  seller           User?             @relation("OrderSeller", fields: [sellerId], references: [id], onDelete: SetNull)
+  route            DeliveryRoute?    @relation(fields: [routeId], references: [id], onDelete: SetNull)
+  quote            Quote?
+  items            OrderItem[]
+  movements        StockMovement[]
+  activities       Activity[]
+  proof            DeliveryProof?
+  payments         Payment[]
+  deliveryAttempts DeliveryAttempt[]
 
   @@index([clientId, orderDate])
   @@index([status, orderDate])
@@ -826,20 +831,24 @@ enum RouteStatus {
 }
 
 model DeliveryRoute {
-  id        String      @id @default(cuid())
-  name      String
-  date      DateTime    @db.Date
-  zoneId    String?
-  driverId  String?
-  vehicle   String?
-  status    RouteStatus @default(PLANEADA)
-  notes     String?     @db.Text
-  createdAt DateTime    @default(now())
-  updatedAt DateTime    @updatedAt
+  id          String      @id @default(cuid())
+  name        String
+  date        DateTime    @db.Date
+  zoneId      String?
+  driverId    String?
+  vehicle     String?
+  status      RouteStatus @default(PLANEADA)
+  notes       String?     @db.Text
+  /// Salida real (al pasar a EN_RUTA) y cierre; su diferencia es la duración del recorrido.
+  startedAt   DateTime?
+  completedAt DateTime?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
 
-  zone   DeliveryZone? @relation(fields: [zoneId], references: [id], onDelete: SetNull)
-  driver User?         @relation("RouteDriver", fields: [driverId], references: [id], onDelete: SetNull)
-  orders Order[]
+  zone     DeliveryZone?     @relation(fields: [zoneId], references: [id], onDelete: SetNull)
+  driver   User?             @relation("RouteDriver", fields: [driverId], references: [id], onDelete: SetNull)
+  orders   Order[]
+  attempts DeliveryAttempt[]
 
   @@index([date, status])
   @@index([driverId])
@@ -860,6 +869,35 @@ model DeliveryProof {
   notes       String?  @db.Text
 
   order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+}
+
+/// Motivo por el que una visita de entrega no se completó. El pedido vuelve a
+/// preparación para reprogramarse; el intento queda como historia.
+enum DeliveryFailReason {
+  CLIENTE_AUSENTE
+  LOCAL_CERRADO
+  RECHAZO_PEDIDO
+  DIRECCION_NO_ENCONTRADA
+  SIN_DINERO
+  OTRO
+}
+
+model DeliveryAttempt {
+  id        String             @id @default(cuid())
+  orderId   String
+  routeId   String?
+  userId    String?
+  reason    DeliveryFailReason
+  notes     String?            @db.Text
+  arrivedAt DateTime?
+  createdAt DateTime           @default(now())
+
+  order Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  route DeliveryRoute? @relation(fields: [routeId], references: [id], onDelete: SetNull)
+  user  User?          @relation("DeliveryAttemptUser", fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([orderId])
+  @@index([routeId])
 }
 
 // ─────────────────────────────────────────────────────────────

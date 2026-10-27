@@ -124,6 +124,7 @@ export async function getOrder(user: SessionUser, id: string) {
         include: { variant: { select: { id: true, sku: true } } },
       },
       proof: true,
+      deliveryAttempts: { orderBy: { createdAt: "asc" }, include: { user: { select: { name: true } } } },
       movements: {
         orderBy: { createdAt: "asc" },
         include: { lot: { select: { lotCode: true, expiryDate: true } } },
