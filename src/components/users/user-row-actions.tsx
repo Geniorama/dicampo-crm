@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { KeyRound, Power, PowerOff } from "lucide-react";
+import { KeyRound, Pencil, Power, PowerOff } from "lucide-react";
 import { api, ApiClientError } from "@/lib/api-client";
 import { USER_ROLE_LABEL, toOptions } from "@/lib/labels";
 import { AGENT_ROLE, isAssignableRole } from "@/lib/agent";
@@ -16,8 +16,8 @@ const roleOptions = toOptions(USER_ROLE_LABEL).filter((option) =>
 );
 
 /**
- * Acciones sobre un usuario: cambiar rol, activar/desactivar y restablecer
- * contraseña.
+ * Acciones sobre un usuario: cambiar nombre y rol, activar/desactivar y
+ * restablecer contraseña.
  *
  * Las reglas de seguridad (no desactivarse a uno mismo, no quedarse sin
  * administradores) las impone el servidor. Aquí solo se ocultan los controles
@@ -25,11 +25,13 @@ const roleOptions = toOptions(USER_ROLE_LABEL).filter((option) =>
  */
 export function UserRowActions({
   userId,
+  name,
   role,
   active,
   isSelf,
 }: {
   userId: string;
+  name: string;
   role: UserRole;
   active: boolean;
   isSelf: boolean;
@@ -39,6 +41,8 @@ export function UserRowActions({
   const [isPending, setIsPending] = useState(false);
   const [resetting, setResetting] = useState(false);
   const [newPassword, setNewPassword] = useState("");
+  const [renaming, setRenaming] = useState(false);
+  const [newName, setNewName] = useState(name);
   const [done, setDone] = useState<string | null>(null);
 
   // El agente IA no cambia de rol ni usa contraseña: solo se activa o
@@ -97,7 +101,25 @@ export function UserRowActions({
           size="sm"
           disabled={isPending}
           onClick={() => {
+            setRenaming((value) => !value);
+            setResetting(false);
+            setNewName(name);
+            setDone(null);
+          }}
+        >
+          <Pencil aria-hidden="true" />
+          Nombre
+        </Button>
+        )}
+
+        {!isAgent && (
+        <Button
+          variant="secondary"
+          size="sm"
+          disabled={isPending}
+          onClick={() => {
             setResetting((value) => !value);
+            setRenaming(false);
             setNewPassword("");
             setDone(null);
           }}
@@ -130,6 +152,37 @@ export function UserRowActions({
           )}
         </Button>
       </div>
+
+      {renaming && (
+        <form
+          className="flex items-center justify-end gap-2"
+          onSubmit={(event) => {
+            event.preventDefault();
+            run(async () => {
+              await api.patch(`/api/usuarios/${userId}`, { name: newName.trim() });
+              setRenaming(false);
+            }, "Nombre actualizado.");
+          }}
+        >
+          <Input
+            aria-label="Nombre"
+            inputSize="sm"
+            autoComplete="off"
+            className="w-52"
+            maxLength={120}
+            value={newName}
+            onChange={(event) => setNewName(event.target.value)}
+            placeholder="Nombre completo"
+          />
+          <Button
+            type="submit"
+            size="sm"
+            disabled={newName.trim().length < 3 || newName.trim() === name || isPending}
+          >
+            Guardar
+          </Button>
+        </form>
+      )}
 
       {resetting && (
         <div className="flex items-center justify-end gap-2">

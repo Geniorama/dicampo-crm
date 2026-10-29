@@ -160,6 +160,7 @@ export default async function UsersPage({
                       <td className="px-4 py-3">
                         <UserRowActions
                           userId={user.id}
+                          name={user.name}
                           role={user.role}
                           active={user.active}
                           isSelf={isSelf}
