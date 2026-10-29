@@ -6,7 +6,7 @@ import {
   NotFoundError,
 } from "../errors";
 import { scopeToOwnPortfolio, type SessionUser } from "../guards";
-import { UserRole } from "@/generated/prisma/enums";
+import { BillingMode, UserRole } from "@/generated/prisma/enums";
 import { calculateNitDv } from "@/lib/nit";
 import { parseNegotiation } from "@/lib/quote-discount";
 import { contactWhatsappKey } from "@/lib/whatsapp";
@@ -245,6 +245,16 @@ function negotiationColumns(negotiation: string | null | undefined) {
   };
 }
 
+/**
+ * La forma de facturación (factura o remisión) la decide administración:
+ * define qué documento recibe el cliente y no se negocia por cotización.
+ */
+function assertCanSetBillingMode(user: SessionUser, changing: boolean) {
+  if (changing && user.role !== UserRole.ADMIN) {
+    throw new ForbiddenError("Solo un administrador puede cambiar la forma de facturación.");
+  }
+}
+
 /** Las condiciones comerciales especiales las fija administración, no el vendedor. */
 function assertCanSetNegotiation(user: SessionUser, changing: boolean) {
   if (changing && user.role !== UserRole.ADMIN) {
@@ -272,6 +282,8 @@ export async function createClient(user: SessionUser, input: ClientCreateInput) 
 
   const { negotiation, ...clientData } = input;
   assertCanSetNegotiation(user, negotiation !== undefined && negotiation !== null);
+  // Quien no es ADMIN crea con la forma por defecto (la del esquema).
+  assertCanSetBillingMode(user, clientData.billingMode !== BillingMode.FACTURA);
 
   return prisma.client.create({
     data: {
@@ -296,6 +308,7 @@ export async function updateClient(
       id: true,
       ownerId: true,
       nit: true,
+      billingMode: true,
       negotiationFirstPct: true,
       negotiationNextPct: true,
     },
@@ -321,6 +334,11 @@ export async function updateClient(
   assertCanSetNegotiation(
     user,
     negotiation !== undefined && requestedText !== currentNegotiation,
+  );
+  // El formulario reenvía el valor actual: solo cuenta si de verdad cambia.
+  assertCanSetBillingMode(
+    user,
+    rest.billingMode !== undefined && rest.billingMode !== current.billingMode,
   );
   if (ownerId !== undefined && user.role !== UserRole.ADMIN) {
     throw new ForbiddenError("Solo un administrador puede reasignar clientes.");

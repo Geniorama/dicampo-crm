@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { BillingMode, QuoteStatus } from "@/generated/prisma/enums";
+import { QuoteStatus } from "@/generated/prisma/enums";
 import { orderItemSchema } from "./orders";
 import { localDateSchema } from "./reports";
 
@@ -18,8 +18,6 @@ export const quoteCreateSchema = z.object({
   addressId: z.string().cuid().optional(),
   /** Fecha límite de la oferta; por defecto, la vigencia estándar. */
   validUntil: z.coerce.date().optional(),
-  /** Si no se envía, rige la del cliente. */
-  billingMode: z.enum(BillingMode).optional(),
   /**
    * Descuento sobre todas las líneas (15 = 15 %). Si no se envía, rige el que
    * corresponde al cliente (nuevo, negociación o 0); el servidor valida los

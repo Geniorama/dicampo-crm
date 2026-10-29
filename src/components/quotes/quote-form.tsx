@@ -6,6 +6,7 @@ import { Trash2, Plus, UserPlus } from "lucide-react";
 import { api, ApiClientError } from "@/lib/api-client";
 import { computeOrderTotals } from "@/lib/order-math";
 import { MIN_ORDER_KG, PORTIONS_PER_KG, applyPercentDiscount } from "@/lib/quote-rules";
+import { clampDiscount } from "@/lib/quote-discount";
 import { formatCOP } from "@/lib/format";
 import {
   BILLING_MODE_LABEL,
@@ -16,10 +17,10 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field, Input, Select, Textarea } from "@/components/ui/field";
+import { Combobox, type ComboboxOption } from "@/components/ui/combobox";
 import { EmptyState } from "@/components/ui/empty-state";
 import type { BillingMode, ClientType, Presentation } from "@/generated/prisma/enums";
 
-const billingOptions = toOptions(BILLING_MODE_LABEL);
 const clientTypeOptions = toOptions(CLIENT_TYPE_LABEL);
 
 type NewClientDraft = {
@@ -39,6 +40,10 @@ const emptyNewClient: NewClientDraft = {
 export type QuoteClientOption = {
   id: string;
   label: string;
+  /** Razón social, cuando el nombre que se muestra es el comercial. */
+  detail?: string;
+  /** NIT u otros textos por los que también se busca. */
+  keywords?: (string | null)[];
   /** Lista de precios del cliente (la general si no tiene propia). */
   priceListId: string;
   billingMode: BillingMode;
@@ -76,6 +81,8 @@ type DiscountPolicy = {
   kind: "NEGOCIACION" | "NUEVO" | "MANUAL";
   suggested: number;
   allowed: { min: number; max: number } | { only: number[] };
+  /** Promo de cliente nuevo: nadie la cambia, tampoco un ADMIN. */
+  fixed: boolean;
   label: string;
 };
 
@@ -128,12 +135,15 @@ export function QuoteForm({
 
   const [clientId, setClientId] = useState(initialClient?.id ?? "");
   const [addressId, setAddressId] = useState(initialClient?.addresses[0]?.id ?? "");
-  const [billingMode, setBillingMode] = useState<BillingMode>(
-    initialClient?.billingMode ?? "FACTURA",
-  );
   const [validUntil, setValidUntil] = useState("");
   const [discountPercent, setDiscountPercent] = useState(0);
   const [policy, setPolicy] = useState<DiscountPolicy | null>(null);
+  // Tope del descuento manual: 8 % para vendedores; un ADMIN puede salirse.
+  const discountMax = isAdmin
+    ? 100
+    : policy && "max" in policy.allowed
+      ? policy.allowed.max
+      : 0;
   const [notes, setNotes] = useState("");
   const [lines, setLines] = useState<Draft[]>([newDraft()]);
   const [formError, setFormError] = useState<string | null>(null);
@@ -145,6 +155,17 @@ export function QuoteForm({
   );
 
   const selectedClient = clients.find((client) => client.id === clientId);
+
+  const clientOptions = useMemo<ComboboxOption[]>(
+    () =>
+      clients.map((client) => ({
+        value: client.id,
+        label: client.label,
+        detail: client.detail,
+        keywords: client.keywords,
+      })),
+    [clients],
+  );
 
   function priceOf(variantId: string): number | null {
     const variant = variantById.get(variantId);
@@ -226,7 +247,6 @@ export function QuoteForm({
     setClientId(nextClientId);
     const client = clients.find((item) => item.id === nextClientId);
     setAddressId(client?.addresses[0]?.id ?? "");
-    if (client) setBillingMode(client.billingMode);
   }
 
   async function handleCreateClient() {
@@ -264,7 +284,6 @@ export function QuoteForm({
       setClients((current) => [...current, option]);
       setClientId(option.id);
       setAddressId("");
-      setBillingMode(option.billingMode);
       setNewClient(emptyNewClient);
       setCreatingClient(false);
     } catch (error) {
@@ -300,7 +319,6 @@ export function QuoteForm({
       const quote = await api.post<{ id: string }>("/api/cotizaciones", {
         clientId,
         addressId: addressId || undefined,
-        billingMode,
         validUntil: validUntil || undefined,
         discountPercent,
         notes: notes || undefined,
@@ -328,18 +346,14 @@ export function QuoteForm({
         <CardContent className="grid gap-4 sm:grid-cols-2">
           <Field id="clientId" label="Cliente" required className="sm:col-span-2">
             {(props) => (
-              <Select
+              <Combobox
                 {...props}
                 value={clientId}
-                onChange={(event) => handleClientChange(event.target.value)}
-              >
-                <option value="">Selecciona un cliente…</option>
-                {clients.map((client) => (
-                  <option key={client.id} value={client.id}>
-                    {client.label}
-                  </option>
-                ))}
-              </Select>
+                onChange={handleClientChange}
+                placeholder="Escribe el nombre, la razón social o el NIT…"
+                emptyText="Ningún cliente coincide. Puedes crearlo abajo."
+                options={clientOptions}
+              />
             )}
           </Field>
 
@@ -457,19 +471,20 @@ export function QuoteForm({
             )}
           </Field>
 
-          <Field id="billingMode" label="Forma de facturación">
+          {/* La define administración en la ficha del cliente: aquí solo se
+              muestra, porque la cotización la hereda tal cual. */}
+          <Field
+            id="billingMode"
+            label="Forma de facturación"
+            hint="La define el administrador en la ficha del cliente."
+          >
             {(props) => (
-              <Select
+              <Input
                 {...props}
-                value={billingMode}
-                onChange={(event) => setBillingMode(event.target.value as BillingMode)}
-              >
-                {billingOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </Select>
+                readOnly
+                value={selectedClient ? BILLING_MODE_LABEL[selectedClient.billingMode] : "—"}
+                className="bg-muted text-muted-foreground"
+              />
             )}
           </Field>
 
@@ -493,14 +508,14 @@ export function QuoteForm({
                 : policy.kind === "NEGOCIACION"
                   ? "Negociación especial: porcentaje fijo según la sede"
                   : policy.kind === "NUEVO"
-                    ? "Cliente nuevo: promo de primer pedido, o ninguno"
+                    ? "Cliente nuevo: 15 % en el primer pedido, sin excepción y sin otros descuentos"
                     : isAdmin
                       ? "Manual (hasta 8 % para vendedores)"
                       : "Manual: de 0 a 8 %"
             }
           >
             {(props) =>
-              policy && "only" in policy.allowed && !isAdmin ? (
+              policy && "only" in policy.allowed && (!isAdmin || policy.fixed) ? (
                 <Select
                   {...props}
                   value={discountPercent}
@@ -517,12 +532,16 @@ export function QuoteForm({
                 <Input
                   {...props}
                   type="number"
+                  inputMode="decimal"
                   min={0}
-                  max={isAdmin ? 100 : policy && "max" in policy.allowed ? policy.allowed.max : 0}
+                  max={discountMax}
                   step="0.5"
                   value={discountPercent}
                   disabled={!policy}
-                  onChange={(event) => setDiscountPercent(Number(event.target.value))}
+                  // Se recorta al teclear: escribir 20 deja 8, no un error al guardar.
+                  onChange={(event) =>
+                    setDiscountPercent(clampDiscount(event.target.value, discountMax))
+                  }
                 />
               )
             }

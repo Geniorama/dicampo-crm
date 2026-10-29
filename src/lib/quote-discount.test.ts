@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  clampDiscount,
   discountLabel,
   discountPolicy,
   isDiscountAllowed,
@@ -9,13 +10,14 @@ import {
 describe("discountPolicy", () => {
   const base = { negotiation: null, clientHasHistory: true, addressHasHistory: true };
 
-  it("cliente nuevo: 15 % por defecto, o ninguno", () => {
+  it("cliente nuevo: 15 % fijo, sin quitarlo ni sumarle otro", () => {
     const policy = discountPolicy({ ...base, clientHasHistory: false, addressHasHistory: false });
     expect(policy.kind).toBe("NUEVO");
     expect(policy.suggested).toBe(15);
+    expect(policy.fixed).toBe(true);
     expect(isDiscountAllowed(policy, 15)).toBe(true);
-    expect(isDiscountAllowed(policy, 0)).toBe(true);
-    expect(isDiscountAllowed(policy, 10)).toBe(false);
+    expect(isDiscountAllowed(policy, 0)).toBe(false);
+    expect(isDiscountAllowed(policy, 23)).toBe(false);
   });
 
   it("cliente con historial: manual hasta 8 %", () => {
@@ -36,14 +38,25 @@ describe("discountPolicy", () => {
     expect(isDiscountAllowed(later, 15)).toBe(false);
   });
 
-  it("la negociación manda aunque el cliente sea nuevo", () => {
+  it("el 15 % de cliente nuevo manda aunque tenga negociación", () => {
     const policy = discountPolicy({
-      negotiation: { first: 15, next: 5 },
+      negotiation: { first: 20, next: 5 },
       clientHasHistory: false,
       addressHasHistory: false,
     });
-    expect(policy.kind).toBe("NEGOCIACION");
+    expect(policy.kind).toBe("NUEVO");
     expect(policy.suggested).toBe(15);
+  });
+
+  it("después del primer pedido rige la negociación", () => {
+    const policy = discountPolicy({
+      negotiation: { first: 20, next: 5 },
+      clientHasHistory: true,
+      addressHasHistory: false,
+    });
+    expect(policy.kind).toBe("NEGOCIACION");
+    expect(policy.suggested).toBe(20);
+    expect(policy.fixed).toBe(false);
   });
 });
 
@@ -62,5 +75,23 @@ describe("textos y lectura", () => {
     expect(parseNegotiation(" 15 - 5 ")).toEqual({ first: 15, next: 5 });
     expect(parseNegotiation("abc")).toBeNull();
     expect(parseNegotiation(null)).toBeNull();
+  });
+});
+
+describe("clampDiscount", () => {
+  it("no deja pasar del tope", () => {
+    expect(clampDiscount("20", 8)).toBe(8);
+    expect(clampDiscount("8.5", 8)).toBe(8);
+  });
+
+  it("respeta lo que está dentro del rango", () => {
+    expect(clampDiscount("5", 8)).toBe(5);
+    expect(clampDiscount("7.5", 8)).toBe(7.5);
+  });
+
+  it("vacío, negativo o ilegible es 0", () => {
+    expect(clampDiscount("", 8)).toBe(0);
+    expect(clampDiscount("-3", 8)).toBe(0);
+    expect(clampDiscount("abc", 8)).toBe(0);
   });
 });

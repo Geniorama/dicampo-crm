@@ -14,7 +14,10 @@ export default async function NewClientPage() {
         title="Nuevo cliente"
         description="Registra el negocio; después podrás añadirle contactos y sedes de entrega."
       />
-      <ClientForm canEditNegotiation={user.role === "ADMIN"} />
+      <ClientForm
+        canEditNegotiation={user.role === "ADMIN"}
+        canEditBillingMode={user.role === "ADMIN"}
+      />
     </div>
   );
 }

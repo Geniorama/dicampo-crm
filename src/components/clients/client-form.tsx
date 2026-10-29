@@ -32,9 +32,15 @@ type Props = {
   client?: Partial<ClientCreateInput> & { id: string };
   /** Solo administración define la negociación especial. */
   canEditNegotiation?: boolean;
+  /** Solo administración cambia la forma de facturación. */
+  canEditBillingMode?: boolean;
 };
 
-export function ClientForm({ client, canEditNegotiation = false }: Props) {
+export function ClientForm({
+  client,
+  canEditNegotiation = false,
+  canEditBillingMode = false,
+}: Props) {
   const router = useRouter();
   const [formError, setFormError] = useState<string | null>(null);
   const isEditing = Boolean(client);
@@ -205,10 +211,13 @@ export function ClientForm({ client, canEditNegotiation = false }: Props) {
           <Field
             id="billingMode"
             label="Forma de facturación"
+            hint={canEditBillingMode ? undefined : "Solo la cambia un administrador."}
             error={errors.billingMode?.message}
           >
             {(props) => (
-              <Select {...props} {...register("billingMode")}>
+              // Deshabilitado, no se envía: el servidor conserva la actual (o
+              // la de por defecto, al crear).
+              <Select {...props} {...register("billingMode", { disabled: !canEditBillingMode })}>
                 {billingModeOptions.map((option) => (
                   <option key={option.value} value={option.value}>
                     {option.label}

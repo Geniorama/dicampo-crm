@@ -26,6 +26,7 @@ export default async function EditClientPage({
       <PageHeader title={`Editar ${client.tradeName ?? client.businessName}`} />
       <ClientForm
         canEditNegotiation={user.role === "ADMIN"}
+        canEditBillingMode={user.role === "ADMIN"}
         client={{
           id: client.id,
           businessName: client.businessName,

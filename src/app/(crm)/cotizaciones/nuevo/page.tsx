@@ -34,6 +34,7 @@ export default async function NewQuotePage({
         id: true,
         businessName: true,
         tradeName: true,
+        nit: true,
         priceListId: true,
         billingMode: true,
         addresses: {
@@ -70,6 +71,12 @@ export default async function NewQuotePage({
   const clientOptions: QuoteClientOption[] = clients.map((client) => ({
     id: client.id,
     label: client.tradeName ?? client.businessName,
+    // Se busca también por razón social y NIT, que es como se conoce a muchos.
+    detail:
+      client.tradeName && client.tradeName !== client.businessName
+        ? client.businessName
+        : undefined,
+    keywords: [client.businessName, client.nit],
     priceListId: client.priceListId ?? defaultListId,
     billingMode: client.billingMode,
     addresses: client.addresses,

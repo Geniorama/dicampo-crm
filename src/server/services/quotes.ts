@@ -288,8 +288,7 @@ async function resolveDiscountPolicy(
   const notSelf = excludeQuoteId ? { id: { not: excludeQuoteId } } : {};
   const live = { status: { not: OrderStatus.CANCELADO } };
 
-  const [clientQuotes, clientOrders, addressQuotes, addressOrders] = await Promise.all([
-    prisma.quote.count({ where: { clientId: client.id, ...notSelf } }),
+  const [clientOrders, addressQuotes, addressOrders] = await Promise.all([
     prisma.order.count({ where: { clientId: client.id, ...live } }),
     addressId
       ? prisma.quote.count({ where: { clientId: client.id, addressId, ...notSelf } })
@@ -299,7 +298,9 @@ async function resolveDiscountPolicy(
       : Promise.resolve(0),
   ]);
 
-  const clientHasHistory = clientQuotes + clientOrders > 0;
+  // "Cliente nuevo" es el que no ha hecho su primer pedido: cotizaciones
+  // previas (rechazadas, vencidas o rehechas) no le quitan la promo.
+  const clientHasHistory = clientOrders > 0;
   // Sin sede indicada, "la sede" es el cliente entero.
   const addressHasHistory = addressId ? addressQuotes + addressOrders > 0 : clientHasHistory;
 
@@ -323,6 +324,13 @@ function settleDiscount(
   requested: number | undefined,
 ) {
   const pct = requested ?? policy.suggested;
+
+  // La promo de primer pedido no se quita ni se combina, tampoco por un ADMIN.
+  if (policy.fixed && pct !== policy.suggested) {
+    throw new BusinessRuleError(
+      `Cliente nuevo: el primer pedido lleva ${policy.suggested} % de descuento, sin excepción ni otros descuentos.`,
+    );
+  }
 
   if (!isDiscountAllowed(policy, pct)) {
     if (user.role !== UserRole.ADMIN) {
@@ -359,6 +367,7 @@ export async function getQuoteDiscountPolicy(
     kind: policy.kind,
     suggested: policy.suggested,
     allowed: policy.allowed,
+    fixed: policy.fixed,
     label: discountLabel(policy.kind, policy.suggested, {
       firstOfAddress: policy.firstOfAddress,
     }),
@@ -420,7 +429,9 @@ export async function createQuote(user: SessionUser, input: QuoteCreateInput) {
         validUntil: input.validUntil ?? defaultValidUntil(quoteDate),
         priceListId,
         priceListName,
-        billingMode: input.billingMode ?? client.billingMode,
+        // La forma de facturación es del cliente: solo un ADMIN la cambia,
+        // y desde su ficha. La cotización no la elige.
+        billingMode: client.billingMode,
         discountPercent: discount.pct,
         discountLabel: discount.label,
         notes: input.notes,
@@ -464,7 +475,6 @@ export async function updateQuote(
 
   const header = {
     validUntil: input.validUntil,
-    billingMode: input.billingMode,
     notes: input.notes,
   };
 
@@ -506,6 +516,8 @@ export async function updateQuote(
       where: { id },
       data: {
         ...header,
+        // Al recalcular se toma la vigente del cliente, por si cambió.
+        billingMode: client.billingMode,
         addressId,
         priceListId,
         priceListName,
@@ -603,6 +615,22 @@ export async function convertQuoteToOrder(
   ) {
     throw new BusinessRuleError(
       "Solo se convierte una cotización en borrador o enviada y vigente.",
+    );
+  }
+
+  // La promo de primer pedido vale una sola vez: si el cliente ya hizo su
+  // primer pedido (otra cotización convertida, o uno directo), esta ya no
+  // puede llevarla.
+  const isFirstOrderPromo =
+    quote.discountLabel === discountLabel("NUEVO", Number(quote.discountPercent));
+  if (
+    isFirstOrderPromo &&
+    (await prisma.order.count({
+      where: { clientId: quote.clientId, status: { not: OrderStatus.CANCELADO } },
+    })) > 0
+  ) {
+    throw new BusinessRuleError(
+      "Este cliente ya hizo su primer pedido: el 15 % de cliente nuevo ya se usó. Rehaz la cotización con el descuento que le corresponde ahora.",
     );
   }
 
