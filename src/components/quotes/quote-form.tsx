@@ -2,19 +2,39 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Trash2, Plus } from "lucide-react";
+import { Trash2, Plus, UserPlus } from "lucide-react";
 import { api, ApiClientError } from "@/lib/api-client";
 import { computeOrderTotals } from "@/lib/order-math";
 import { MIN_ORDER_KG, PORTIONS_PER_KG, applyPercentDiscount } from "@/lib/quote-rules";
 import { formatCOP } from "@/lib/format";
-import { BILLING_MODE_LABEL, PRESENTATION_SHORT, toOptions } from "@/lib/labels";
+import {
+  BILLING_MODE_LABEL,
+  CLIENT_TYPE_LABEL,
+  PRESENTATION_SHORT,
+  toOptions,
+} from "@/lib/labels";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field, Input, Select, Textarea } from "@/components/ui/field";
 import { EmptyState } from "@/components/ui/empty-state";
-import type { BillingMode, Presentation } from "@/generated/prisma/enums";
+import type { BillingMode, ClientType, Presentation } from "@/generated/prisma/enums";
 
 const billingOptions = toOptions(BILLING_MODE_LABEL);
+const clientTypeOptions = toOptions(CLIENT_TYPE_LABEL);
+
+type NewClientDraft = {
+  businessName: string;
+  phone: string;
+  email: string;
+  type: ClientType;
+};
+
+const emptyNewClient: NewClientDraft = {
+  businessName: "",
+  phone: "",
+  email: "",
+  type: "OTRO",
+};
 
 export type QuoteClientOption = {
   id: string;
@@ -56,7 +76,7 @@ type DiscountPolicy = {
 };
 
 export function QuoteForm({
-  clients,
+  clients: initialClients,
   variants,
   initialClientId,
   isAdmin = false,
@@ -69,6 +89,13 @@ export function QuoteForm({
   isAdmin?: boolean;
 }) {
   const router = useRouter();
+
+  // Los clientes creados desde aquí se suman a la lista sin recargar la página.
+  const [clients, setClients] = useState(initialClients);
+  const [creatingClient, setCreatingClient] = useState(false);
+  const [newClient, setNewClient] = useState<NewClientDraft>(emptyNewClient);
+  const [newClientError, setNewClientError] = useState<string | null>(null);
+  const [isSavingClient, setIsSavingClient] = useState(false);
 
   const initialClient = clients.find((client) => client.id === initialClientId);
 
@@ -175,6 +202,55 @@ export function QuoteForm({
     if (client) setBillingMode(client.billingMode);
   }
 
+  async function handleCreateClient() {
+    setNewClientError(null);
+    if (newClient.businessName.trim().length < 3) {
+      setNewClientError("Escribe el nombre o razón social (mínimo 3 letras).");
+      return;
+    }
+
+    setIsSavingClient(true);
+    try {
+      // Queda como PROSPECTO con la lista de precios general; el servidor
+      // asigna al vendedor como responsable.
+      const created = await api.post<{
+        id: string;
+        businessName: string;
+        tradeName: string | null;
+        priceListId: string | null;
+        billingMode: BillingMode;
+      }>("/api/clientes", {
+        businessName: newClient.businessName,
+        phone: newClient.phone,
+        email: newClient.email,
+        type: newClient.type,
+        status: "PROSPECTO",
+      });
+
+      const option: QuoteClientOption = {
+        id: created.id,
+        label: created.tradeName ?? created.businessName,
+        priceListId: created.priceListId ?? "",
+        billingMode: created.billingMode,
+        addresses: [],
+      };
+      setClients((current) => [...current, option]);
+      setClientId(option.id);
+      setAddressId("");
+      setBillingMode(option.billingMode);
+      setNewClient(emptyNewClient);
+      setCreatingClient(false);
+    } catch (error) {
+      setNewClientError(
+        error instanceof ApiClientError
+          ? error.message
+          : "No se pudo crear el cliente. Intenta de nuevo.",
+      );
+    } finally {
+      setIsSavingClient(false);
+    }
+  }
+
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
     setFormError(null);
@@ -239,6 +315,102 @@ export function QuoteForm({
               </Select>
             )}
           </Field>
+
+          <div className="sm:col-span-2">
+            {creatingClient ? (
+              <div className="space-y-3 rounded-md border border-border bg-muted/40 p-4">
+                <p className="text-sm font-medium text-foreground">Cliente nuevo</p>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <Field
+                    id="newClientName"
+                    label="Nombre o razón social"
+                    required
+                    className="sm:col-span-2"
+                  >
+                    {(props) => (
+                      <Input
+                        {...props}
+                        value={newClient.businessName}
+                        onChange={(event) =>
+                          setNewClient({ ...newClient, businessName: event.target.value })
+                        }
+                      />
+                    )}
+                  </Field>
+                  <Field id="newClientPhone" label="Teléfono / WhatsApp">
+                    {(props) => (
+                      <Input
+                        {...props}
+                        type="tel"
+                        value={newClient.phone}
+                        onChange={(event) =>
+                          setNewClient({ ...newClient, phone: event.target.value })
+                        }
+                      />
+                    )}
+                  </Field>
+                  <Field id="newClientEmail" label="Correo">
+                    {(props) => (
+                      <Input
+                        {...props}
+                        type="email"
+                        value={newClient.email}
+                        onChange={(event) =>
+                          setNewClient({ ...newClient, email: event.target.value })
+                        }
+                      />
+                    )}
+                  </Field>
+                  <Field id="newClientType" label="Tipo de negocio">
+                    {(props) => (
+                      <Select
+                        {...props}
+                        value={newClient.type}
+                        onChange={(event) =>
+                          setNewClient({ ...newClient, type: event.target.value as ClientType })
+                        }
+                      >
+                        {clientTypeOptions.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </Select>
+                    )}
+                  </Field>
+                </div>
+                {newClientError && (
+                  <p role="alert" className="text-sm text-destructive">
+                    {newClientError}
+                  </p>
+                )}
+                <div className="flex justify-end gap-2">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => {
+                      setCreatingClient(false);
+                      setNewClientError(null);
+                    }}
+                  >
+                    Cancelar
+                  </Button>
+                  <Button size="sm" onClick={handleCreateClient} disabled={isSavingClient}>
+                    {isSavingClient ? "Creando…" : "Crear y seleccionar"}
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Se crea como prospecto con la lista de precios general. La sede y demás datos se
+                  completan luego en su ficha.
+                </p>
+              </div>
+            ) : (
+              <Button variant="secondary" size="sm" onClick={() => setCreatingClient(true)}>
+                <UserPlus aria-hidden="true" />
+                Cliente nuevo
+              </Button>
+            )}
+          </div>
 
           <Field id="addressId" label="Sede">
             {(props) => (

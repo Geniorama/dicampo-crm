@@ -87,14 +87,7 @@ export default async function NewQuotePage({
         description="El precio sale de la lista del cliente (Distribuidor, Mayorista, Público general…)."
       />
 
-      {clientOptions.length === 0 ? (
-        <Card>
-          <EmptyState
-            title="No hay clientes disponibles"
-            description="Registra primero un cliente o prospecto para poder cotizarle."
-          />
-        </Card>
-      ) : variantOptions.length === 0 ? (
+      {variantOptions.length === 0 ? (
         <Card>
           <EmptyState
             title="El catálogo está vacío"
