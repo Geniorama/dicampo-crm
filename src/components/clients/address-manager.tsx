@@ -94,6 +94,12 @@ export function AddressManager({
 
   const isAdding = editingId === "new";
 
+  // Una sede puede tener una zona que luego se desactivó: se sigue mostrando
+  // para no confundir, pero no se ofrece a las demás.
+  const editingZone = addresses.find((address) => address.id === editingId)?.zone;
+  const inactiveZone =
+    editingZone && !zones.some((zone) => zone.id === editingZone.id) ? editingZone : null;
+
   function openNew() {
     // La primera sede es necesariamente la principal.
     setDraft({ ...emptyDraft, isPrimary: addresses.length === 0 });
@@ -183,6 +189,9 @@ export function AddressManager({
               onChange={(e) => setDraft({ ...draft, zoneId: e.target.value })}
             >
               <option value="">Sin asignar</option>
+              {inactiveZone && (
+                <option value={inactiveZone.id}>{inactiveZone.name} (inactiva)</option>
+              )}
               {zones.map((zone) => (
                 <option key={zone.id} value={zone.id}>
                   {zone.name}

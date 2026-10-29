@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { Plus, Truck } from "lucide-react";
+import { MapPinned, Plus, Truck } from "lucide-react";
 import { DISPATCH_ROLES, isAdmin, requireUser } from "@/server/guards";
 import { listRoutes } from "@/server/services/routes";
 import { routeListQuerySchema } from "@/server/validators/routes";
@@ -39,6 +39,12 @@ export default async function RoutesPage({
         actions={
           canEdit && (
             <>
+              {isAdmin(user) && (
+                <Link href="/rutas/zonas" className={buttonVariants({ variant: "secondary" })}>
+                  <MapPinned aria-hidden="true" />
+                  Zonas
+                </Link>
+              )}
               <Link href="/rutas/dia" className={buttonVariants({ variant: "secondary" })}>
                 <Truck aria-hidden="true" />
                 Despacho del día

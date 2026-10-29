@@ -16,6 +16,7 @@ import type {
   RouteStatusInput,
   RouteUpdateInput,
 } from "../validators/routes";
+import { assertZoneAssignable } from "./zones";
 
 /**
  * Rutas de reparto.
@@ -148,6 +149,7 @@ export async function listAssignableOrders(zoneId?: string | null) {
 }
 
 export async function createRoute(input: RouteCreateInput) {
+  await assertZoneAssignable(input.zoneId);
   if (input.driverId) {
     const driver = await prisma.user.findUnique({
       where: { id: input.driverId },
@@ -164,13 +166,14 @@ export async function createRoute(input: RouteCreateInput) {
 export async function updateRoute(id: string, input: RouteUpdateInput) {
   const route = await prisma.deliveryRoute.findUnique({
     where: { id },
-    select: { status: true },
+    select: { status: true, zoneId: true },
   });
   if (!route) throw new NotFoundError("La ruta");
 
   if (route.status === RouteStatus.COMPLETADA || route.status === RouteStatus.CANCELADA) {
     throw new BusinessRuleError("Una ruta cerrada ya no se puede modificar.");
   }
+  await assertZoneAssignable(input.zoneId, route.zoneId);
 
   return prisma.deliveryRoute.update({ where: { id }, data: input });
 }

@@ -23,6 +23,7 @@ import type {
   ContactUpdateInput,
   AddressUpdateInput,
 } from "../validators/clients";
+import { assertZoneAssignable } from "./zones";
 
 /**
  * Lógica de negocio de clientes.
@@ -482,6 +483,7 @@ export async function addAddress(
   });
   if (!client) throw new NotFoundError("El cliente");
   assertCanAccess(user, client.ownerId);
+  await assertZoneAssignable(input.zoneId);
 
   return prisma.$transaction(async (tx) => {
     const existingCount = await tx.clientAddress.count({
@@ -508,7 +510,12 @@ export async function addAddress(
 async function assertOwnsAddress(user: SessionUser, addressId: string) {
   const address = await prisma.clientAddress.findUnique({
     where: { id: addressId },
-    select: { id: true, clientId: true, client: { select: { ownerId: true } } },
+    select: {
+      id: true,
+      clientId: true,
+      zoneId: true,
+      client: { select: { ownerId: true } },
+    },
   });
   if (!address) throw new NotFoundError("La sede");
   assertCanAccess(user, address.client.ownerId);
@@ -522,6 +529,7 @@ export async function updateAddress(
   input: AddressUpdateInput,
 ) {
   const address = await assertOwnsAddress(user, addressId);
+  await assertZoneAssignable(input.zoneId, address.zoneId);
 
   return prisma.$transaction(async (tx) => {
     if (input.isPrimary) {
