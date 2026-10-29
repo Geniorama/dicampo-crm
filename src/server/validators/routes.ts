@@ -21,10 +21,30 @@ const routeBaseSchema = z.object({
   notes: optionalText(1000),
 });
 
-export const routeCreateSchema = routeBaseSchema;
+export const routeCreateSchema = routeBaseSchema.extend({
+  /** Repetirla cada semana el mismo día de la semana que `date`. */
+  repeatWeekly: z.boolean().optional(),
+});
 
 export type RouteFormValues = z.input<typeof routeCreateSchema>;
 export type RouteCreateInput = z.output<typeof routeCreateSchema>;
+
+/** Pausar o reanudar una ruta recurrente, o cambiar lo que heredan sus próximas rutas. */
+export const routeScheduleUpdateSchema = z
+  .object({
+    name: routeBaseSchema.shape.name,
+    zoneId: z.string().cuid().nullable(),
+    driverId: z.string().cuid().nullable(),
+    vehicle: optionalText(80).nullable(),
+    notes: optionalText(1000).nullable(),
+    active: z.boolean(),
+  })
+  .partial()
+  .refine((data) => Object.keys(data).length > 0, {
+    message: "No se envió ningún campo para actualizar.",
+  });
+
+export type RouteScheduleUpdateInput = z.infer<typeof routeScheduleUpdateSchema>;
 
 export const routeUpdateSchema = routeBaseSchema
   .partial()

@@ -16,6 +16,8 @@ import type {
   RouteStatusInput,
   RouteUpdateInput,
 } from "../validators/routes";
+import { isoWeekday } from "@/lib/route-schedule";
+import { materializeScheduledRoutes } from "./route-schedules";
 import { assertZoneAssignable } from "./zones";
 
 /**
@@ -59,6 +61,7 @@ export function nextRouteStatuses(from: RouteStatus): RouteStatus[] {
 
 export async function listRoutes(query: RouteListQuery) {
   const { status, zoneId, driverId, from, to } = query;
+  await materializeScheduledRoutes(todayInBogota());
 
   return prisma.deliveryRoute.findMany({
     where: {
@@ -160,7 +163,26 @@ export async function createRoute(input: RouteCreateInput) {
     }
   }
 
-  return prisma.deliveryRoute.create({ data: input });
+  const { repeatWeekly, ...data } = input;
+  if (!repeatWeekly) return prisma.deliveryRoute.create({ data });
+
+  // Repetida: la programación nace con la ruta y esta es su primera fecha.
+  const route = await prisma.$transaction(async (tx) => {
+    const schedule = await tx.routeSchedule.create({
+      data: {
+        name: data.name,
+        weekday: isoWeekday(data.date.toISOString().slice(0, 10)),
+        startsOn: data.date,
+        zoneId: data.zoneId,
+        driverId: data.driverId,
+        vehicle: data.vehicle,
+        notes: data.notes,
+      },
+    });
+    return tx.deliveryRoute.create({ data: { ...data, scheduleId: schedule.id } });
+  });
+  await materializeScheduledRoutes(todayInBogota());
+  return route;
 }
 
 export async function updateRoute(id: string, input: RouteUpdateInput) {
@@ -515,6 +537,7 @@ export async function registerFailedDelivery(
 export async function getDriverDay(user: SessionUser, fecha?: string) {
   const day = fecha ?? todayInBogota();
   const date = new Date(`${day}T00:00:00.000Z`);
+  await materializeScheduledRoutes(todayInBogota());
   const ownOnly = user.role === UserRole.DESPACHO;
 
   const routes = await prisma.deliveryRoute.findMany({

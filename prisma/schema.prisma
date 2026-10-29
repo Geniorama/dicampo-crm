@@ -54,6 +54,7 @@ model User {
   payments         Payment[]
   batches          ProductionBatch[]
   drivenRoutes     DeliveryRoute[]   @relation("RouteDriver")
+  routeSchedules   RouteSchedule[]   @relation("ScheduleDriver")
   deliveryAttempts DeliveryAttempt[] @relation("DeliveryAttemptUser")
   stockMovements   StockMovement[]
 
@@ -824,6 +825,7 @@ model DeliveryZone {
 
   addresses ClientAddress[]
   routes    DeliveryRoute[]
+  schedules RouteSchedule[]
 }
 
 enum RouteStatus {
@@ -845,16 +847,46 @@ model DeliveryRoute {
   /// Salida real (al pasar a EN_RUTA) y cierre; su diferencia es la duración del recorrido.
   startedAt   DateTime?
   completedAt DateTime?
+  /// Programación semanal de la que nació; nula si se creó suelta.
+  scheduleId  String?
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
 
+  schedule RouteSchedule?    @relation(fields: [scheduleId], references: [id], onDelete: SetNull)
   zone     DeliveryZone?     @relation(fields: [zoneId], references: [id], onDelete: SetNull)
   driver   User?             @relation("RouteDriver", fields: [driverId], references: [id], onDelete: SetNull)
   orders   Order[]
   attempts DeliveryAttempt[]
 
+  @@unique([scheduleId, date])
   @@index([date, status])
   @@index([driverId])
+}
+
+/// Ruta que se repite cada semana en el mismo día. No lleva pedidos: genera
+/// rutas (`DeliveryRoute`) con `materializeScheduledRoutes`, una por fecha,
+/// y `@@unique([scheduleId, date])` impide duplicarlas aunque dos peticiones
+/// la generen a la vez.
+model RouteSchedule {
+  id        String   @id @default(cuid())
+  name      String
+  /// Día ISO de la semana: 1 = lunes … 7 = domingo.
+  weekday   Int
+  /// Primer día en que rige (fecha de calendario).
+  startsOn  DateTime @db.Date
+  zoneId    String?
+  driverId  String?
+  vehicle   String?
+  notes     String?  @db.Text
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  zone   DeliveryZone?   @relation(fields: [zoneId], references: [id], onDelete: SetNull)
+  driver User?           @relation("ScheduleDriver", fields: [driverId], references: [id], onDelete: SetNull)
+  routes DeliveryRoute[]
+
+  @@index([active, weekday])
 }
 
 /// Evidencia de entrega. Hoy se guarda quién recibió y su documento, que ya

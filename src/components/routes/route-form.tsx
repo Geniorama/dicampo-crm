@@ -107,6 +107,21 @@ export function RouteForm({
             )}
           </Field>
 
+          <label className="flex items-start gap-2 text-sm sm:col-span-2">
+            <input
+              type="checkbox"
+              {...register("repeatWeekly")}
+              className="mt-0.5 size-4 accent-primary"
+            />
+            <span>
+              <span className="font-medium">Repetir cada semana</span>
+              <span className="block text-xs text-muted-foreground">
+                Se programa el mismo día de la semana de la fecha elegida (por ejemplo, todos los
+                sábados). Los pedidos se asignan en cada ruta generada.
+              </span>
+            </span>
+          </label>
+
           <Field id="notes" label="Notas" error={errors.notes?.message} className="sm:col-span-2">
             {(props) => <Textarea {...props} {...register("notes")} rows={2} />}
           </Field>

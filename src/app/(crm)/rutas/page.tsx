@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { MapPinned, Plus, Truck } from "lucide-react";
+import { MapPinned, Plus, Repeat, Truck } from "lucide-react";
 import { DISPATCH_ROLES, isAdmin, requireUser } from "@/server/guards";
 import { listRoutes } from "@/server/services/routes";
 import { routeListQuerySchema } from "@/server/validators/routes";
@@ -45,6 +45,10 @@ export default async function RoutesPage({
                   Zonas
                 </Link>
               )}
+              <Link href="/rutas/programadas" className={buttonVariants({ variant: "secondary" })}>
+                <Repeat aria-hidden="true" />
+                Recurrentes
+              </Link>
               <Link href="/rutas/dia" className={buttonVariants({ variant: "secondary" })}>
                 <Truck aria-hidden="true" />
                 Despacho del día
@@ -109,6 +113,12 @@ export default async function RoutesPage({
                       >
                         {route.name}
                       </Link>
+                      {route.scheduleId && (
+                        <Repeat
+                          aria-label="Ruta recurrente"
+                          className="ml-1.5 inline size-3.5 text-muted-foreground"
+                        />
+                      )}
                       {route.vehicle && (
                         <p className="text-xs text-muted-foreground">
                           {route.vehicle}
