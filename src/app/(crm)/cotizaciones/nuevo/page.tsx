@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { requireUserPage, SALES_ROLES, scopeToOwnPortfolio } from "@/server/guards";
 import { prisma } from "@/server/db";
 import { listSellableVariants } from "@/server/services/catalog";
+import { getStockSummary } from "@/server/services/inventory";
+import { toKilos } from "@/lib/production";
 import { PageHeader } from "@/components/layout/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Card } from "@/components/ui/card";
@@ -21,7 +23,7 @@ export default async function NewQuotePage({
   const user = await requireUserPage(SALES_ROLES);
   const { clientId } = await searchParams;
 
-  const [clients, variants, priceLists, priceItems] = await Promise.all([
+  const [clients, variants, priceLists, priceItems, stock] = await Promise.all([
     prisma.client.findMany({
       where: {
         ...scopeToOwnPortfolio(user),
@@ -51,6 +53,7 @@ export default async function NewQuotePage({
       orderBy: { minQty: "desc" },
       select: { priceListId: true, variantId: true, price: true },
     }),
+    getStockSummary(),
   ]);
 
   const defaultListId = priceLists.find((list) => list.isDefault)?.id ?? "";
@@ -72,11 +75,24 @@ export default async function NewQuotePage({
     addresses: client.addresses,
   }));
 
+  // Existencias vigentes (lotes DISPONIBLES con saldo) por variante y, en kilos
+  // de pulpa, por sabor: una libra vale medio kilo y los zumos no suman.
+  const availableByVariant = new Map(stock.map((row) => [row.id, row.available]));
+  const kilosByProduct = new Map<string, number>();
+  for (const row of stock) {
+    kilosByProduct.set(
+      row.product.id,
+      (kilosByProduct.get(row.product.id) ?? 0) + toKilos(row.available, row.presentation),
+    );
+  }
+
   const variantOptions: QuoteVariantOption[] = variants.map((variant) => ({
     id: variant.id,
     presentation: variant.presentation,
     productName: variant.product.name,
     taxRate: Number(variant.product.taxRate),
+    available: availableByVariant.get(variant.id) ?? 0,
+    flavorKilos: kilosByProduct.get(variant.product.id) ?? 0,
     priceByList: priceByVariant.get(variant.id) ?? {},
   }));
 

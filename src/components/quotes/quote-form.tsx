@@ -50,6 +50,10 @@ export type QuoteVariantOption = {
   presentation: Presentation;
   productName: string;
   taxRate: number;
+  /** Existencias de esta presentación, en su propia unidad. */
+  available: number;
+  /** Kilos de pulpa disponibles del sabor, sumando sus presentaciones. */
+  flavorKilos: number;
   /** Precio base por lista de precios; falta si la variante no está en ella. */
   priceByList: Record<string, number>;
 };
@@ -74,6 +78,29 @@ type DiscountPolicy = {
   allowed: { min: number; max: number } | { only: number[] };
   label: string;
 };
+
+/** Existencias del sabor elegido; avisa si la cantidad supera lo que hay. */
+function StockHint({
+  variant,
+  quantity,
+}: {
+  variant: QuoteVariantOption | undefined;
+  quantity: number;
+}) {
+  if (!variant) return null;
+
+  const fmt = (value: number) => value.toLocaleString("es-CO", { maximumFractionDigits: 3 });
+  const short = quantity > variant.available;
+  const own = `${fmt(variant.available)} ${PRESENTATION_SHORT[variant.presentation]}`;
+
+  return (
+    <p className={`mt-1 text-xs ${short ? "text-warning" : "text-muted-foreground"}`}>
+      {variant.available <= 0 ? "Sin existencias" : `Disponible: ${own}`}
+      {variant.flavorKilos > 0 && ` · ${fmt(variant.flavorKilos)} kg del sabor`}
+      {short && variant.available > 0 && " — la cantidad supera lo disponible"}
+    </p>
+  );
+}
 
 export function QuoteForm({
   clients: initialClients,
@@ -566,6 +593,10 @@ export function QuoteForm({
                             </option>
                           ))}
                         </Select>
+                        <StockHint
+                          variant={variantById.get(line.variantId)}
+                          quantity={line.quantity}
+                        />
                       </td>
                       <td className="px-4 py-2">
                         <Input
