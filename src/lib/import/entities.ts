@@ -3,12 +3,15 @@ import {
   CLIENT_TYPE_LABEL,
   DOC_TYPE_LABEL,
   OPPORTUNITY_STAGE_LABEL,
+  ORDER_CHANNEL_LABEL,
+  PAYMENT_METHOD_LABEL,
   PAYMENT_TERMS_LABEL,
   BILLING_MODE_LABEL,
   PRESENTATION_LABEL,
   PRODUCT_CATEGORY_LABEL,
   toOptions,
 } from "@/lib/labels";
+import type { ImportBatchConfig } from "./batches";
 import type { ImportMode } from "./types";
 
 /**
@@ -55,6 +58,11 @@ export type ImportEntity = {
   fields: ImportField[];
   /** Advertencias que conviene leer antes de cargar. */
   notes?: string[];
+  /**
+   * Cargas pesadas: el navegador las envía por lotes y el servidor procesa
+   * una unidad (varias filas con la misma llave) por resultado.
+   */
+  batch?: ImportBatchConfig;
 };
 
 export const IMPORT_ENTITY_KEYS = [
@@ -66,6 +74,7 @@ export const IMPORT_ENTITY_KEYS = [
   "lotes",
   "compras",
   "oportunidades",
+  "pedidos",
 ] as const;
 
 export type ImportEntityKey = (typeof IMPORT_ENTITY_KEYS)[number];
@@ -853,6 +862,144 @@ const oportunidades: ImportEntity = {
   ],
 };
 
+const pedidos: ImportEntity = {
+  key: "pedidos",
+  label: "Pedidos históricos",
+  description:
+    "Ventas que ya ocurrieron, una fila por producto vendido. Entran entregadas y cuentan para las ventas de cada vendedor, sus metas, los reportes y la cartera.",
+  moduleHref: "/pedidos",
+  moduleLabel: "Pedidos",
+  identity: "Número de pedido: las filas con el mismo número forman un pedido, y un número ya cargado no se repite.",
+  // Una venta pasada es un hecho: no se reescribe por archivo.
+  modes: ["crear"],
+  notes: [
+    "No descuentan inventario: esa mercancía ya salió. Para pedidos por despachar, usa Nuevo pedido.",
+    "Si falta el vendedor, la venta es del responsable del cliente.",
+    "Sin precio unitario se usa la lista de precios actual del cliente. El precio va sin IVA: el CRM lo suma según el producto.",
+    "Sin columna de pagado, el pedido se toma como pagado completo. Escribe No (o lo abonado) para que quede en cartera.",
+    "Se envía por lotes de pocos pedidos. Si se corta a mitad, vuelve a subir el mismo archivo: lo ya cargado se omite.",
+  ],
+  batch: { groupBy: "externalRef", maxGroups: 25, maxRows: 150 },
+  fields: [
+    {
+      key: "externalRef",
+      label: "Número de pedido",
+      required: true,
+      group: "Pedido",
+      aliases: [
+        "pedido",
+        "numero",
+        "numero de pedido",
+        "no pedido",
+        "consecutivo",
+        "factura",
+        "numero factura",
+        "remision",
+        "orden",
+      ],
+      hint: "Las filas con el mismo número son renglones de un mismo pedido.",
+      example: "F-1024",
+    },
+    {
+      key: "orderDate",
+      label: "Fecha del pedido",
+      required: true,
+      group: "Pedido",
+      aliases: ["fecha", "fecha pedido", "fecha de venta", "fecha factura"],
+      hint: "Admite 05/09/2026 o 2026-09-05.",
+      example: "05/09/2026",
+    },
+    {
+      key: "deliveredAt",
+      label: "Fecha de entrega",
+      group: "Pedido",
+      aliases: ["entrega", "fecha entrega", "entregado"],
+      hint: "Sin ella, la del pedido. De aquí corre el plazo de pago.",
+      example: "06/09/2026",
+    },
+    ...CLIENT_REFERENCE_FIELDS.map((field) => ({ ...field, group: "Pedido" })),
+    {
+      key: "address",
+      label: "Sede",
+      group: "Pedido",
+      aliases: ["sede", "sucursal", "punto", "punto de entrega"],
+      hint: "Nombre de la sede del cliente. Sin ella, la principal.",
+      example: "Principal",
+    },
+    {
+      key: "seller",
+      label: "Vendedor",
+      group: "Pedido",
+      aliases: ["asesor", "comercial", "ejecutivo", "vendedor"],
+      hint: "Correo o nombre de un usuario del CRM.",
+      example: "vendedor@dicampo.co",
+    },
+    {
+      key: "channel",
+      label: "Canal",
+      group: "Pedido",
+      aliases: ["canal", "medio"],
+      options: toOptions(ORDER_CHANNEL_LABEL),
+      example: "WhatsApp",
+    },
+    {
+      key: "paymentTerms",
+      label: "Condición de pago",
+      group: "Pedido",
+      aliases: ["forma de pago", "plazo", "condiciones"],
+      options: toOptions(PAYMENT_TERMS_LABEL),
+      hint: "Sin ella, la del cliente.",
+    },
+    {
+      key: "paid",
+      label: "Pagado",
+      group: "Pedido",
+      aliases: ["pagado", "pago", "abono", "valor pagado", "estado de pago"],
+      hint: "Sí, No o el valor abonado. Sin dato: pagado completo.",
+      example: "Sí",
+    },
+    {
+      key: "paymentMethod",
+      label: "Medio de pago",
+      group: "Pedido",
+      aliases: ["medio de pago", "metodo de pago"],
+      options: toOptions(PAYMENT_METHOD_LABEL),
+      example: "Transferencia",
+    },
+    {
+      key: "notes",
+      label: "Notas",
+      group: "Pedido",
+      aliases: ["observaciones", "comentarios"],
+    },
+    ...VARIANT_REFERENCE_FIELDS.map((field) => ({ ...field, group: "Producto" })),
+    {
+      key: "quantity",
+      label: "Cantidad",
+      required: true,
+      group: "Producto",
+      aliases: ["cant", "unidades", "kilos", "kg"],
+      example: "10",
+    },
+    {
+      key: "unitPrice",
+      label: "Precio unitario",
+      group: "Producto",
+      aliases: ["precio", "valor unitario", "precio unidad", "vr unitario"],
+      hint: "Sin IVA. Sin dato: el de la lista del cliente.",
+      example: "14.500",
+    },
+    {
+      key: "discount",
+      label: "Descuento del renglón",
+      group: "Producto",
+      aliases: ["descuento", "dcto"],
+      hint: "En pesos, sobre el renglón completo.",
+      example: "0",
+    },
+  ],
+};
+
 export const IMPORT_ENTITIES: Record<ImportEntityKey, ImportEntity> = {
   clientes,
   contactos,
@@ -862,6 +1009,7 @@ export const IMPORT_ENTITIES: Record<ImportEntityKey, ImportEntity> = {
   lotes,
   compras,
   oportunidades,
+  pedidos,
 };
 
 /** Agrupa los campos para pintarlos por bloques en la pantalla de cotejo. */

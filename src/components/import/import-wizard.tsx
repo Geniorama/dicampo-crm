@@ -12,6 +12,7 @@ import {
   Upload,
 } from "lucide-react";
 import { api, ApiClientError } from "@/lib/api-client";
+import { mergeReports, planBatches } from "@/lib/import/batches";
 import { DELIMITER_LABEL } from "@/lib/import/csv";
 import type { ImportEntity } from "@/lib/import/entities";
 import { missingRequired } from "@/lib/import/mapping";
@@ -50,6 +51,7 @@ export function ImportWizard({ entity }: { entity: ImportEntity }) {
     null,
   );
   const [error, setError] = useState<string | null>(null);
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
 
   const pending = missingRequired(mapping, entity.fields);
 
@@ -92,14 +94,52 @@ export function ImportWizard({ entity }: { entity: ImportEntity }) {
     if (!analysis) return;
 
     return guard(dryRun ? "simular" : "importar", async () => {
-      const result = await api.post<ImportReport>(`/api/importar/${entity.key}`, {
-        mode,
-        dryRun,
-        mapping,
-        rows: analysis.rows,
-      });
+      // Las cargas pesadas van por lotes, uno tras otro: el archivo entero en
+      // una sola petición pasaría del tiempo que da el servidor.
+      const batches = entity.batch
+        ? planBatches(analysis.rows, mapping, entity.batch)
+        : [{ rows: analysis.rows, lines: undefined }];
 
-      setReport(result);
+      const reports: ImportReport[] = [];
+      setProgress(batches.length > 1 ? { done: 0, total: batches.length } : null);
+
+      try {
+        for (const batch of batches) {
+          reports.push(
+            await api.post<ImportReport>(`/api/importar/${entity.key}`, {
+              mode,
+              dryRun,
+              mapping,
+              rows: batch.rows,
+              lines: batch.lines,
+            }),
+          );
+          setProgress((current) => current && { ...current, done: reports.length });
+        }
+      } catch (cause) {
+        // Lo que ya entró, entró: se muestra para que se sepa dónde quedó.
+        if (reports.length > 0) {
+          setReport(mergeReports(reports));
+          if (!dryRun) {
+            setApplied(true);
+            router.refresh();
+          }
+        }
+        const reason = cause instanceof ApiClientError ? cause.message : "Falló la conexión.";
+        throw new ApiClientError(
+          reports.length > 0
+            ? `Se procesaron ${reports.length} de ${batches.length} lotes y se detuvo: ${reason}${
+                dryRun ? "" : " Vuelve a importar el mismo archivo: lo ya cargado se omite."
+              }`
+            : reason,
+          0,
+          "IMPORTACION_INCOMPLETA",
+        );
+      } finally {
+        setProgress(null);
+      }
+
+      setReport(mergeReports(reports));
 
       if (!dryRun) {
         setApplied(true);
@@ -271,7 +311,11 @@ export function ImportWizard({ entity }: { entity: ImportEntity }) {
               onClick={() => void run(true)}
             >
               <Upload aria-hidden="true" />
-              {busy === "simular" ? "Simulando…" : "Simular la carga"}
+              {busy === "simular"
+                ? progress
+                  ? `Simulando… lote ${progress.done + 1} de ${progress.total}`
+                  : "Simulando…"
+                : "Simular la carga"}
             </Button>
           </div>
         </>
@@ -319,7 +363,11 @@ export function ImportWizard({ entity }: { entity: ImportEntity }) {
                   }
                   onClick={() => void run(false)}
                 >
-                  {busy === "importar" ? "Importando…" : "Confirmar e importar"}
+                  {busy === "importar"
+                    ? progress
+                      ? `Importando… lote ${progress.done + 1} de ${progress.total}`
+                      : "Importando…"
+                    : "Confirmar e importar"}
                 </Button>
               </div>
             )}

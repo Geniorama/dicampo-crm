@@ -22,6 +22,8 @@ const channelOptions = toOptions(ORDER_CHANNEL_LABEL);
 export type ClientOption = {
   id: string;
   label: string;
+  /** Responsable del cliente: vendedor propuesto al elegirlo. */
+  ownerId?: string | null;
   addresses: { id: string; label: string; address: string }[];
 };
 
@@ -52,17 +54,26 @@ const newDraft = (): Draft => ({
   discount: 0,
 });
 
+export type SellerOption = { id: string; name: string };
+
 export function OrderForm({
   clients,
   variants,
+  sellers,
 }: {
   clients: ClientOption[];
   variants: VariantOption[];
+  /**
+   * Asesores a quienes atribuir la venta. Solo se pasa cuando quien registra
+   * no es VENDEDOR; un vendedor siempre vende a su nombre.
+   */
+  sellers?: SellerOption[];
 }) {
   const router = useRouter();
 
   const [clientId, setClientId] = useState("");
   const [addressId, setAddressId] = useState("");
+  const [sellerId, setSellerId] = useState("");
   const [channel, setChannel] = useState<OrderChannel>("WHATSAPP");
   const [requestedDeliveryDate, setRequestedDeliveryDate] = useState("");
   const [notes, setNotes] = useState("");
@@ -113,6 +124,11 @@ export function OrderForm({
     // La sede anterior pertenece a otro cliente: se preselecciona la primera.
     const client = clients.find((item) => item.id === nextClientId);
     setAddressId(client?.addresses[0]?.id ?? "");
+    // La venta es, en principio, del responsable del cliente.
+    if (sellers) {
+      const owner = sellers.find((seller) => seller.id === client?.ownerId);
+      setSellerId(owner?.id ?? "");
+    }
   }
 
   async function handleSubmit(event: React.FormEvent) {
@@ -144,6 +160,7 @@ export function OrderForm({
         channel,
         requestedDeliveryDate: requestedDeliveryDate || undefined,
         notes: notes || undefined,
+        sellerId: sellerId || undefined,
         items,
       });
 
@@ -208,6 +225,29 @@ export function OrderForm({
               </Select>
             )}
           </Field>
+
+          {sellers && (
+            <Field
+              id="sellerId"
+              label="Vendedor"
+              hint="A quién se le cuenta la venta. Sin elegir: el responsable del cliente."
+            >
+              {(props) => (
+                <Select
+                  {...props}
+                  value={sellerId}
+                  onChange={(event) => setSellerId(event.target.value)}
+                >
+                  <option value="">Responsable del cliente</option>
+                  {sellers.map((seller) => (
+                    <option key={seller.id} value={seller.id}>
+                      {seller.name}
+                    </option>
+                  ))}
+                </Select>
+              )}
+            </Field>
+          )}
 
           <Field id="channel" label="Canal del pedido">
             {(props) => (

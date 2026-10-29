@@ -11,10 +11,17 @@ import { clientsImporter } from "./importers/clients";
 import { contactsImporter } from "./importers/contacts";
 import { lotsImporter } from "./importers/lots";
 import { opportunitiesImporter } from "./importers/opportunities";
+import { ordersImporter } from "./importers/orders";
 import { pricesImporter } from "./importers/prices";
 import { purchasesImporter } from "./importers/purchases";
 import { productsImporter } from "./importers/products";
-import { runImport, type Importer, type ProcessOptions } from "./runner";
+import {
+  runGroupedImport,
+  runImport,
+  type GroupImporter,
+  type Importer,
+  type ProcessOptions,
+} from "./runner";
 
 /**
  * Registro de importadores: une la descripción de cada entidad con el código
@@ -32,6 +39,7 @@ export type ImportAccess = readonly UserRole[] | "admin";
 
 export type ImportRunParams = {
   rows: readonly (readonly string[])[];
+  lines?: readonly number[];
   mapping: ColumnMapping;
   options: ProcessOptions;
 };
@@ -55,11 +63,33 @@ function entry<Ctx>(
   return {
     entity,
     access,
-    run: ({ rows, mapping, options }) =>
+    run: ({ rows, lines, mapping, options }) =>
       runImport(importer, {
         entity: entity.key,
         fields: entity.fields,
         rows,
+        lines,
+        mapping,
+        options,
+      }),
+  };
+}
+
+/** Lo mismo para las cargas por unidades (varias filas, un resultado). */
+function groupedEntry<Ctx>(
+  entity: ImportEntity,
+  access: ImportAccess,
+  importer: GroupImporter<Ctx>,
+): ImportRegistryEntry {
+  return {
+    entity,
+    access,
+    run: ({ rows, lines, mapping, options }) =>
+      runGroupedImport(importer, {
+        entity: entity.key,
+        fields: entity.fields,
+        rows,
+        lines,
         mapping,
         options,
       }),
@@ -79,6 +109,9 @@ export const IMPORT_REGISTRY: Record<ImportEntityKey, ImportRegistryEntry> = {
     SALES_ROLES,
     opportunitiesImporter,
   ),
+  // Un pedido histórico entra entregado y cobrado, con vendedor a elección:
+  // reescribe ventas y metas de cualquiera, así que es de administración.
+  pedidos: groupedEntry(IMPORT_ENTITIES.pedidos, "admin", ordersImporter),
 };
 
 export function importAccess(key: ImportEntityKey): ImportAccess {

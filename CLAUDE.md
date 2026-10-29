@@ -118,6 +118,12 @@ src/
 - **Formularios**: `react-hook-form` + `zodResolver`, reutilizando el esquema de
   `server/validators/`. Usa los tres genéricos de `useForm<Form, unknown,
   Output>` porque `.default()` hace que entrada y salida difieran.
+- **Vendedor del pedido** (`resolveOrderSeller` en `services/orders.ts`): un
+  VENDEDOR siempre vende a su nombre; un ADMIN elige a quién atribuir la venta
+  en el formulario y, si no elige, es del responsable del cliente. Convertir
+  una cotización la atribuye a quien cotizó. Un ADMIN corrige el vendedor de
+  cualquier pedido, en cualquier estado (`PATCH /api/pedidos/:id/vendedor`):
+  es lo que cuentan metas y reportes.
 - **Histórico inmutable**: `OrderItem` guarda *snapshots* de nombre, SKU,
   presentación, precio **e IVA**. Cambiar el catálogo o subir la lista de
   precios no altera ningún pedido ya creado; los nuevos sí toman los valores
@@ -398,11 +404,26 @@ src/
 
 ## Carga masiva
 
-Ocho entidades se pueden subir por archivo desde `/importar` (y desde el botón
+Nueve entidades se pueden subir por archivo desde `/importar` (y desde el botón
 "Importar" de cada módulo): clientes, contactos, sedes, productos, precios,
-lotes, compras de fruta y oportunidades. Pedidos no: una fila por renglón con FEFO y precios es
-otro problema.
+lotes, compras de fruta, oportunidades y **pedidos históricos**.
 
+- **Pedidos históricos** (`importers/orders.ts`, solo ADMIN): ventas que ya
+  ocurrieron. Una fila por renglón; las filas con el mismo número de pedido
+  (`Order.externalRef`, único) forman un pedido, aunque no estén seguidas.
+  Entran ENTREGADOS con su vendedor (o el responsable del cliente; se admite
+  un vendedor ya inactivo), el precio del archivo (o la lista del cliente) y
+  **no descuentan inventario**. "Pagado" vacío = pagado completo; "No" o un
+  abono los deja en cartera (el pago pasa por `recordPayment`). Un número ya
+  cargado se omite. Las fechas se guardan al mediodía de Bogotá. Pedidos por
+  despachar no se importan: van por el formulario, con FEFO.
+- **Por lotes**: una entidad con `batch` en `lib/import/entities.ts` se envía
+  desde el navegador en varias peticiones seguidas (`planBatches` en
+  `lib/import/batches.ts`: una unidad nunca se parte entre lotes; `lines`
+  lleva el número real de cada fila) y los informes se juntan con
+  `mergeReports`. Así una carga pesada no rebasa el tiempo de una función de
+  Netlify. El servidor la procesa con `runGroupedImport`: un resultado por
+  unidad.
 - **No depende de una plantilla.** El archivo se lee, se proponen las columnas
   y la persona corrige el cotejo. La sugerencia sale de los **alias** de cada
   campo en `lib/import/entities.ts`; si un encabezado real no se reconoce, el

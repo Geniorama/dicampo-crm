@@ -2,12 +2,14 @@ import type { Metadata } from "next";
 import { requireUserPage, SALES_ROLES, scopeToOwnPortfolio } from "@/server/guards";
 import { prisma } from "@/server/db";
 import { listSellableVariants } from "@/server/services/catalog";
+import { listSellerOptions } from "@/server/services/orders";
 import { PageHeader } from "@/components/layout/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Card } from "@/components/ui/card";
 import {
   OrderForm,
   type ClientOption,
+  type SellerOption,
   type VariantOption,
 } from "@/components/orders/order-form";
 
@@ -16,7 +18,7 @@ export const metadata: Metadata = { title: "Nuevo pedido" };
 export default async function NewOrderPage() {
   const user = await requireUserPage(SALES_ROLES);
 
-  const [clients, variants] = await Promise.all([
+  const [clients, variants, sellers] = await Promise.all([
     prisma.client.findMany({
       where: {
         ...scopeToOwnPortfolio(user),
@@ -28,6 +30,7 @@ export default async function NewOrderPage() {
         id: true,
         businessName: true,
         tradeName: true,
+        ownerId: true,
         addresses: {
           where: { active: true },
           orderBy: { isPrimary: "desc" },
@@ -36,11 +39,14 @@ export default async function NewOrderPage() {
       },
     }),
     listSellableVariants(),
+    // Un vendedor vende a su nombre; los demás eligen a quién se le cuenta.
+    user.role === "VENDEDOR" ? Promise.resolve(null) : listSellerOptions(),
   ]);
 
   const clientOptions: ClientOption[] = clients.map((client) => ({
     id: client.id,
     label: client.tradeName ?? client.businessName,
+    ownerId: client.ownerId,
     addresses: client.addresses,
   }));
 
@@ -77,7 +83,11 @@ export default async function NewOrderPage() {
           />
         </Card>
       ) : (
-        <OrderForm clients={clientOptions} variants={variantOptions} />
+        <OrderForm
+          clients={clientOptions}
+          variants={variantOptions}
+          sellers={sellers?.map((seller): SellerOption => ({ id: seller.id, name: seller.name }))}
+        />
       )}
     </div>
   );

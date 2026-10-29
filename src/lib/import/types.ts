@@ -40,6 +40,11 @@ export type ImportReport = {
   dryRun: boolean;
   mode: ImportMode;
   total: number;
+  /**
+   * Qué cuenta `total` cuando no son filas: en los pedidos, cada resultado es
+   * un pedido de varias filas.
+   */
+  unit?: { one: string; many: string };
   counts: Record<RowAction, number>;
   rows: RowOutcome[];
 };

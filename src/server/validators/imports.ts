@@ -30,6 +30,14 @@ export const importRunSchema = z.object({
     .array(z.array(z.string().max(MAX_CELL)))
     .min(1, "El archivo no tiene filas con datos.")
     .max(MAX_IMPORT_ROWS, `El archivo supera las ${MAX_IMPORT_ROWS} filas.`),
+  /**
+   * Número de cada fila en el archivo, cuando llega un lote y no el archivo
+   * entero: así el informe señala la fila real que hay que corregir.
+   */
+  lines: z.array(z.number().int().min(1)).max(MAX_IMPORT_ROWS).optional(),
+}).refine((data) => !data.lines || data.lines.length === data.rows.length, {
+  message: "Los números de fila no coinciden con las filas enviadas.",
+  path: ["lines"],
 });
 
 export type ImportRunInput = z.infer<typeof importRunSchema>;

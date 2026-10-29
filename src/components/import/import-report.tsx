@@ -57,7 +57,11 @@ export function ImportReportView({ report }: { report: ImportReport }) {
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-3">
           <p className="text-xs text-muted-foreground">
             {report.total.toLocaleString("es-CO")}{" "}
-            {report.total === 1 ? "fila leída" : "filas leídas"}
+            {report.unit
+              ? `${report.total === 1 ? report.unit.one : report.unit.many} en el archivo`
+              : report.total === 1
+                ? "fila leída"
+                : "filas leídas"}
             {report.dryRun
               ? " · simulación: no se ha escrito nada"
               : " · cambios aplicados"}

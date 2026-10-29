@@ -8,6 +8,7 @@ import type {
   RowAction,
   RowOutcome,
 } from "@/lib/import/types";
+import { groupKeyOf } from "@/lib/import/batches";
 import { AppError } from "../errors";
 import type { SessionUser } from "../guards";
 import type { RowRecord } from "./helpers";
@@ -48,6 +49,27 @@ export type Importer<Ctx> = {
   load(records: RowRecord[], options: ProcessOptions): Promise<Ctx>;
   process(
     record: RowRecord,
+    ctx: Ctx,
+    options: ProcessOptions,
+  ): Promise<RowResult>;
+};
+
+/** Una fila del archivo con su número, para las cargas agrupadas. */
+export type NumberedRecord = { line: number; record: RowRecord };
+
+/**
+ * Importador por unidades: varias filas con la misma llave (los renglones de
+ * un pedido) dan un solo resultado. Una fila mala tumba su unidad, no el
+ * archivo: un pedido a medias sería peor que ninguno.
+ */
+export type GroupImporter<Ctx> = {
+  /** Campo que agrupa las filas. */
+  groupBy: string;
+  /** Cómo se llama cada unidad en el informe. */
+  unit: { one: string; many: string };
+  load(records: RowRecord[], options: ProcessOptions): Promise<Ctx>;
+  processGroup(
+    rows: NumberedRecord[],
     ctx: Ctx,
     options: ProcessOptions,
   ): Promise<RowResult>;
@@ -97,11 +119,12 @@ export async function runImport<Ctx>(
     entity: string;
     fields: readonly ImportField[];
     rows: readonly (readonly string[])[];
+    lines?: readonly number[];
     mapping: ColumnMapping;
     options: ProcessOptions;
   },
 ): Promise<ImportReport> {
-  const { entity, fields, rows, mapping, options } = params;
+  const { entity, fields, rows, lines, mapping, options } = params;
   const labels = labelsOf(fields);
 
   const records = rows.map((row) => readMappedRow(row, mapping));
@@ -117,7 +140,7 @@ export async function runImport<Ctx>(
 
   for (const [index, record] of records.entries()) {
     // La primera fila bajo el encabezado es la 1.
-    const line = index + 1;
+    const line = lines?.[index] ?? index + 1;
 
     if (isEmptyRecord(record)) {
       counts.omitir += 1;
@@ -158,4 +181,75 @@ export async function runImport<Ctx>(
 /** Algo con qué nombrar una fila que falló antes de poder identificarse. */
 function firstFilled(record: RowRecord): string {
   return Object.values(record).find((value) => value !== "") ?? "—";
+}
+
+/**
+ * Igual que `runImport`, pero por unidades. El informe trae una línea por
+ * unidad, señalada con su primera fila del archivo.
+ */
+export async function runGroupedImport<Ctx>(
+  importer: GroupImporter<Ctx>,
+  params: {
+    entity: string;
+    fields: readonly ImportField[];
+    rows: readonly (readonly string[])[];
+    lines?: readonly number[];
+    mapping: ColumnMapping;
+    options: ProcessOptions;
+  },
+): Promise<ImportReport> {
+  const { entity, fields, rows, lines, mapping, options } = params;
+  const labels = labelsOf(fields);
+
+  const records = rows.map((row) => readMappedRow(row, mapping));
+  const ctx = await importer.load(records, options);
+
+  const counts: Record<RowAction, number> = { crear: 0, actualizar: 0, omitir: 0, error: 0 };
+  const outcomes: RowOutcome[] = [];
+
+  // Unidades en el orden de su primera fila; sin llave, cada fila va sola.
+  const groups = new Map<string, NumberedRecord[]>();
+  for (const [index, record] of records.entries()) {
+    const line = lines?.[index] ?? index + 1;
+
+    if (isEmptyRecord(record)) {
+      counts.omitir += 1;
+      outcomes.push({ line, action: "omitir", label: "—", message: "Fila sin datos en las columnas cotejadas." });
+      continue;
+    }
+
+    const key = groupKeyOf(record[importer.groupBy]) || `#${line}`;
+    const members = groups.get(key);
+    if (members) members.push({ line, record });
+    else groups.set(key, [{ line, record }]);
+  }
+
+  for (const members of groups.values()) {
+    const line = members[0].line;
+    try {
+      const result = await importer.processGroup(members, ctx, options);
+      counts[result.action] += 1;
+      outcomes.push({ line, ...result });
+    } catch (error) {
+      counts.error += 1;
+      outcomes.push({
+        line,
+        action: "error",
+        label: firstFilled(members[0].record),
+        message: describeError(error, labels),
+      });
+    }
+  }
+
+  outcomes.sort((a, b) => a.line - b.line);
+
+  return {
+    entity,
+    dryRun: options.dryRun,
+    mode: options.mode,
+    total: groups.size,
+    unit: importer.unit,
+    counts,
+    rows: outcomes,
+  };
 }

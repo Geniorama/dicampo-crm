@@ -588,7 +588,7 @@ export async function convertQuoteToOrder(
 
   const quote = await prisma.quote.findUnique({
     where: { id },
-    include: { items: true },
+    include: { items: true, seller: { select: { active: true } } },
   });
 
   if (!quote) throw new NotFoundError("La cotización");
@@ -611,6 +611,12 @@ export async function convertQuoteToOrder(
     addressId: quote.addressId ?? undefined,
     channel: "WHATSAPP",
     requestedDeliveryDate: input.requestedDeliveryDate,
+    // La venta es de quien cotizó, aunque la convierta un ADMIN. Si ya no
+    // está activo, decide `createOrder` (el responsable del cliente).
+    sellerId:
+      user.role !== UserRole.VENDEDOR && quote.seller?.active
+        ? (quote.sellerId ?? undefined)
+        : undefined,
     notes: [`Desde la cotización ${quote.code}`, quote.notes]
       .filter(Boolean)
       .join(" — "),

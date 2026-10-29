@@ -112,6 +112,7 @@ export async function runImport(
 
   return run({
     rows: input.rows,
+    lines: input.lines,
     mapping: input.mapping,
     options: { user, mode: input.mode, dryRun: input.dryRun },
   });

@@ -499,6 +499,9 @@ model Order {
   arrivedAt             DateTime?
   cancelledAt           DateTime?
   cancelReason          String?
+  /// Número del pedido en el sistema de origen, para los cargados por archivo
+  /// (histórico). Único: subir dos veces el mismo archivo no duplica ventas.
+  externalRef           String?       @unique
   createdAt             DateTime      @default(now())
   updatedAt             DateTime      @updatedAt
 

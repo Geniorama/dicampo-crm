@@ -48,9 +48,12 @@ export type UserRef = { id: string; name: string; email: string };
 
 export type UserIndex = Index<UserRef>;
 
-export async function loadUserIndex(): Promise<UserIndex> {
+export async function loadUserIndex(
+  // El histórico nombra a quien vendió entonces, aunque hoy ya no esté.
+  { includeInactive = false }: { includeInactive?: boolean } = {},
+): Promise<UserIndex> {
   const users = await prisma.user.findMany({
-    where: { active: true },
+    where: includeInactive ? {} : { active: true },
     select: { id: true, name: true, email: true },
   });
 

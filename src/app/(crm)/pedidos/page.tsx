@@ -5,6 +5,7 @@ import { requireUser } from "@/server/guards";
 import { listOrders } from "@/server/services/orders";
 import { orderListQuerySchema } from "@/server/validators/orders";
 import { PageHeader } from "@/components/layout/page-header";
+import { ImportLink } from "@/components/import/import-link";
 import { Pagination } from "@/components/ui/pagination";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -44,10 +45,13 @@ export default async function OrdersPage({
         title="Pedidos"
         description={`${total} ${total === 1 ? "pedido" : "pedidos"}`}
         actions={
-          <Link href="/pedidos/nuevo" className={buttonVariants()}>
-            <Plus aria-hidden="true" />
-            Nuevo pedido
-          </Link>
+          <>
+            <ImportLink entity="pedidos" user={user} label="Importar histórico" />
+            <Link href="/pedidos/nuevo" className={buttonVariants()}>
+              <Plus aria-hidden="true" />
+              Nuevo pedido
+            </Link>
+          </>
         }
       />
 

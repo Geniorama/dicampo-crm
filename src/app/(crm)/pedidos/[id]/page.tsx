@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { MessageCircle } from "lucide-react";
 import { requireUser } from "@/server/guards";
-import { getOrder } from "@/server/services/orders";
+import { getOrder, listSellerOptions } from "@/server/services/orders";
 import { getOrderPayments } from "@/server/services/receivables";
 import { PaymentForm } from "@/components/receivables/payment-form";
 import { NotFoundError } from "@/server/errors";
@@ -12,6 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { OrderStatusActions } from "@/components/orders/order-status-actions";
+import { OrderSellerSelect } from "@/components/orders/order-seller-select";
 import { DispatchNotesEditor } from "@/components/routes/dispatch-notes-editor";
 import {
   formatCOP,
@@ -49,7 +50,11 @@ export default async function OrderDetailPage({
     throw error;
   });
 
-  const payments = await getOrderPayments(user, id);
+  const [payments, sellers] = await Promise.all([
+    getOrderPayments(user, id),
+    // Solo un ADMIN corrige a quién se atribuye la venta.
+    user.role === "ADMIN" ? listSellerOptions() : Promise.resolve(null),
+  ]);
   const canCollect = order.status !== "BORRADOR" && order.status !== "CANCELADO";
 
   const clientName = order.client.tradeName ?? order.client.businessName;
@@ -355,7 +360,18 @@ export default async function OrderDetailPage({
                 <DataRow label="Dirección">
                   {order.address?.address ?? "—"}
                 </DataRow>
-                <DataRow label="Vendedor">{order.seller?.name ?? "—"}</DataRow>
+                <DataRow label="Vendedor">
+                  {sellers ? (
+                    <OrderSellerSelect
+                      orderId={order.id}
+                      sellerId={order.seller?.id ?? null}
+                      sellerName={order.seller?.name ?? null}
+                      sellers={sellers}
+                    />
+                  ) : (
+                    (order.seller?.name ?? "—")
+                  )}
+                </DataRow>
                 <DataRow label="Canal">
                   {ORDER_CHANNEL_LABEL[order.channel]}
                 </DataRow>
