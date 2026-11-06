@@ -17,6 +17,7 @@ export default async function NewClientPage() {
       <ClientForm
         canEditNegotiation={user.role === "ADMIN"}
         canEditBillingMode={user.role === "ADMIN"}
+        canEditSuperDistributor={user.role === "ADMIN"}
       />
     </div>
   );

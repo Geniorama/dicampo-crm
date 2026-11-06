@@ -2,33 +2,23 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { requireUserPage, SALES_ROLES } from "@/server/guards";
 import {
+  getClientsWithOrder,
   getDashboardMetrics,
-  getMonthlySales,
-  getMonthOrdersByStatus,
+  getMonthlySalesBySegment,
+  getQuoteMixByMonth,
   getRecentOrders,
 } from "@/server/services/reports";
 import { getGoalsProgress } from "@/server/services/goals";
 import { listReceivables } from "@/server/services/receivables";
 import { getDailyActivity } from "@/server/services/daily-activity";
 import { GoalMeter } from "@/components/goals/goal-meter";
-import { TrendChart } from "@/components/reports/trend-chart";
+import { GroupedBars } from "@/components/reports/grouped-bars";
 import { BarList } from "@/components/ui/bar-list";
-import { DonutChart } from "@/components/ui/donut-chart";
 import { currentMonth } from "@/lib/goals";
 import { Card, CardContent, CardHeader, CardTitle, StatCard } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatCOP, formatDate, formatOrderNumber } from "@/lib/format";
 import { ORDER_STATUS_LABEL, ORDER_STATUS_TONE } from "@/lib/labels";
-
-/** Color de cada estado en la dona; los mismos tonos que sus insignias. */
-const ORDER_STATUS_COLOR: Record<string, string> = {
-  BORRADOR: "var(--muted-foreground)",
-  CONFIRMADO: "var(--info)",
-  EN_PREPARACION: "var(--warning)",
-  DESPACHADO: "var(--primary)",
-  ENTREGADO: "var(--primary-strong)",
-  CANCELADO: "var(--destructive)",
-};
 
 const AGING_BAR: Record<string, string> = {
   AL_DIA: "bg-primary",
@@ -39,12 +29,9 @@ const AGING_BAR: Record<string, string> = {
 
 export const metadata: Metadata = { title: "Tablero" };
 
-/** Variación porcentual entre dos periodos, tolerando el mes anterior en cero. */
-function growthLabel(current: number, previous: number): string {
-  if (previous === 0) return current > 0 ? "Sin comparativo" : "Sin ventas";
-  const change = ((current - previous) / previous) * 100;
-  const sign = change >= 0 ? "+" : "";
-  return `${sign}${change.toFixed(0)}% vs. mes anterior`;
+/** "50 %" o "Sin meta" cuando la meta no está fijada. */
+function percentLabel(percent: number | null): string {
+  return percent === null ? "Sin meta" : `${Math.round(percent)} %`;
 }
 
 /** "2026-10" → "octubre de 2026" */
@@ -60,10 +47,11 @@ export default async function DashboardPage() {
   // Las metas son del equipo comercial; bodega y despacho no las ven.
   const showGoals = user.role === "ADMIN" || user.role === "VENDEDOR";
   const month = currentMonth();
-  const [metrics, monthly, byStatus, recentOrders, goals, receivables, daily] = await Promise.all([
+  const [metrics, segments, quoteMix, clientsWithOrder, recentOrders, goals, receivables, daily] = await Promise.all([
     getDashboardMetrics(user),
-    getMonthlySales(user),
-    getMonthOrdersByStatus(user),
+    getMonthlySalesBySegment(user),
+    getQuoteMixByMonth(user),
+    getClientsWithOrder(user),
     getRecentOrders(user),
     showGoals ? getGoalsProgress(user, month) : null,
     showGoals ? listReceivables(user, { overdueOnly: false }) : null,
@@ -88,22 +76,30 @@ export default async function DashboardPage() {
         <StatCard
           label="Ventas del mes"
           value={formatCOP(metrics.monthRevenue)}
-          hint={growthLabel(metrics.monthRevenue, metrics.previousMonthRevenue)}
+          hint={
+            goals && goals.general.sales.target > 0
+              ? `${percentLabel(goals.general.sales.percent)} de la meta de ${formatCOP(goals.general.sales.target)}`
+              : "Sin meta fijada para el mes"
+          }
         />
         <StatCard
-          label="Pedidos del mes"
-          value={metrics.monthOrderCount}
-          hint={`${metrics.pendingDispatch} pendientes de despacho`}
+          label="Clientes nuevos"
+          value={goals ? goals.general.newClients.achieved : 0}
+          hint={
+            goals && goals.general.newClients.target > 0
+              ? `${percentLabel(goals.general.newClients.percent)} de la meta de ${goals.general.newClients.target}`
+              : "Sin meta fijada para el mes"
+          }
         />
         <StatCard
-          label="Clientes activos"
-          value={metrics.activeClients}
-          hint={`${metrics.prospects} prospectos por convertir`}
+          label="Clientes con pedido"
+          value={clientsWithOrder.withOrder}
+          hint={`de ${clientsWithOrder.total} clientes en la base`}
         />
         <StatCard
-          label="Lotes por vencer"
-          value={metrics.expiringLots}
-          hint="Con saldo y vencimiento en 30 días"
+          label="Cartera"
+          value={formatCOP(receivables?.totals.balance ?? 0)}
+          hint={`frente a ${formatCOP(metrics.monthRevenue)} de ventas del mes`}
         />
       </section>
 
@@ -115,23 +111,36 @@ export default async function DashboardPage() {
               Ver reportes
             </Link>
           </CardHeader>
-          <TrendChart points={monthly} granularity="mes" />
+          <GroupedBars
+            title="Ventas por mes: superdistribuidores frente al equipo comercial"
+            series={[
+              { key: "superDistributors", label: "Superdistribuidores", color: "var(--info)" },
+              { key: "commercial", label: "Equipo comercial", color: "var(--brand-orange)" },
+            ]}
+            points={segments.map((point) => ({
+              key: point.key,
+              values: { superDistributors: point.superDistributors, commercial: point.commercial },
+            }))}
+            format={formatCOP}
+          />
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle>Pedidos del mes por estado</CardTitle>
+            <CardTitle>Cotizaciones de los últimos 6 meses</CardTitle>
+            <span className="text-xs text-muted-foreground">Clientes nuevos y actuales</span>
           </CardHeader>
-          <DonutChart
-            label="Reparto de los pedidos del mes por estado"
-            centerLabel="pedidos"
-            centerValue={String(byStatus.reduce((sum, row) => sum + row.count, 0))}
-            slices={byStatus.map((row) => ({
-              key: row.status,
-              label: ORDER_STATUS_LABEL[row.status],
-              value: row.count,
-              color: ORDER_STATUS_COLOR[row.status],
+          <GroupedBars
+            title="Cotizaciones por mes a clientes nuevos y a clientes actuales"
+            series={[
+              { key: "newClients", label: "Clientes nuevos", color: "var(--brand-orange)" },
+              { key: "currentClients", label: "Clientes actuales", color: "var(--info)" },
+            ]}
+            points={quoteMix.map((point) => ({
+              key: point.key,
+              values: { newClients: point.newClients, currentClients: point.currentClients },
             }))}
+            format={(value) => String(value)}
           />
         </Card>
       </div>
@@ -202,7 +211,7 @@ export default async function DashboardPage() {
                       <th scope="col" className="py-2 pr-4 font-medium">Asesor</th>
                       <th scope="col" className="px-4 py-2 font-medium">Ventas</th>
                       <th scope="col" className="px-4 py-2 font-medium">Clientes nuevos</th>
-                      <th scope="col" className="py-2 pl-4 text-right font-medium">Visitas realizadas</th>
+                      <th scope="col" className="py-2 pl-4 text-right font-medium">Cartera pendiente</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -219,7 +228,7 @@ export default async function DashboardPage() {
                             format={(value) => String(value)}
                           />
                         </td>
-                        <td className="tabular py-3 pl-4 text-right text-foreground">{advisor.visitsDone}</td>
+                        <td className="tabular py-3 pl-4 text-right text-foreground">{formatCOP(advisor.pendingBalance)}</td>
                       </tr>
                     ))}
                   </tbody>

@@ -3,6 +3,7 @@ import { BusinessRuleError, NotFoundError } from "../errors";
 import { ActivityType, UserRole } from "@/generated/prisma/enums";
 import type { SessionUser } from "../guards";
 import { SOLD_STATUSES } from "./analytics";
+import { receivableBalanceByOwner } from "./receivables";
 import { elapsedFraction, goalProgress, monthBounds } from "@/lib/goals";
 import type { GoalUpsertInput } from "../validators/goals";
 
@@ -57,18 +58,20 @@ export type AdvisorGoalRow = {
   sales: ReturnType<typeof goalProgress>;
   newClients: ReturnType<typeof goalProgress>;
   visitsDone: number;
+  /** Cartera pendiente de los clientes que tiene asignados. */
+  pendingBalance: number;
 };
 
 /**
- * Cumplimiento del mes. Un VENDEDOR ve su propia fila y la meta general; la
- * administración ve a todos los asesores.
+ * Cumplimiento del mes. Todo el equipo comercial ve la meta general y el avance
+ * de todos los asesores: la comparación entre ellos es parte de la gestión.
  */
 export async function getGoalsProgress(user: SessionUser, month: string, now: Date = new Date()) {
   const { start, end } = monthBounds(month);
   const elapsed = elapsedFraction(month, now);
   const inMonth = { gte: start, lt: end };
 
-  const [goals, salesBySeller, firstOrders, visits, advisors] = await Promise.all([
+  const [goals, salesBySeller, firstOrders, visits, advisors, balanceByOwner] = await Promise.all([
     prisma.salesGoal.findMany({ where: { month } }),
     prisma.order.groupBy({
       by: ["sellerId"],
@@ -91,6 +94,7 @@ export async function getGoalsProgress(user: SessionUser, month: string, now: Da
       orderBy: { name: "asc" },
       select: { id: true, name: true, role: true },
     }),
+    receivableBalanceByOwner(now),
   ]);
 
   // Clientes cuyo primer pedido cae en el mes → responsable del cliente.
@@ -120,7 +124,6 @@ export async function getGoalsProgress(user: SessionUser, month: string, now: Da
 
   // Un ADMIN con metas o ventas propias también aparece; sin nada, solo estorba.
   const visibleAdvisors = advisors.filter((advisor) => {
-    if (user.role === UserRole.VENDEDOR) return advisor.id === user.id;
     if (advisor.role === UserRole.VENDEDOR) return true;
     return (
       goalByUser.has(advisor.id) ||
@@ -141,6 +144,7 @@ export async function getGoalsProgress(user: SessionUser, month: string, now: Da
         elapsed,
       ),
       visitsDone: visitsByUser.get(advisor.id) ?? 0,
+      pendingBalance: balanceByOwner.get(advisor.id) ?? 0,
     };
   });
 

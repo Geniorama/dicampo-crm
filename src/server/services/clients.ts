@@ -258,6 +258,12 @@ function assertCanSetBillingMode(user: SessionUser, changing: boolean) {
 }
 
 /** Las condiciones comerciales especiales las fija administración, no el vendedor. */
+function assertCanSetSuperDistributor(user: SessionUser, changing: boolean) {
+  if (changing && user.role !== UserRole.ADMIN) {
+    throw new ForbiddenError("Solo un administrador puede marcar superdistribuidores.");
+  }
+}
+
 function assertCanSetNegotiation(user: SessionUser, changing: boolean) {
   if (changing && user.role !== UserRole.ADMIN) {
     throw new ForbiddenError("Solo un administrador puede definir la negociación especial.");
@@ -281,6 +287,7 @@ export async function createClient(user: SessionUser, input: ClientCreateInput) 
 
   const { negotiation, ...clientData } = input;
   assertCanSetNegotiation(user, negotiation !== undefined && negotiation !== null);
+  assertCanSetSuperDistributor(user, clientData.isSuperDistributor === true);
   // Quien no es ADMIN crea con la forma por defecto (la del esquema).
   assertCanSetBillingMode(user, clientData.billingMode !== BillingMode.FACTURA);
 
@@ -308,6 +315,7 @@ export async function updateClient(
       ownerId: true,
       nit: true,
       billingMode: true,
+      isSuperDistributor: true,
       negotiationFirstPct: true,
       negotiationNextPct: true,
     },
@@ -338,6 +346,11 @@ export async function updateClient(
   assertCanSetBillingMode(
     user,
     rest.billingMode !== undefined && rest.billingMode !== current.billingMode,
+  );
+  // El formulario reenvía el valor actual: solo cuenta si de verdad cambia.
+  assertCanSetSuperDistributor(
+    user,
+    rest.isSuperDistributor !== undefined && rest.isSuperDistributor !== current.isSuperDistributor,
   );
   if (ownerId !== undefined && user.role !== UserRole.ADMIN) {
     throw new ForbiddenError("Solo un administrador puede reasignar clientes.");

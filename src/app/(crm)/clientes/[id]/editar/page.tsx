@@ -27,6 +27,7 @@ export default async function EditClientPage({
       <ClientForm
         canEditNegotiation={user.role === "ADMIN"}
         canEditBillingMode={user.role === "ADMIN"}
+        canEditSuperDistributor={user.role === "ADMIN"}
         client={{
           id: client.id,
           businessName: client.businessName,
@@ -39,6 +40,7 @@ export default async function EditClientPage({
           phone: client.phone ?? undefined,
           paymentTerms: client.paymentTerms,
           billingMode: client.billingMode,
+          isSuperDistributor: client.isSuperDistributor,
           negotiation:
             client.negotiationFirstPct !== null && client.negotiationNextPct !== null
               ? `${client.negotiationFirstPct}-${client.negotiationNextPct}`

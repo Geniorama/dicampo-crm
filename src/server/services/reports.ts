@@ -208,3 +208,102 @@ export async function getMonthOrdersByStatus(user: SessionUser) {
 
   return grouped.map((row) => ({ status: row.status, count: row._count }));
 }
+
+// ── Indicadores del tablero comercial ────────────────────────
+
+/** Clave "AAAA-MM" de un instante, en hora de Bogotá. */
+function monthKey(date: Date): string {
+  const local = new TZDate(date, BUSINESS_TIME_ZONE);
+  return `${local.getFullYear()}-${String(local.getMonth() + 1).padStart(2, "0")}`;
+}
+
+/** Los últimos `months` meses (el actual incluido): claves y primer instante del primero. */
+function lastMonths(months: number): { keys: string[]; from: Date } {
+  const now = TZDate.tz(BUSINESS_TIME_ZONE);
+  const keys: string[] = [];
+  for (let i = 0; i < months; i++) {
+    const month = new TZDate(now.getFullYear(), now.getMonth() - (months - 1) + i, 1, BUSINESS_TIME_ZONE);
+    keys.push(monthKey(month));
+  }
+  const from = new Date(
+    new TZDate(now.getFullYear(), now.getMonth() - (months - 1), 1, BUSINESS_TIME_ZONE).getTime(),
+  );
+  return { keys, from };
+}
+
+export type SegmentSalesPoint = { key: string; superDistributors: number; commercial: number };
+
+/**
+ * Ventas de los últimos meses en dos series: los superdistribuidores (8
+ * clientes que compran al por mayor) y el equipo comercial (todo lo demás).
+ */
+export async function getMonthlySalesBySegment(user: SessionUser, months = 6): Promise<SegmentSalesPoint[]> {
+  const { keys, from } = lastMonths(months);
+
+  const orders = await prisma.order.findMany({
+    where: { ...orderScope(user), status: { in: SOLD_STATUSES }, orderDate: { gte: from } },
+    select: { orderDate: true, total: true, client: { select: { isSuperDistributor: true } } },
+  });
+
+  const buckets = new Map<string, SegmentSalesPoint>(
+    keys.map((key) => [key, { key, superDistributors: 0, commercial: 0 }]),
+  );
+  for (const order of orders) {
+    const bucket = buckets.get(monthKey(order.orderDate));
+    if (!bucket) continue;
+    if (order.client.isSuperDistributor) bucket.superDistributors += Number(order.total);
+    else bucket.commercial += Number(order.total);
+  }
+
+  return [...buckets.values()];
+}
+
+export type QuoteMixPoint = { key: string; newClients: number; currentClients: number };
+
+/**
+ * Cotizaciones de los últimos meses según el cliente: "nuevo" es la primera
+ * cotización que se le hizo en la vida; las siguientes son de cliente actual.
+ * Se mide en cotizaciones porque es donde nace todo pedido.
+ */
+export async function getQuoteMixByMonth(user: SessionUser, months = 6): Promise<QuoteMixPoint[]> {
+  const { keys, from } = lastMonths(months);
+
+  const [quotes, firstQuotes] = await Promise.all([
+    prisma.quote.findMany({
+      where: { ...(user.role === UserRole.VENDEDOR ? { sellerId: user.id } : {}), quoteDate: { gte: from } },
+      select: { id: true, clientId: true, quoteDate: true },
+    }),
+    // Primera cotización de cada cliente, en toda su historia.
+    prisma.quote.groupBy({ by: ["clientId"], _min: { quoteDate: true } }),
+  ]);
+
+  const firstByClient = new Map(firstQuotes.map((row) => [row.clientId, row._min.quoteDate?.getTime()]));
+  const buckets = new Map<string, QuoteMixPoint>(
+    keys.map((key) => [key, { key, newClients: 0, currentClients: 0 }]),
+  );
+  for (const quote of quotes) {
+    const bucket = buckets.get(monthKey(quote.quoteDate));
+    if (!bucket) continue;
+    // La primera cotización del cliente (por fecha) es la de cliente nuevo.
+    if (firstByClient.get(quote.clientId) === quote.quoteDate.getTime()) bucket.newClients += 1;
+    else bucket.currentClients += 1;
+  }
+
+  return [...buckets.values()];
+}
+
+/** Clientes distintos con pedido vendido en el mes, frente al total de la base. */
+export async function getClientsWithOrder(user: SessionUser) {
+  const now = TZDate.tz(BUSINESS_TIME_ZONE);
+  const monthStart = new Date(new TZDate(now.getFullYear(), now.getMonth(), 1, BUSINESS_TIME_ZONE).getTime());
+
+  const [withOrder, total] = await Promise.all([
+    prisma.order.groupBy({
+      by: ["clientId"],
+      where: { ...orderScope(user), status: { in: SOLD_STATUSES }, orderDate: { gte: monthStart } },
+    }),
+    prisma.client.count({ where: clientScope(user) }),
+  ]);
+
+  return { withOrder: withOrder.length, total };
+}

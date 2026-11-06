@@ -171,6 +171,8 @@ model Client {
   priceListId         String?
   paymentTerms        PaymentTerms @default(CONTADO)
   billingMode         BillingMode  @default(FACTURA)
+  /// Uno de los 8 superdistribuidores (compran al por mayor). Solo un ADMIN lo cambia.
+  isSuperDistributor  Boolean      @default(false)
   /// Negociación especial "X-Y" (15-10): X % de descuento en el primer pedido
   /// de cada sede y Y % en los siguientes. Nulo = sin negociación.
   negotiationFirstPct Int?
@@ -194,6 +196,7 @@ model Client {
   @@index([status, type])
   @@index([ownerId])
   @@index([businessName])
+  @@index([isSuperDistributor])
 }
 
 model ClientAddress {

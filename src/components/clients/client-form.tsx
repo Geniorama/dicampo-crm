@@ -34,12 +34,15 @@ type Props = {
   canEditNegotiation?: boolean;
   /** Solo administración cambia la forma de facturación. */
   canEditBillingMode?: boolean;
+  /** Solo administración marca a los superdistribuidores. */
+  canEditSuperDistributor?: boolean;
 };
 
 export function ClientForm({
   client,
   canEditNegotiation = false,
   canEditBillingMode = false,
+  canEditSuperDistributor = false,
 }: Props) {
   const router = useRouter();
   const [formError, setFormError] = useState<string | null>(null);
@@ -65,6 +68,7 @@ export function ClientForm({
       phone: client?.phone ?? undefined,
       paymentTerms: client?.paymentTerms ?? "CONTADO",
       billingMode: client?.billingMode ?? "FACTURA",
+      isSuperDistributor: client?.isSuperDistributor ?? false,
       negotiation: client?.negotiation ?? undefined,
       creditLimit: client?.creditLimit ?? 0,
       notes: client?.notes ?? undefined,
@@ -226,6 +230,18 @@ export function ClientForm({
               </Select>
             )}
           </Field>
+
+          {canEditSuperDistributor && (
+            <label className="flex items-center gap-2 text-sm sm:col-span-2">
+              <input type="checkbox" className="size-4" {...register("isSuperDistributor")} />
+              <span>
+                Superdistribuidor
+                <span className="ml-2 text-xs text-muted-foreground">
+                  Cuenta aparte en el tablero y en la cartera.
+                </span>
+              </span>
+            </label>
+          )}
 
           {canEditNegotiation && (
             <Field

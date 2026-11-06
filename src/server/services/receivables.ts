@@ -240,3 +240,23 @@ export async function recordPayment(
 
   return { payment, balance: Math.round(balance - input.amount) };
 }
+
+/**
+ * Saldo pendiente por responsable del cliente, de toda la cartera. Es una
+ * cifra de gestión que ve todo el equipo comercial, así que no se limita a la
+ * cartera propia como `listReceivables`.
+ */
+export async function receivableBalanceByOwner(now: Date = new Date()): Promise<Map<string | null, number>> {
+  const all = await listReceivables(
+    { id: "", name: "", email: "", role: UserRole.ADMIN },
+    { overdueOnly: false },
+    now,
+  );
+
+  const byOwner = new Map<string | null, number>();
+  for (const client of all.clients) {
+    const key = client.owner?.id ?? null;
+    byOwner.set(key, (byOwner.get(key) ?? 0) + client.balance);
+  }
+  return byOwner;
+}

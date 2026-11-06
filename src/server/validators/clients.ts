@@ -53,6 +53,8 @@ const clientBaseSchema = z
     paymentTerms: z.enum(PaymentTerms).default(PaymentTerms.CONTADO),
     billingMode: z.enum(BillingMode).default(BillingMode.FACTURA),
     creditLimit: z.coerce.number().min(0, "El cupo no puede ser negativo").default(0),
+    /** Uno de los 8 superdistribuidores. Sin default: un PATCH parcial no debe apagarlo. */
+    isSuperDistributor: z.boolean().optional(),
     /** Negociación especial "15-10": 15 % el primer pedido de cada sede, 10 % después. Vacío la quita. */
     negotiation: z
       .string()
