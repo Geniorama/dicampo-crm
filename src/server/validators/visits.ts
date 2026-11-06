@@ -28,6 +28,8 @@ const common = {
   visitTime: timeText,
   /** Categoría de la etiqueta; si no se envía, la del tipo de visita. */
   category: z.enum(VisitCategory).optional(),
+  /** Asesor a cuyo nombre se agenda (solo un ADMIN); por defecto, quien registra. */
+  advisorId: z.string().cuid().optional(),
 };
 
 export const visitCreateSchema = z.discriminatedUnion("kind", [

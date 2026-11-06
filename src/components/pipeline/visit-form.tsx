@@ -33,10 +33,15 @@ export function VisitForm({
   flavors,
   defaultClientId,
   today,
+  advisors = [],
+  defaultAdvisorId,
 }: {
   clients: ClientChoice[];
   flavors: string[];
   defaultClientId?: string;
+  /** Solo para un ADMIN: asesores a cuyo nombre se puede agendar. */
+  advisors?: { id: string; name: string }[];
+  defaultAdvisorId?: string;
   /** "AAAA-MM-DD" de hoy en Bogotá. */
   today: string;
 }) {
@@ -44,6 +49,7 @@ export function VisitForm({
   const [kind, setKind] = useState<Kind>(defaultClientId ? "FIDELIZACION" : "NUEVO");
   const [businessName, setBusinessName] = useState("");
   const [clientId, setClientId] = useState(defaultClientId ?? "");
+  const [advisorId, setAdvisorId] = useState(defaultAdvisorId ?? "");
   const [reason, setReason] = useState<Reason>("RECAPACITACION");
   // Vacío = la del tipo de visita (Demostración o Fidelización).
   const [category, setCategory] = useState<VisitCategory | "">("");
@@ -71,6 +77,7 @@ export function VisitForm({
               kind,
               businessName,
               category: category || undefined,
+              advisorId: advisorId || undefined,
               visitDate,
               visitTime,
               sampleQuantity,
@@ -79,7 +86,7 @@ export function VisitForm({
               address,
               contactName,
             }
-          : { kind, clientId, reason, category: category || undefined, visitDate, visitTime };
+          : { kind, clientId, reason, category: category || undefined, advisorId: advisorId || undefined, visitDate, visitTime };
 
       const created = await api.post<{ id: string }>("/api/visitas", body);
       router.push(`/pipeline/${created.id}`);
@@ -98,6 +105,20 @@ export function VisitForm({
           <CardTitle>Datos de la visita</CardTitle>
         </CardHeader>
         <CardContent className="grid gap-4 sm:grid-cols-2">
+          {advisors.length > 0 && (
+            <Field id="advisorId" label="Asesor" hint="La visita queda en la agenda de este asesor" className="sm:col-span-2">
+              {(props) => (
+                <Select {...props} value={advisorId} onChange={(event) => setAdvisorId(event.target.value)}>
+                  {advisors.map((advisor) => (
+                    <option key={advisor.id} value={advisor.id}>
+                      {advisor.name}
+                    </option>
+                  ))}
+                </Select>
+              )}
+            </Field>
+          )}
+
           <Field id="kind" label="Tipo de visita" required className="sm:col-span-2">
             {(props) => (
               <Select {...props} value={kind} onChange={(event) => setKind(event.target.value as Kind)}>

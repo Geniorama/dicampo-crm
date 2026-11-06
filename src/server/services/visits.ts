@@ -18,7 +18,28 @@ function bogotaMoment(date: string, time: string): Date {
   return new Date(`${date}T${time}:00-05:00`);
 }
 
+/**
+ * A nombre de quién queda la visita. Un VENDEDOR siempre agenda la suya; un
+ * ADMIN puede agendarla a otro asesor activo (vendedor o administrador).
+ */
+async function resolveAdvisor(user: SessionUser, advisorId: string | undefined): Promise<string> {
+  if (!advisorId || advisorId === user.id) return user.id;
+  if (user.role !== UserRole.ADMIN) {
+    throw new ForbiddenError("Solo un administrador agenda visitas a nombre de otro asesor.");
+  }
+  const advisor = await prisma.user.findUnique({
+    where: { id: advisorId },
+    select: { active: true, role: true },
+  });
+  if (!advisor) throw new NotFoundError("El asesor");
+  if (!advisor.active || (advisor.role !== UserRole.VENDEDOR && advisor.role !== UserRole.ADMIN)) {
+    throw new BusinessRuleError("Elige un asesor activo (vendedor o administrador).");
+  }
+  return advisorId;
+}
+
 export async function createVisit(user: SessionUser, input: VisitCreateInput) {
+  const advisorId = await resolveAdvisor(user, input.advisorId);
   const dueAt = bogotaMoment(input.visitDate, input.visitTime);
   if (Number.isNaN(dueAt.getTime())) {
     throw new BusinessRuleError("La fecha u hora de la visita no es válida.");
@@ -40,6 +61,7 @@ export async function createVisit(user: SessionUser, input: VisitCreateInput) {
       paymentTerms: "CONTADO",
       billingMode: "FACTURA",
       creditLimit: 0,
+      ownerId: advisorId,
     });
     clientId = client.id;
     title = NEW_CLIENT_VISIT_TITLE;
@@ -98,6 +120,7 @@ export async function createVisit(user: SessionUser, input: VisitCreateInput) {
     stage: OpportunityStage.CONTACTADO,
     estimatedValue: 0,
     visitCategory: input.category ?? defaultCategory,
+    ownerId: advisorId,
     notes: notes.join("\n") || undefined,
   });
 
@@ -109,7 +132,7 @@ export async function createVisit(user: SessionUser, input: VisitCreateInput) {
     opportunityId: opportunity.id,
     dueAt,
     completed: false,
-  });
+  }, advisorId);
 
   return opportunity;
 }

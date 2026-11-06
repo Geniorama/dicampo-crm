@@ -39,4 +39,9 @@ describe("visitCreateSchema", () => {
     expect(visitCreateSchema.safeParse({ ...nuevo, category: "RECUPERACION" }).success).toBe(true);
     expect(visitCreateSchema.safeParse({ ...nuevo, category: "INVENTADA" }).success).toBe(false);
   });
+
+  it("acepta el asesor a cuyo nombre se agenda", () => {
+    expect(visitCreateSchema.safeParse({ ...nuevo, advisorId: "cm0000000000000000000000" }).success).toBe(true);
+    expect(visitCreateSchema.safeParse({ ...nuevo, advisorId: "no-es-un-id" }).success).toBe(false);
+  });
 });

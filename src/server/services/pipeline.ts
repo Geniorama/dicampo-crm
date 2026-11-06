@@ -295,6 +295,8 @@ export async function listActivities(
 export async function createActivity(
   user: SessionUser,
   input: ActivityCreateInput,
+  /** Un ADMIN puede dejar la actividad en la agenda de otro asesor. */
+  assignToUserId?: string,
 ) {
   const { completed, ...data } = input;
 
@@ -320,7 +322,7 @@ export async function createActivity(
     data: {
       ...data,
       clientId,
-      userId: user.id,
+      userId: assignToUserId && user.role === UserRole.ADMIN ? assignToUserId : user.id,
       completedAt: completed ? new Date() : null,
     },
   });

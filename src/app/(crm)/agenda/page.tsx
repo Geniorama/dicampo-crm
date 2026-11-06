@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { CalendarClock } from "lucide-react";
+import { CalendarClock, Plus } from "lucide-react";
 import { UserRole } from "@/generated/prisma/enums";
 import { requireUserPage, SALES_ROLES } from "@/server/guards";
 import { listAdvisors, listVisitAgenda } from "@/server/services/visit-schedules";
@@ -50,13 +50,22 @@ export default async function AgendaPage({
         title="Agenda"
         description={`${pending} ${pending === 1 ? "visita pendiente" : "visitas pendientes"} en el período`}
         actions={
-          <Link
-            href="/agenda/disponibilidad"
-            className={buttonVariants({ variant: "secondary" })}
-          >
-            <CalendarClock aria-hidden="true" />
-            {isAdmin ? "Disponibilidad de asesores" : "Mi disponibilidad"}
-          </Link>
+          <>
+            <Link
+              href="/agenda/disponibilidad"
+              className={buttonVariants({ variant: "secondary" })}
+            >
+              <CalendarClock aria-hidden="true" />
+              {isAdmin ? "Disponibilidad de asesores" : "Mi disponibilidad"}
+            </Link>
+            <Link
+              href={isAdmin && query.userId ? `/pipeline/nueva?advisorId=${query.userId}` : "/pipeline/nueva"}
+              className={buttonVariants()}
+            >
+              <Plus aria-hidden="true" />
+              Agendar visita
+            </Link>
+          </>
         }
       />
 

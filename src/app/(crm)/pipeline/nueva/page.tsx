@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { requireUserPage, SALES_ROLES, scopeToOwnPortfolio } from "@/server/guards";
+import { listSellerOptions } from "@/server/services/orders";
 import { prisma } from "@/server/db";
 import { todayInBogota } from "@/server/services/routes";
 import { PageHeader } from "@/components/layout/page-header";
@@ -15,6 +16,8 @@ export default async function NewVisitPage({
 }) {
   const user = await requireUserPage(SALES_ROLES);
   const params = flattenSearchParams(await searchParams);
+
+  const advisors = user.role === "ADMIN" ? await listSellerOptions() : [];
 
   const [clients, products] = await Promise.all([
     prisma.client.findMany({
@@ -57,6 +60,8 @@ export default async function NewVisitPage({
         clients={options}
         flavors={products.map((product) => product.flavor)}
         defaultClientId={params.clientId}
+        advisors={advisors.map((advisor) => ({ id: advisor.id, name: advisor.name }))}
+        defaultAdvisorId={params.advisorId ?? user.id}
         today={todayInBogota()}
       />
     </div>
