@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { Plus } from "lucide-react";
-import { requireUser } from "@/server/guards";
+import { requireUserPage, ORDER_ROLES } from "@/server/guards";
 import { listOrders } from "@/server/services/orders";
 import { orderListQuerySchema } from "@/server/validators/orders";
 import { PageHeader } from "@/components/layout/page-header";
@@ -33,7 +33,7 @@ export default async function OrdersPage({
 }: {
   searchParams: Promise<RawSearchParams>;
 }) {
-  const user = await requireUser();
+  const user = await requireUserPage(ORDER_ROLES);
   const params = await searchParams;
   const query = orderListQuerySchema.parse(flattenSearchParams(params));
 

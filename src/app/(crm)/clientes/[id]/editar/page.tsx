@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import { requireUser } from "@/server/guards";
+import { requireUserPage, SALES_ROLES } from "@/server/guards";
 import { getClient } from "@/server/services/clients";
 import { NotFoundError } from "@/server/errors";
 import { PageHeader } from "@/components/layout/page-header";
@@ -13,7 +13,7 @@ export default async function EditClientPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const user = await requireUser();
+  const user = await requireUserPage(SALES_ROLES);
   const { id } = await params;
 
   const client = await getClient(user, id).catch((error) => {

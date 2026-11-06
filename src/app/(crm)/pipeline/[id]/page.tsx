@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { MessageCircle } from "lucide-react";
-import { requireUser } from "@/server/guards";
+import { requireUserPage, SALES_ROLES } from "@/server/guards";
 import { getOpportunity } from "@/server/services/pipeline";
 import { NotFoundError } from "@/server/errors";
 import { PageHeader } from "@/components/layout/page-header";
@@ -30,7 +30,7 @@ export default async function OpportunityDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const user = await requireUser();
+  const user = await requireUserPage(SALES_ROLES);
   const { id } = await params;
 
   const opportunity = await getOpportunity(user, id).catch((error) => {

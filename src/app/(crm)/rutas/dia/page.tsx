@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { Navigation } from "lucide-react";
-import { DISPATCH_ROLES, requireUserPage } from "@/server/guards";
+import { requireUserPage, ROUTE_PLANNING_ROLES } from "@/server/guards";
 import { getDispatchDay } from "@/server/services/routes";
 import { dispatchDayQuerySchema } from "@/server/validators/routes";
 import { PageHeader } from "@/components/layout/page-header";
@@ -26,7 +26,7 @@ export default async function DispatchDayPage({
 }: {
   searchParams: Promise<RawSearchParams>;
 }) {
-  await requireUserPage(DISPATCH_ROLES);
+  await requireUserPage(ROUTE_PLANNING_ROLES);
 
   const raw = flattenSearchParams(await searchParams);
   const view: View = raw.vista === "alistamiento" ? "alistamiento" : "localidad";

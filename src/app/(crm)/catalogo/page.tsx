@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { Plus } from "lucide-react";
-import { requireUser, isAdmin } from "@/server/guards";
+import { requireAdminPage, isAdmin } from "@/server/guards";
 import { listProducts } from "@/server/services/catalog";
 import { productListQuerySchema } from "@/server/validators/catalog";
 import { PageHeader } from "@/components/layout/page-header";
@@ -28,7 +28,7 @@ export default async function CatalogPage({
 }: {
   searchParams: Promise<RawSearchParams>;
 }) {
-  const user = await requireUser();
+  const user = await requireAdminPage();
   const canEdit = isAdmin(user);
   const params = await searchParams;
   const query = productListQuerySchema.parse(flattenSearchParams(params));

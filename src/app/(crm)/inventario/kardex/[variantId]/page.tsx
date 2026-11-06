@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { ArrowLeft } from "lucide-react";
-import { requireUser } from "@/server/guards";
+import { requireUserPage, STOCK_VIEW_ROLES } from "@/server/guards";
 import { prisma } from "@/server/db";
 import { getKardex } from "@/server/services/inventory";
 import { PageHeader } from "@/components/layout/page-header";
@@ -20,7 +20,7 @@ export default async function KardexPage({
 }: {
   params: Promise<{ variantId: string }>;
 }) {
-  await requireUser();
+  await requireUserPage(STOCK_VIEW_ROLES);
   const { variantId } = await params;
 
   const variant = await prisma.productVariant.findUnique({

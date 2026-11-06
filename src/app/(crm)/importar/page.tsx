@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { ArrowRight, Upload } from "lucide-react";
-import { requireUserPage } from "@/server/guards";
+import { requireAdminPage } from "@/server/guards";
 import { listImportEntities } from "@/server/services/imports";
 import { PageHeader } from "@/components/layout/page-header";
 import { Card } from "@/components/ui/card";
@@ -16,7 +16,7 @@ export const metadata: Metadata = { title: "Carga masiva" };
  * de cada módulo, así que a un vendedor no le aparece la carga de precios.
  */
 export default async function ImportIndexPage() {
-  const user = await requireUserPage();
+  const user = await requireAdminPage();
   const entities = listImportEntities(user);
 
   return (

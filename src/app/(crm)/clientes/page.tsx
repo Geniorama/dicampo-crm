@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { Plus } from "lucide-react";
-import { requireUser } from "@/server/guards";
+import { requireUserPage, SALES_ROLES } from "@/server/guards";
 import { listClients } from "@/server/services/clients";
 import { clientListQuerySchema } from "@/server/validators/clients";
 import { PageHeader } from "@/components/layout/page-header";
@@ -33,7 +33,7 @@ export default async function ClientsPage({
 }: {
   searchParams: Promise<RawSearchParams>;
 }) {
-  const user = await requireUser();
+  const user = await requireUserPage(SALES_ROLES);
   const params = await searchParams;
 
   // Los filtros viajan por la URL: la búsqueda queda compartible y el

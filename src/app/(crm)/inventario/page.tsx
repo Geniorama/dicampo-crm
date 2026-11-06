@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { Plus } from "lucide-react";
 import { differenceInCalendarDays } from "date-fns";
-import { requireUser, INVENTORY_ROLES, isAdmin } from "@/server/guards";
+import { requireUserPage, isAdmin, STOCK_VIEW_ROLES, INVENTORY_ROLES } from "@/server/guards";
 import { getStockSummary, listLots } from "@/server/services/inventory";
 import { lotListQuerySchema } from "@/server/validators/inventory";
 import { PageHeader } from "@/components/layout/page-header";
@@ -32,7 +32,7 @@ export default async function InventoryPage({
 }: {
   searchParams: Promise<RawSearchParams>;
 }) {
-  const user = await requireUser();
+  const user = await requireUserPage(STOCK_VIEW_ROLES);
   // Bodega y administración operan el inventario; el resto solo consulta.
   const canEdit = isAdmin(user) || INVENTORY_ROLES.includes(user.role as never);
   const params = await searchParams;

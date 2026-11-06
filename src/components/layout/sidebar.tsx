@@ -39,8 +39,8 @@ type NavItem = {
 };
 
 const NAV_ITEMS: NavItem[] = [
-  { href: "/dashboard", label: "Tablero", icon: LayoutDashboard },
-  { href: "/clientes", label: "Clientes", icon: Users },
+  { href: "/dashboard", label: "Tablero", icon: LayoutDashboard, roles: ["VENDEDOR"] },
+  { href: "/clientes", label: "Clientes", icon: Users, roles: ["VENDEDOR"] },
   {
     href: "/pipeline",
     label: "Pipeline",
@@ -65,13 +65,13 @@ const NAV_ITEMS: NavItem[] = [
     icon: FileText,
     roles: ["VENDEDOR"],
   },
-  { href: "/pedidos", label: "Pedidos", icon: ClipboardList },
+  { href: "/pedidos", label: "Pedidos", icon: ClipboardList, roles: ["VENDEDOR", "BODEGA"] },
   { href: "/cartera", label: "Cartera", icon: Wallet, roles: ["VENDEDOR"] },
   {
     href: "/catalogo",
     label: "Catálogo",
     icon: Package,
-    roles: ["VENDEDOR", "BODEGA"],
+    roles: [],
   },
   {
     href: "/inventario",
@@ -91,21 +91,21 @@ const NAV_ITEMS: NavItem[] = [
     label: "Mi ruta",
     icon: Navigation,
     // El repartidor trabaja desde aquí; ADMIN y bodega la ven para acompañarlo.
-    roles: ["DESPACHO", "BODEGA"],
+    roles: ["DESPACHO"],
   },
   {
     href: "/rutas",
     label: "Rutas",
     icon: Truck,
-    roles: ["DESPACHO", "BODEGA"],
+    roles: ["BODEGA"],
   },
-  { href: "/reportes", label: "Reportes", icon: BarChart3, roles: ["VENDEDOR"] },
+  { href: "/reportes", label: "Reportes", icon: BarChart3, roles: [] },
   {
     href: "/importar",
     label: "Carga masiva",
     icon: Upload,
-    // DESPACHO no tiene ninguna carga a su alcance: el enlace no le sirve.
-    roles: ["VENDEDOR", "BODEGA", "COMPRAS"],
+    // Solo administración: ningún otro rol del esquema de permisos la usa.
+    roles: [],
   },
   { href: "/metas", label: "Metas", icon: Flag, roles: [] },
   // roles: [] significa "ningún rol adicional": solo ADMIN, que ve todo.

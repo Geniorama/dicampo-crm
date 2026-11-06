@@ -3,7 +3,7 @@ import { findDefaultPriceList } from "@/server/services/default-price-list";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { Pencil } from "lucide-react";
-import { requireUser, isAdmin } from "@/server/guards";
+import { requireAdminPage, isAdmin } from "@/server/guards";
 import { getProduct } from "@/server/services/catalog";
 import { NotFoundError } from "@/server/errors";
 import { prisma } from "@/server/db";
@@ -25,7 +25,7 @@ export default async function ProductDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const user = await requireUser();
+  const user = await requireAdminPage();
   const { id } = await params;
 
   const [product, defaultList] = await Promise.all([

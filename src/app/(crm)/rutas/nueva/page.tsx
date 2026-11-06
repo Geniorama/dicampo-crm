@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { DISPATCH_ROLES, requireUserPage } from "@/server/guards";
+import { requireUserPage, ROUTE_PLANNING_ROLES } from "@/server/guards";
 import { prisma } from "@/server/db";
 import { PageHeader } from "@/components/layout/page-header";
 import { RouteForm } from "@/components/routes/route-form";
@@ -7,7 +7,7 @@ import { RouteForm } from "@/components/routes/route-form";
 export const metadata: Metadata = { title: "Nueva ruta" };
 
 export default async function NewRoutePage() {
-  await requireUserPage(DISPATCH_ROLES);
+  await requireUserPage(ROUTE_PLANNING_ROLES);
 
   const [zones, drivers] = await Promise.all([
     prisma.deliveryZone.findMany({

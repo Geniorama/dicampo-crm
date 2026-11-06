@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { MapPinned, Plus, Repeat, Truck } from "lucide-react";
-import { DISPATCH_ROLES, isAdmin, requireUser } from "@/server/guards";
+import { requireUserPage, isAdmin, ROUTE_PLANNING_ROLES, DISPATCH_ROLES } from "@/server/guards";
 import { listRoutes } from "@/server/services/routes";
 import { routeListQuerySchema } from "@/server/validators/routes";
 import { PageHeader } from "@/components/layout/page-header";
@@ -23,7 +23,7 @@ export default async function RoutesPage({
 }: {
   searchParams: Promise<RawSearchParams>;
 }) {
-  const user = await requireUser();
+  const user = await requireUserPage(ROUTE_PLANNING_ROLES);
   const canEdit = isAdmin(user) || DISPATCH_ROLES.includes(user.role as never);
   const query = routeListQuerySchema.parse(
     flattenSearchParams(await searchParams),

@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { MapIcon, MessageCircle, Navigation } from "lucide-react";
-import { DISPATCH_ROLES, isAdmin, requireUser } from "@/server/guards";
+import { requireUserPage, isAdmin, ROUTE_PLANNING_ROLES, DISPATCH_ROLES } from "@/server/guards";
 import {
   getRoute,
   listAssignableOrders,
@@ -43,7 +43,7 @@ export default async function RouteDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const user = await requireUser();
+  const user = await requireUserPage(ROUTE_PLANNING_ROLES);
   const { id } = await params;
 
   const route = await getRoute(id).catch((error) => {

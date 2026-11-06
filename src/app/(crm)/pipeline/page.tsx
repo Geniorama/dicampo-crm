@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { Plus } from "lucide-react";
-import { requireUser } from "@/server/guards";
+import { requireUserPage, SALES_ROLES } from "@/server/guards";
 import { listOpportunities } from "@/server/services/pipeline";
 import { opportunityListQuerySchema } from "@/server/validators/pipeline";
 import { PageHeader } from "@/components/layout/page-header";
@@ -23,7 +23,7 @@ export default async function PipelinePage({
 }: {
   searchParams: Promise<RawSearchParams>;
 }) {
-  const user = await requireUser();
+  const user = await requireUserPage(SALES_ROLES);
   const params = await searchParams;
   // El tablero muestra Ganado y Perdido salvo que se pida solo las abiertas.
   const query = opportunityListQuerySchema.parse({

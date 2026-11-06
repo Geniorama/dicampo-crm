@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { DISPATCH_ROLES, requireUserPage } from "@/server/guards";
+import { requireUserPage, ROUTE_PLANNING_ROLES } from "@/server/guards";
 import { listSchedules } from "@/server/services/route-schedules";
 import { PageHeader } from "@/components/layout/page-header";
 import {
@@ -11,7 +11,7 @@ import { WEEKDAY_LABEL } from "@/lib/route-schedule";
 export const metadata: Metadata = { title: "Rutas recurrentes" };
 
 export default async function SchedulesPage() {
-  await requireUserPage(DISPATCH_ROLES);
+  await requireUserPage(ROUTE_PLANNING_ROLES);
 
   const schedules = await listSchedules();
   const rows: ScheduleRow[] = schedules.map((schedule) => ({

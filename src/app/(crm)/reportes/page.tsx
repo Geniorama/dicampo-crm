@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { Download, FileSpreadsheet } from "lucide-react";
-import { isAdmin, requireUser } from "@/server/guards";
+import { requireAdminPage, isAdmin } from "@/server/guards";
 import {
   getInventoryTurnover,
   getRepurchaseAlerts,
@@ -39,7 +39,7 @@ export default async function ReportsPage({
 }: {
   searchParams: Promise<RawSearchParams>;
 }) {
-  const user = await requireUser();
+  const user = await requireAdminPage();
   const params = flattenSearchParams(await searchParams);
   const query = reportQuerySchema.parse(params);
 

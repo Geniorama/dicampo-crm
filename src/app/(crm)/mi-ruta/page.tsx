@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { Gift, HandCoins, MapPin, Navigation } from "lucide-react";
-import { DISPATCH_ROLES, requireUserPage } from "@/server/guards";
+import { requireUserPage, DRIVER_ROLES } from "@/server/guards";
 import { prisma } from "@/server/db";
 import { getDriverDay } from "@/server/services/routes";
 import { PageHeader } from "@/components/layout/page-header";
@@ -23,7 +23,7 @@ export const metadata: Metadata = { title: "Mi ruta" };
 
 /** Pantalla pensada para el teléfono del repartidor: paradas en orden y un toque por acción. */
 export default async function MyRoutePage() {
-  const user = await requireUserPage(DISPATCH_ROLES);
+  const user = await requireUserPage(DRIVER_ROLES);
   const routes = await getDriverDay(user);
 
   // Los intentos fallidos, para recordar por qué una parada ya no está en la lista.

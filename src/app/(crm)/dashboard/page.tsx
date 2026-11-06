@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { requireUser } from "@/server/guards";
+import { requireUserPage, SALES_ROLES } from "@/server/guards";
 import {
   getDashboardMetrics,
   getMonthlySales,
@@ -56,7 +56,7 @@ function formatMonth(month: string): string {
 }
 
 export default async function DashboardPage() {
-  const user = await requireUser();
+  const user = await requireUserPage(SALES_ROLES);
   // Las metas son del equipo comercial; bodega y despacho no las ven.
   const showGoals = user.role === "ADMIN" || user.role === "VENDEDOR";
   const month = currentMonth();

@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { MessageCircle } from "lucide-react";
-import { requireUser } from "@/server/guards";
+import { requireUserPage, ORDER_ROLES } from "@/server/guards";
 import { getOrder, listSellerOptions } from "@/server/services/orders";
 import { getOrderPayments } from "@/server/services/receivables";
 import { PaymentForm } from "@/components/receivables/payment-form";
@@ -42,7 +42,7 @@ export default async function OrderDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const user = await requireUser();
+  const user = await requireUserPage(ORDER_ROLES);
   const { id } = await params;
 
   const order = await getOrder(user, id).catch((error) => {

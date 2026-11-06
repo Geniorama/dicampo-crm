@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { FileText, Pencil } from "lucide-react";
-import { requireUser } from "@/server/guards";
+import { requireUserPage, SALES_ROLES } from "@/server/guards";
 import { getClient, getClientPurchaseProfile } from "@/server/services/clients";
 import { NotFoundError } from "@/server/errors";
 import { PageHeader } from "@/components/layout/page-header";
@@ -40,7 +40,7 @@ type Props = { params: Promise<{ id: string }> };
 export const metadata: Metadata = { title: "Cliente" };
 
 export default async function ClientDetailPage({ params }: Props) {
-  const user = await requireUser();
+  const user = await requireUserPage(SALES_ROLES);
   const { id } = await params;
 
   const [client, zones, profile] = await Promise.all([

@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
-import { requireUser } from "@/server/guards";
+import { requireUserPage, SALES_ROLES } from "@/server/guards";
 import { PageHeader } from "@/components/layout/page-header";
 import { ClientForm } from "@/components/clients/client-form";
 
 export const metadata: Metadata = { title: "Nuevo cliente" };
 
 export default async function NewClientPage() {
-  const user = await requireUser();
+  const user = await requireUserPage(SALES_ROLES);
 
   return (
     <div className="mx-auto max-w-3xl space-y-5">

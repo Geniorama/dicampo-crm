@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { auth } from "./auth";
 import { ForbiddenError, UnauthorizedError } from "./errors";
 import { UserRole } from "@/generated/prisma/enums";
+import { homePathForRole } from "@/lib/role-home";
 
 /**
  * Autorización de la aplicación.
@@ -78,7 +79,7 @@ export async function requireUserPage(
   if (allowedRoles && allowedRoles.length > 0) {
     const permitted =
       user.role === UserRole.ADMIN || allowedRoles.includes(user.role);
-    if (!permitted) redirect("/dashboard");
+    if (!permitted) redirect(homePathForRole(user.role));
   }
 
   return user;
@@ -88,7 +89,7 @@ export async function requireUserPage(
 export async function requireAdminPage(): Promise<SessionUser> {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
-  if (user.role !== UserRole.ADMIN) redirect("/dashboard");
+  if (user.role !== UserRole.ADMIN) redirect(homePathForRole(user.role));
 
   return user;
 }
@@ -124,6 +125,18 @@ export const PURCHASING_ROLES = [UserRole.COMPRAS] as const;
 
 /** Roles que pueden planear y ejecutar despachos. */
 export const DISPATCH_ROLES = [UserRole.DESPACHO, UserRole.BODEGA] as const;
+
+/** Pedidos: ventas los consulta y producción los alista. */
+export const ORDER_ROLES = [UserRole.VENDEDOR, UserRole.BODEGA] as const;
+
+/** Existencias: ventas consulta, producción opera. */
+export const STOCK_VIEW_ROLES = [UserRole.VENDEDOR, UserRole.BODEGA] as const;
+
+/** Planeación de rutas (pantallas /rutas): producción y administración. */
+export const ROUTE_PLANNING_ROLES = [UserRole.BODEGA] as const;
+
+/** Mi ruta: el domiciliario con sus rutas asignadas. */
+export const DRIVER_ROLES = [UserRole.DESPACHO] as const;
 
 /** Roles que pueden gestionar clientes y pedidos. */
 export const SALES_ROLES = [UserRole.VENDEDOR] as const;
