@@ -3,6 +3,8 @@ import { requireUserPage, SALES_ROLES, scopeToOwnPortfolio } from "@/server/guar
 import { prisma } from "@/server/db";
 import { listSellableVariants } from "@/server/services/catalog";
 import { getStockSummary } from "@/server/services/inventory";
+import { listSellerOptions } from "@/server/services/orders";
+import { todayInBogota } from "@/server/services/routes";
 import { toKilos } from "@/lib/production";
 import { PageHeader } from "@/components/layout/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -23,7 +25,7 @@ export default async function NewQuotePage({
   const user = await requireUserPage(SALES_ROLES);
   const { clientId } = await searchParams;
 
-  const [clients, variants, priceLists, priceItems, stock] = await Promise.all([
+  const [clients, variants, priceLists, priceItems, stock, sellers] = await Promise.all([
     prisma.client.findMany({
       where: {
         ...scopeToOwnPortfolio(user),
@@ -35,19 +37,31 @@ export default async function NewQuotePage({
         businessName: true,
         tradeName: true,
         nit: true,
+        type: true,
+        phone: true,
+        email: true,
+        notes: true,
+        isSuperDistributor: true,
         priceListId: true,
         billingMode: true,
+        contacts: {
+          where: { active: true },
+          orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
+          take: 1,
+          select: { firstName: true, lastName: true },
+        },
         addresses: {
           where: { active: true },
           orderBy: { isPrimary: "desc" },
-          select: { id: true, label: true, address: true },
+          select: { id: true, label: true, address: true, locality: true, neighborhood: true },
         },
       },
     }),
     listSellableVariants(),
     prisma.priceList.findMany({
       where: { active: true },
-      select: { id: true, isDefault: true },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true, isDefault: true },
     }),
     // Precio base de cada variante en cada lista: el escalón de menor cantidad.
     prisma.priceListItem.findMany({
@@ -55,6 +69,7 @@ export default async function NewQuotePage({
       select: { priceListId: true, variantId: true, price: true },
     }),
     getStockSummary(),
+    listSellerOptions(),
   ]);
 
   const defaultListId = priceLists.find((list) => list.isDefault)?.id ?? "";
@@ -79,8 +94,25 @@ export default async function NewQuotePage({
     keywords: [client.businessName, client.nit],
     priceListId: client.priceListId ?? defaultListId,
     billingMode: client.billingMode,
+    tier: client.isSuperDistributor
+      ? "Superdistribuidor"
+      : (priceLists.find((list) => list.id === (client.priceListId ?? defaultListId))?.name ?? "—"),
+    businessName: client.businessName,
+    nit: client.nit,
+    type: client.type,
+    phone: client.phone,
+    email: client.email,
+    notes: client.notes,
+    contactName: client.contacts[0]
+      ? [client.contacts[0].firstName, client.contacts[0].lastName].filter(Boolean).join(" ")
+      : null,
     addresses: client.addresses,
   }));
+
+  // Un vendedor solo cotiza a su nombre; un administrador elige el asesor.
+  const advisors = sellers
+    .filter((seller) => user.role === "ADMIN" || seller.id === user.id)
+    .map((seller) => ({ id: seller.id, name: seller.name }));
 
   // Existencias vigentes (lotes DISPONIBLES con saldo) por variante y, en kilos
   // de pulpa, por sabor: una libra vale medio kilo y los zumos no suman.
@@ -107,7 +139,7 @@ export default async function NewQuotePage({
     <div className="mx-auto max-w-5xl space-y-5">
       <PageHeader
         title="Nueva cotización"
-        description="El precio sale de la lista del cliente (Distribuidor, Mayorista, Público general…)."
+        description="Al guardarla se crea el pedido y se reserva el inventario."
       />
 
       {variantOptions.length === 0 ? (
@@ -121,6 +153,10 @@ export default async function NewQuotePage({
         <QuoteForm
           clients={clientOptions}
           variants={variantOptions}
+          priceLists={priceLists.map((list) => ({ id: list.id, name: list.name }))}
+          advisors={advisors}
+          defaultAdvisorId={advisors.some((a) => a.id === user.id) ? user.id : (advisors[0]?.id ?? "")}
+          today={todayInBogota()}
           isAdmin={user.role === "ADMIN"}
           initialClientId={clientOptions.some((c) => c.id === clientId) ? clientId : undefined}
         />

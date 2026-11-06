@@ -633,11 +633,9 @@ model SalesGoal {
 // ─────────────────────────────────────────────────────────────
 
 enum QuoteStatus {
-  BORRADOR
-  ENVIADA
-  ACEPTADA
-  RECHAZADA
-  VENCIDA
+  PENDIENTE_FACTURAR
+  FACTURADO
+  ANULADO
 }
 
 /// Una cotización es una propuesta de precio: no reserva inventario ni
@@ -656,7 +654,9 @@ model Quote {
   sellerId        String?
   /// Asesor tal como aparece en el Excel cuando no hay usuario equivalente
   legacySeller    String?
-  status          QuoteStatus @default(BORRADOR)
+  status          QuoteStatus @default(PENDIENTE_FACTURAR)
+  /// El cliente era nuevo al cotizar (primer pedido, con la promo del 15 %)
+  isNewClient     Boolean     @default(false)
   quoteDate       DateTime    @default(now())
   validUntil      DateTime?
   priceListId     String?

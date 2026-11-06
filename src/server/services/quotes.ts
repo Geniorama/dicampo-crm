@@ -8,7 +8,7 @@ import { OrderStatus, QuoteStatus, UserRole } from "@/generated/prisma/enums";
 import type { Prisma } from "@/generated/prisma/client";
 import type { SessionUser } from "../guards";
 import { buildPriceResolver } from "./pricing";
-import { createOrder } from "./orders";
+import { changeOrderStatus, createOrder, resolveOrderSeller } from "./orders";
 import { assertClientNotBlocked } from "./receivables";
 import { lockKey } from "../locks";
 import { TZDate } from "@date-fns/tz";
@@ -19,24 +19,22 @@ import {
   isDiscountAllowed,
 } from "@/lib/quote-discount";
 import { computeOrderTotals } from "@/lib/order-math";
-import {
-  DEFAULT_QUOTE_VALIDITY_DAYS,
-  applyPercentDiscount,
-  canTransitionQuote,
-} from "@/lib/quote-rules";
+import { applyPercentDiscount, canTransitionQuote } from "@/lib/quote-rules";
+import { QUOTE_STATUS_LABEL } from "@/lib/labels";
+import { calculateNitDv } from "@/lib/nit";
+import { contactWhatsappKey } from "@/lib/whatsapp";
 import { endOfBusinessDay } from "../validators/reports";
 import type {
-  QuoteConvertInput,
+  NewClientInput,
   QuoteCreateInput,
   QuoteListQuery,
   QuoteStatusChangeInput,
-  QuoteUpdateInput,
 } from "../validators/quotes";
 
 /**
- * Cotizaciones: propuesta de precio previa al pedido.
+ * Cotizaciones: al guardarse crean el pedido y reservan inventario.
  *
- * No reserva inventario. Los importes los calcula SIEMPRE el servidor con la
+ * Los importes los calcula SIEMPRE el servidor con la
  * lista de precios del cliente y quedan congelados en la cotización; al
  * convertirla en pedido se respetan esos precios aunque la lista haya subido.
  */
@@ -55,22 +53,10 @@ function assertCanAccess(user: SessionUser, sellerId: string | null) {
   }
 }
 
-/**
- * Pasa a VENCIDA las enviadas cuya vigencia terminó. Se hace al consultar:
- * no hay tarea programada y así el estado que se ve nunca está desfasado.
- */
-export async function expireOverdueQuotes(now: Date = new Date()) {
-  const { count } = await prisma.quote.updateMany({
-    where: { status: QuoteStatus.ENVIADA, validUntil: { lt: now } },
-    data: { status: QuoteStatus.VENCIDA },
-  });
-  return count;
-}
-
 export async function listQuotes(user: SessionUser, query: QuoteListQuery) {
-  await expireOverdueQuotes();
-
-  const { search, status, clientId, sellerId, from, to, page, pageSize } = query;
+  const { search, status, clientId, sellerId, day, page, pageSize } = query;
+  const from = day ?? query.from;
+  const to = day ?? query.to;
 
   const where = {
     ...quoteScope(user),
@@ -109,7 +95,8 @@ export async function listQuotes(user: SessionUser, query: QuoteListQuery) {
         code: true,
         status: true,
         quoteDate: true,
-        validUntil: true,
+        isNewClient: true,
+        address: { select: { locality: true } },
         total: true,
         client: { select: { id: true, businessName: true, tradeName: true } },
         seller: { select: { id: true, name: true } },
@@ -130,8 +117,6 @@ export async function listQuotes(user: SessionUser, query: QuoteListQuery) {
 }
 
 export async function getQuote(user: SessionUser, id: string) {
-  await expireOverdueQuotes();
-
   const quote = await prisma.quote.findUnique({
     where: { id },
     include: {
@@ -170,13 +155,6 @@ export async function getQuote(user: SessionUser, id: string) {
 // ─────────────────────────────────────────────────────────────
 // Mutaciones
 // ─────────────────────────────────────────────────────────────
-
-/** Vigencia estándar a partir de `from`, hasta el final de ese día en Bogotá. */
-function defaultValidUntil(from: Date): Date {
-  const until = new Date(from);
-  until.setUTCDate(until.getUTCDate() + DEFAULT_QUOTE_VALIDITY_DAYS);
-  return endOfBusinessDay(until);
-}
 
 /** Resuelve precios, descuento e IVA y devuelve las líneas listas para guardar. */
 async function buildQuoteItems(
@@ -398,283 +376,237 @@ async function nextQuoteCode(tx: Prisma.TransactionClient, date: Date): Promise<
   return `${prefix}${pad(lastNumber + 1, 3)}`;
 }
 
-export async function createQuote(user: SessionUser, input: QuoteCreateInput) {
-  const client = await loadClientForQuote(user, input.clientId);
-  // Mora crítica: no se cotiza hasta que pague (un ADMIN puede autorizarlo).
-  await assertClientNotBlocked(user, client.id);
-
-  const addressId = input.addressId ?? client.addresses[0]?.id;
-  if (addressId && !client.addresses.some((a) => a.id === addressId)) {
-    throw new BusinessRuleError("La sede no pertenece a este cliente.");
+/**
+ * Crea el cliente nuevo que viene en la cotización, con sus sedes y el contacto
+ * de cada una. Queda como prospecto del asesor. La forma de facturación y la
+ * lista de precios las elige quien cotiza (lo pide el formulario de cliente
+ * nuevo), a diferencia de la ficha, donde solo las cambia un ADMIN.
+ */
+async function createQuoteClient(sellerId: string, input: NewClientInput) {
+  if (input.nit) {
+    const taken = await prisma.client.findUnique({ where: { nit: input.nit }, select: { id: true } });
+    if (taken) {
+      throw new BusinessRuleError("Ya existe un cliente con esa cédula o NIT: búscalo como cliente actual.");
+    }
   }
-
-  const policy = await resolveDiscountPolicy(client, addressId);
-  const discount = settleDiscount(user, policy, input.discountPercent);
-
-  const { totals, data, priceListId, priceListName } = await buildQuoteItems(
-    client.priceListId,
-    input.items,
-    discount.pct,
-  );
-
-  const quoteDate = new Date();
+  if (input.deliveryAddressIndex >= input.addresses.length) {
+    throw new BusinessRuleError("Elige la sede a la que va este pedido.");
+  }
 
   return prisma.$transaction(async (tx) => {
-    const code = await nextQuoteCode(tx, quoteDate);
-
-    return tx.quote.create({
+    const client = await tx.client.create({
       data: {
-        code,
-        clientId: client.id,
-        addressId,
-        sellerId: user.id,
-        quoteDate,
-        validUntil: input.validUntil ?? defaultValidUntil(quoteDate),
-        priceListId,
-        priceListName,
-        // La forma de facturación es del cliente: solo un ADMIN la cambia,
-        // y desde su ficha. La cotización no la elige.
-        billingMode: client.billingMode,
-        discountPercent: discount.pct,
-        discountLabel: discount.label,
+        businessName: input.businessName,
+        nit: input.nit,
+        nitDv: input.nit ? calculateNitDv(input.nit) : undefined,
+        phone: input.phone,
+        email: input.email,
+        type: input.type,
+        priceListId: input.priceListId,
+        billingMode: input.billingMode,
         notes: input.notes,
-        subtotal: totals.subtotal,
-        discount: totals.discount,
-        tax: totals.tax,
-        total: totals.total,
-        items: { create: data },
+        ownerId: sellerId,
+        status: "PROSPECTO",
       },
-      include: { items: true },
+      select: { id: true },
     });
-  });
-}
 
-/** Solo se puede editar el contenido mientras la cotización sea BORRADOR. */
-export async function updateQuote(
-  user: SessionUser,
-  id: string,
-  input: QuoteUpdateInput,
-) {
-  const quote = await prisma.quote.findUnique({
-    where: { id },
-    select: {
-      id: true,
-      status: true,
-      sellerId: true,
-      clientId: true,
-      addressId: true,
-      discountPercent: true,
-    },
-  });
-
-  if (!quote) throw new NotFoundError("La cotización");
-  assertCanAccess(user, quote.sellerId);
-
-  if (quote.status !== QuoteStatus.BORRADOR) {
-    throw new BusinessRuleError(
-      "Solo se puede modificar una cotización en borrador. Emite una nueva.",
-    );
-  }
-
-  const header = {
-    validUntil: input.validUntil,
-    notes: input.notes,
-  };
-
-  // Solo cabecera: ni líneas, ni sede, ni descuento. Si cambia alguno, hay
-  // que recalcular y se exigen las líneas.
-  if (!input.items) {
-    if (input.discountPercent !== undefined || input.addressId !== undefined) {
-      throw new BusinessRuleError(
-        "Para cambiar la sede o el descuento envía también los productos.",
-      );
+    const addressIds: string[] = [];
+    for (const [index, sede] of input.addresses.entries()) {
+      const [firstName, ...rest] = sede.contactName.split(/\s+/);
+      const created = await tx.clientAddress.create({
+        data: {
+          clientId: client.id,
+          label: sede.label ?? (input.addresses.length > 1 ? `Sede ${index + 1}` : "Principal"),
+          address: sede.address,
+          neighborhood: sede.neighborhood,
+          locality: sede.locality,
+          isPrimary: index === 0,
+        },
+        select: { id: true },
+      });
+      addressIds.push(created.id);
+      await tx.contact.create({
+        data: {
+          clientId: client.id,
+          firstName,
+          lastName: rest.join(" ") || undefined,
+          whatsapp: sede.whatsapp,
+          whatsappE164: contactWhatsappKey({ whatsapp: sede.whatsapp, phone: null }) ?? undefined,
+          isPrimary: index === 0,
+        },
+      });
     }
 
-    return prisma.quote.update({ where: { id }, data: header, include: { items: true } });
-  }
-
-  const client = await loadClientForQuote(user, quote.clientId);
-  const addressId = input.addressId ?? quote.addressId ?? undefined;
-  if (addressId && !client.addresses.some((a) => a.id === addressId)) {
-    throw new BusinessRuleError("La sede no pertenece a este cliente.");
-  }
-
-  const policy = await resolveDiscountPolicy(client, addressId, id);
-  const discount = settleDiscount(
-    user,
-    policy,
-    input.discountPercent ?? Number(quote.discountPercent),
-  );
-
-  const { totals, data, priceListId, priceListName } = await buildQuoteItems(
-    client.priceListId,
-    input.items,
-    discount.pct,
-  );
-
-  return prisma.$transaction(async (tx) => {
-    await tx.quoteItem.deleteMany({ where: { quoteId: id } });
-
-    return tx.quote.update({
-      where: { id },
-      data: {
-        ...header,
-        // Al recalcular se toma la vigente del cliente, por si cambió.
-        billingMode: client.billingMode,
-        addressId,
-        priceListId,
-        priceListName,
-        discountPercent: discount.pct,
-        discountLabel: discount.label,
-        subtotal: totals.subtotal,
-        discount: totals.discount,
-        tax: totals.tax,
-        total: totals.total,
-        items: { create: data },
-      },
-      include: { items: true },
-    });
+    return { clientId: client.id, addressId: addressIds[input.deliveryAddressIndex] };
   });
 }
 
+/**
+ * Guarda la cotización y crea el pedido en el mismo acto: el pedido queda
+ * CONFIRMADO y reserva el inventario por FEFO. La cotización nace "Pendiente
+ * por facturar"; anularla cancela el pedido y devuelve el inventario.
+ */
+export async function createQuote(user: SessionUser, input: QuoteCreateInput) {
+  let clientId = input.clientId;
+  let addressId = input.addressId;
+  let createdClientId: string | null = null;
+  let isNewClient = false;
+
+  if (input.newClient) {
+    // Asesor de la venta: se resuelve antes de crear al cliente, que le pertenece.
+    const sellerId = await resolveOrderSeller(user, input.sellerId, null);
+    const created = await createQuoteClient(sellerId, input.newClient);
+    clientId = created.clientId;
+    addressId = created.addressId;
+    createdClientId = created.clientId;
+    isNewClient = true;
+  }
+
+  try {
+    const client = await loadClientForQuote(user, clientId!);
+    // Mora crítica: no se cotiza hasta que pague (un ADMIN puede autorizarlo).
+    await assertClientNotBlocked(user, client.id);
+
+    addressId = addressId ?? client.addresses[0]?.id;
+    if (addressId && !client.addresses.some((a) => a.id === addressId)) {
+      throw new BusinessRuleError("La sede no pertenece a este cliente.");
+    }
+
+    const policy = await resolveDiscountPolicy(client, addressId);
+    isNewClient = isNewClient || policy.kind === "NUEVO";
+    const discount = settleDiscount(user, policy, input.discountPercent);
+
+    const sellerId = await resolveOrderSeller(user, input.sellerId, client.ownerId);
+    const { totals, data, priceListId, priceListName } = await buildQuoteItems(
+      client.priceListId,
+      input.items,
+      discount.pct,
+    );
+
+    // El pedido: mismos precios y descuentos que la cotización, y reserva de
+    // inventario. Si no alcanza el stock, falla antes de guardar la cotización.
+    const order = await createOrder(user, {
+      clientId: client.id,
+      addressId,
+      channel: "WHATSAPP",
+      sellerId,
+      notes: input.notes,
+      items: data.map((item) => ({
+        variantId: item.variantId,
+        quantity: Number(item.quantity),
+        unitPrice: Number(item.unitPrice),
+        discount: Number(item.discount),
+      })),
+    });
+
+    try {
+      await changeOrderStatus(user, order.id, { status: OrderStatus.CONFIRMADO });
+    } catch (error) {
+      await prisma.order.delete({ where: { id: order.id } });
+      throw error;
+    }
+
+    const quoteDate = new Date();
+
+    try {
+      return await prisma.$transaction(async (tx) => {
+        const code = await nextQuoteCode(tx, quoteDate);
+
+        return tx.quote.create({
+          data: {
+            code,
+            clientId: client.id,
+            addressId,
+            sellerId,
+            quoteDate,
+            status: QuoteStatus.PENDIENTE_FACTURAR,
+            isNewClient,
+            orderId: order.id,
+            priceListId,
+            priceListName,
+            // La forma de facturación es la del cliente.
+            billingMode: client.billingMode,
+            discountPercent: discount.pct,
+            discountLabel: discount.label,
+            notes: input.notes,
+            subtotal: totals.subtotal,
+            discount: totals.discount,
+            tax: totals.tax,
+            total: totals.total,
+            items: { create: data },
+          },
+          include: { items: true },
+        });
+      });
+    } catch (error) {
+      // Sin cotización no debe quedar un pedido reservando inventario.
+      await changeOrderStatus(user, order.id, {
+        status: OrderStatus.CANCELADO,
+        reason: "No se pudo guardar la cotización",
+      });
+      throw error;
+    }
+  } catch (error) {
+    // Un cliente nuevo sin cotización ni pedidos no debe quedar a medias.
+    if (createdClientId) {
+      await prisma.client.delete({ where: { id: createdClientId } }).catch(() => undefined);
+    }
+    throw error;
+  }
+}
+
+/**
+ * Cambia el estado contable. Solo un ADMIN: contabilidad es quien factura.
+ * Anular cancela el pedido de la cotización y devuelve el inventario.
+ */
 export async function changeQuoteStatus(
   user: SessionUser,
   id: string,
   input: QuoteStatusChangeInput,
 ) {
-  await expireOverdueQuotes();
+  if (user.role !== UserRole.ADMIN) {
+    throw new ForbiddenError("Solo un administrador cambia el estado de la cotización.");
+  }
 
   const quote = await prisma.quote.findUnique({
     where: { id },
-    select: { id: true, status: true, sellerId: true },
+    select: { id: true, status: true, orderId: true },
   });
-
   if (!quote) throw new NotFoundError("La cotización");
-  assertCanAccess(user, quote.sellerId);
 
   if (quote.status === input.status) return quote;
 
-  // Aceptar pasa por `convertQuoteToOrder`: aceptar sin pedido dejaría una
-  // cotización cerrada que nadie sabe cómo se atendió.
-  if (input.status === QuoteStatus.ACEPTADA) {
-    throw new BusinessRuleError(
-      "Una cotización se acepta convirtiéndola en pedido.",
-    );
-  }
-
   if (!canTransitionQuote(quote.status, input.status)) {
     throw new BusinessRuleError(
-      `No se puede pasar una cotización de "${quote.status}" a "${input.status}".`,
+      `No se puede pasar una cotización de "${QUOTE_STATUS_LABEL[quote.status]}" a "${QUOTE_STATUS_LABEL[input.status]}".`,
     );
   }
 
-  if (input.status === QuoteStatus.RECHAZADA && !input.reason) {
-    throw new BusinessRuleError("Indica el motivo del rechazo.");
-  }
+  if (input.status === QuoteStatus.ANULADO) {
+    if (!input.reason) throw new BusinessRuleError("Indica el motivo de la anulación.");
 
-  const now = new Date();
+    if (quote.orderId) {
+      const order = await prisma.order.findUnique({
+        where: { id: quote.orderId },
+        select: { status: true },
+      });
+      if (order && order.status !== OrderStatus.CANCELADO) {
+        // Devuelve el inventario reservado; falla si el pedido ya salió a ruta.
+        await changeOrderStatus(user, quote.orderId, {
+          status: OrderStatus.CANCELADO,
+          reason: `Cotización anulada: ${input.reason}`,
+        });
+      }
+    }
+  }
 
   return prisma.quote.update({
     where: { id },
     data: {
       status: input.status,
-      // Enviar (o reenviar una vencida) abre una vigencia nueva.
-      ...(input.status === QuoteStatus.ENVIADA
-        ? { sentAt: now, validUntil: defaultValidUntil(now) }
-        : {}),
-      ...(input.status === QuoteStatus.RECHAZADA
-        ? { respondedAt: now, rejectReason: input.reason }
-        : {}),
-    },
-  });
-}
-
-/**
- * Convierte la cotización en un pedido en BORRADOR con los precios ya
- * pactados. El pedido pasa por `createOrder`, así que respeta las mismas
- * reglas (cartera, cliente suspendido, sede).
- */
-export async function convertQuoteToOrder(
-  user: SessionUser,
-  id: string,
-  input: QuoteConvertInput,
-) {
-  await expireOverdueQuotes();
-
-  const quote = await prisma.quote.findUnique({
-    where: { id },
-    include: { items: true, seller: { select: { active: true } } },
-  });
-
-  if (!quote) throw new NotFoundError("La cotización");
-  assertCanAccess(user, quote.sellerId);
-
-  if (quote.orderId) {
-    throw new BusinessRuleError("Esta cotización ya se convirtió en pedido.");
-  }
-  if (
-    quote.status !== QuoteStatus.BORRADOR &&
-    quote.status !== QuoteStatus.ENVIADA
-  ) {
-    throw new BusinessRuleError(
-      "Solo se convierte una cotización en borrador o enviada y vigente.",
-    );
-  }
-
-  // La promo de primer pedido vale una sola vez: si el cliente ya hizo su
-  // primer pedido (otra cotización convertida, o uno directo), esta ya no
-  // puede llevarla.
-  const isFirstOrderPromo =
-    quote.discountLabel === discountLabel("NUEVO", Number(quote.discountPercent));
-  if (
-    isFirstOrderPromo &&
-    (await prisma.order.count({
-      where: { clientId: quote.clientId, status: { not: OrderStatus.CANCELADO } },
-    })) > 0
-  ) {
-    throw new BusinessRuleError(
-      "Este cliente ya hizo su primer pedido: el 15 % de cliente nuevo ya se usó. Rehaz la cotización con el descuento que le corresponde ahora.",
-    );
-  }
-
-  const order = await createOrder(user, {
-    clientId: quote.clientId,
-    addressId: quote.addressId ?? undefined,
-    channel: "WHATSAPP",
-    requestedDeliveryDate: input.requestedDeliveryDate,
-    // La venta es de quien cotizó, aunque la convierta un ADMIN. Si ya no
-    // está activo, decide `createOrder` (el responsable del cliente).
-    sellerId:
-      user.role !== UserRole.VENDEDOR && quote.seller?.active
-        ? (quote.sellerId ?? undefined)
-        : undefined,
-    notes: [`Desde la cotización ${quote.code}`, quote.notes]
-      .filter(Boolean)
-      .join(" — "),
-    items: quote.items.map((item) => ({
-      variantId: item.variantId,
-      quantity: Number(item.quantity),
-      // Precio y descuento congelados en la cotización.
-      unitPrice: Number(item.unitPrice),
-      discount: Number(item.discount),
-    })),
-  });
-
-  // Se reclama la cotización con una condición: si dos personas convierten a
-  // la vez, solo una se queda con ella y la otra deshace su pedido.
-  const claimed = await prisma.quote.updateMany({
-    where: { id, orderId: null },
-    data: {
-      status: QuoteStatus.ACEPTADA,
       respondedAt: new Date(),
-      orderId: order.id,
+      rejectReason: input.status === QuoteStatus.ANULADO ? input.reason : null,
     },
   });
-
-  if (claimed.count === 0) {
-    await prisma.order.delete({ where: { id: order.id } });
-    throw new BusinessRuleError("Esta cotización ya se convirtió en pedido.");
-  }
-
-  return order;
 }

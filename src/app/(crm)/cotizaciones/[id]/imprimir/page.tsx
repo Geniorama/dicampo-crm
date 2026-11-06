@@ -7,10 +7,10 @@ import { NotFoundError } from "@/server/errors";
 import { Logo } from "@/components/layout/logo";
 import { PrintButton } from "@/components/quotes/print-button";
 import { buttonVariants } from "@/components/ui/button";
-import { formatCOP, formatCalendarDate, formatDate, formatNit } from "@/lib/format";
+import { formatCOP, formatDate, formatNit } from "@/lib/format";
 import { BILLING_MODE_LABEL, PRESENTATION_SHORT } from "@/lib/labels";
 import { toKilos } from "@/lib/production";
-import { DEFAULT_QUOTE_VALIDITY_DAYS, MIN_ORDER_KG, PORTIONS_PER_KG } from "@/lib/quote-rules";
+import { MIN_ORDER_KG, PORTIONS_PER_KG } from "@/lib/quote-rules";
 
 export const metadata: Metadata = { title: "Cotización para el cliente" };
 
@@ -124,7 +124,6 @@ export default async function PrintQuotePage({
               <Row label="Asesor">{quote.seller?.name ?? quote.legacySeller ?? "—"}</Row>
               <Row label="Tipo">{quote.priceListName ?? "—"}</Row>
               <Row label="Facturación">{BILLING_MODE_LABEL[quote.billingMode]}</Row>
-              <Row label="Válida hasta">{formatCalendarDate(quote.validUntil)}</Row>
             </dl>
           </div>
         </section>
@@ -189,7 +188,6 @@ export default async function PrintQuotePage({
             <li>
               Forma de facturación: <strong>{BILLING_MODE_LABEL[quote.billingMode]}</strong>.
             </li>
-            <li>Validez: {DEFAULT_QUOTE_VALIDITY_DAYS} días calendario desde la fecha de emisión.</li>
             <li>
               Producto: pulpa de fruta natural congelada, 100% fruta, sin conservantes ni colorantes.
             </li>

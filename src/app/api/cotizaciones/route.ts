@@ -19,7 +19,7 @@ export const GET = route(async (request: NextRequest) => {
   return ok(await listQuotes(user, query));
 });
 
-/** POST /api/cotizaciones — crea una cotización en borrador. */
+/** POST /api/cotizaciones — guarda la cotización, crea el pedido y reserva inventario. */
 export const POST = route(async (request: NextRequest) => {
   const user = await requireUser(SALES_ROLES);
   const input = quoteCreateSchema.parse(await readJson(request));

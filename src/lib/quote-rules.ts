@@ -8,24 +8,20 @@ import type { OrderLine } from "./order-math";
  * calculen la misma cifra sin tocar la base de datos.
  */
 
-/** Vigencia de una cotización: 15 días calendario desde la emisión (la del PDF actual). */
-export const DEFAULT_QUOTE_VALIDITY_DAYS = 15;
-
 /** Pedido mínimo, en kilos. Un paquete de 1 kg rinde 8 porciones de 125 g. */
 export const MIN_ORDER_KG = 8;
 export const PORTIONS_PER_KG = 8;
 
 /**
- * Transiciones permitidas. ACEPTADA y RECHAZADA son terminales: si el cliente
- * cambia de opinión se emite una cotización nueva. Una VENCIDA se puede
- * reenviar (el asesor la renueva con una vigencia nueva).
+ * Transiciones permitidas. La cotización crea el pedido al guardarse, así que
+ * solo hay tres estados contables que cambia un administrador. Facturada se
+ * puede devolver a pendiente (corregir un error); anulada es terminal porque
+ * anular cancela el pedido y devuelve el inventario.
  */
 export const QUOTE_TRANSITIONS: Record<QuoteStatus, QuoteStatus[]> = {
-  BORRADOR: ["ENVIADA", "RECHAZADA"],
-  ENVIADA: ["ACEPTADA", "RECHAZADA", "VENCIDA"],
-  VENCIDA: ["ENVIADA", "RECHAZADA"],
-  ACEPTADA: [],
-  RECHAZADA: [],
+  PENDIENTE_FACTURAR: ["FACTURADO", "ANULADO"],
+  FACTURADO: ["PENDIENTE_FACTURAR", "ANULADO"],
+  ANULADO: [],
 };
 
 export function canTransitionQuote(from: QuoteStatus, to: QuoteStatus): boolean {
@@ -34,15 +30,6 @@ export function canTransitionQuote(from: QuoteStatus, to: QuoteStatus): boolean 
 
 export function nextQuoteStatuses(from: QuoteStatus): QuoteStatus[] {
   return QUOTE_TRANSITIONS[from];
-}
-
-/** Una cotización enviada cuya vigencia ya pasó se trata como vencida. */
-export function isQuoteExpired(
-  status: QuoteStatus,
-  validUntil: Date | null,
-  now: Date = new Date(),
-): boolean {
-  return status === "ENVIADA" && validUntil !== null && validUntil.getTime() < now.getTime();
 }
 
 /**

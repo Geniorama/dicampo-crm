@@ -252,7 +252,7 @@ async function main() {
         addressId: client.addresses[0]?.id,
         sellerId,
         legacySeller: sellerId ? null : quote.advisor || null,
-        status: "VENCIDA",
+        status: "FACTURADO",
         quoteDate: quote.date,
         priceListId: priceListByName.get(normalizeName(quote.priceTier)),
         priceListName: quote.priceTier || null,

@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input, Select } from "@/components/ui/field";
-import { formatCOP, formatCalendarDate, formatDate } from "@/lib/format";
+import { formatCOP, formatDate } from "@/lib/format";
 import { flattenSearchParams, type RawSearchParams } from "@/lib/search-params";
 import { QUOTE_STATUS_LABEL, QUOTE_STATUS_TONE, toOptions } from "@/lib/labels";
 
@@ -73,6 +73,13 @@ export default async function QuotesPage({
             </Select>
           </div>
 
+          <div>
+            <label htmlFor="day" className="text-xs font-medium text-muted-foreground">
+              Fecha
+            </label>
+            <Input id="day" name="day" type="date" defaultValue={params.day ? String(params.day) : ""} className="mt-1" />
+          </div>
+
           <Button type="submit" variant="secondary">
             Filtrar
           </Button>
@@ -91,7 +98,7 @@ export default async function QuotesPage({
                   <th scope="col" className="px-4 py-2 font-medium">Cotización</th>
                   <th scope="col" className="px-4 py-2 font-medium">Cliente</th>
                   <th scope="col" className="px-4 py-2 font-medium">Fecha</th>
-                  <th scope="col" className="px-4 py-2 font-medium">Vigencia</th>
+                  <th scope="col" className="px-4 py-2 font-medium">Localidad</th>
                   <th scope="col" className="px-4 py-2 font-medium">Asesor</th>
                   <th scope="col" className="px-4 py-2 font-medium">Estado</th>
                   <th scope="col" className="px-4 py-2 text-right font-medium">Total</th>
@@ -122,7 +129,7 @@ export default async function QuotesPage({
                       {formatDate(quote.quoteDate)}
                     </td>
                     <td className="px-4 py-2.5 text-muted-foreground">
-                      {formatCalendarDate(quote.validUntil)}
+                      {quote.address?.locality ?? "—"}
                     </td>
                     <td className="px-4 py-2.5 text-muted-foreground">
                       {quote.seller?.name ?? quote.legacySeller ?? "—"}

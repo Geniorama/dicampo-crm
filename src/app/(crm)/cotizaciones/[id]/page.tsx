@@ -12,7 +12,6 @@ import { buttonVariants } from "@/components/ui/button";
 import { QuoteStatusActions } from "@/components/quotes/quote-status-actions";
 import {
   formatCOP,
-  formatCalendarDate,
   formatDate,
   formatOrderNumber,
   formatQuantity,
@@ -58,7 +57,6 @@ export default async function QuoteDetailPage({
       ? `Descuento${quote.discountLabel ? ` (${quote.discountLabel})` : ""}: −${formatCOP(quote.discount)}`
       : "",
     `Total: ${formatCOP(quote.total)}`,
-    quote.validUntil ? `Válida hasta el ${formatCalendarDate(quote.validUntil)}` : "",
   ]
     .filter(Boolean)
     .join("\n");
@@ -68,8 +66,11 @@ export default async function QuoteDetailPage({
     summary,
   );
 
-  const canConvert =
-    !quote.orderId && (quote.status === "BORRADOR" || quote.status === "ENVIADA");
+  const contactName = contact ? [contact.firstName, contact.lastName].filter(Boolean).join(" ") : null;
+  const clientNit = quote.client.nit
+    ? `${quote.client.nit}${quote.client.nitDv ? `-${quote.client.nitDv}` : ""}`
+    : null;
+  const hasDiscount = Number(quote.discountPercent) > 0;
 
   return (
     <div className="space-y-5">
@@ -190,11 +191,15 @@ export default async function QuoteDetailPage({
               </Badge>
             </CardHeader>
             <CardContent className="space-y-4">
-              <QuoteStatusActions
-                quoteId={quote.id}
-                status={quote.status}
-                canConvert={canConvert}
-              />
+              <p className="text-sm text-foreground">
+                <span className="font-medium">{quote.isNewClient ? "Cliente nuevo" : "Cliente actual"}</span>
+                {" · "}
+                {hasDiscount
+                  ? `Incluye descuento del ${Number(quote.discountPercent)} %${quote.discountLabel ? ` (${quote.discountLabel})` : ""}`
+                  : "Sin descuento"}
+              </p>
+
+              {user.role === "ADMIN" && <QuoteStatusActions quoteId={quote.id} status={quote.status} />}
 
               {quote.order && (
                 <p className="text-sm">
@@ -210,9 +215,14 @@ export default async function QuoteDetailPage({
 
               {quote.rejectReason && (
                 <p className="rounded-md bg-destructive-subtle px-3 py-2 text-xs text-destructive">
-                  Rechazada: {quote.rejectReason}
+                  Anulada: {quote.rejectReason}
                 </p>
               )}
+
+              <div>
+                <p className="text-xs font-medium text-muted-foreground">Observaciones del asesor</p>
+                <p className="mt-1 text-sm text-foreground">{quote.notes ?? "Sin observaciones"}</p>
+              </div>
             </CardContent>
           </Card>
 
@@ -230,20 +240,20 @@ export default async function QuoteDetailPage({
                     {clientName}
                   </Link>
                 </DataRow>
-                <DataRow label="Sede">{quote.address?.label ?? "Sin especificar"}</DataRow>
-                <DataRow label="Asesor">
-                  {quote.seller?.name ?? quote.legacySeller ?? "—"}
-                </DataRow>
-                <DataRow label="Lista de precios">{quote.priceListName ?? "—"}</DataRow>
                 <DataRow label="Facturación">{BILLING_MODE_LABEL[quote.billingMode]}</DataRow>
-                <DataRow label="Válida hasta">{formatCalendarDate(quote.validUntil)}</DataRow>
+                <DataRow label="Lista de precios">{quote.priceListName ?? "—"}</DataRow>
+                <DataRow label="NIT / CC">{clientNit ?? "—"}</DataRow>
+                <DataRow label="Sede">{quote.address?.label ?? "Sin especificar"}</DataRow>
+                <DataRow label="Asesor">{quote.seller?.name ?? quote.legacySeller ?? "—"}</DataRow>
+                <DataRow label="Localidad">{quote.address?.locality ?? "—"}</DataRow>
+                <DataRow label="Barrio">{quote.address?.neighborhood ?? "—"}</DataRow>
+                <DataRow label="Dirección">{quote.address?.address ?? "—"}</DataRow>
+                <DataRow label="Contacto">{contactName ?? "—"}</DataRow>
+                <DataRow label="Teléfono">
+                  {contact?.whatsapp ?? contact?.phone ?? quote.client.phone ?? "—"}
+                </DataRow>
               </dl>
 
-              {quote.notes && (
-                <p className="mt-4 rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">
-                  {quote.notes}
-                </p>
-              )}
             </CardContent>
           </Card>
         </div>

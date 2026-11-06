@@ -167,20 +167,20 @@ export const ORDER_STATUS_TONE: Record<OrderStatus, BadgeTone> = {
 };
 
 export const QUOTE_STATUS_LABEL: Record<QuoteStatus, string> = {
-  BORRADOR: "Borrador",
-  ENVIADA: "Enviada",
-  ACEPTADA: "Aceptada",
-  RECHAZADA: "Rechazada",
-  VENCIDA: "Vencida",
+  PENDIENTE_FACTURAR: "Pendiente por facturar",
+  FACTURADO: "Facturado",
+  ANULADO: "Anulado",
 };
 
 export const QUOTE_STATUS_TONE: Record<QuoteStatus, BadgeTone> = {
-  BORRADOR: "neutral",
-  ENVIADA: "info",
-  ACEPTADA: "success",
-  RECHAZADA: "danger",
-  VENCIDA: "warning",
+  PENDIENTE_FACTURAR: "warning",
+  FACTURADO: "success",
+  ANULADO: "danger",
 };
+
+/** Texto del formulario de cotización sobre qué pasa con el inventario. */
+export const QUOTE_INVENTORY_NOTE =
+  "La cotización reserva inventario, la factura lo confirma, la anulación devuelve inventario.";
 
 export const BILLING_MODE_LABEL: Record<BillingMode, string> = {
   FACTURA: "Factura",

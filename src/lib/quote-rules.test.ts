@@ -3,7 +3,6 @@ import { computeOrderTotals } from "./order-math";
 import {
   applyPercentDiscount,
   canTransitionQuote,
-  isQuoteExpired,
 } from "./quote-rules";
 
 describe("applyPercentDiscount", () => {
@@ -41,20 +40,14 @@ describe("applyPercentDiscount", () => {
 });
 
 describe("estados de la cotización", () => {
-  it("las terminales no avanzan", () => {
-    expect(canTransitionQuote("ACEPTADA", "ENVIADA")).toBe(false);
-    expect(canTransitionQuote("RECHAZADA", "BORRADOR")).toBe(false);
+  it("anulada es terminal", () => {
+    expect(canTransitionQuote("ANULADO", "FACTURADO")).toBe(false);
+    expect(canTransitionQuote("ANULADO", "PENDIENTE_FACTURAR")).toBe(false);
   });
 
-  it("una vencida se puede reenviar", () => {
-    expect(canTransitionQuote("VENCIDA", "ENVIADA")).toBe(true);
-  });
-
-  it("solo vence una enviada con vigencia pasada", () => {
-    const past = new Date("2026-01-01");
-    const now = new Date("2026-02-01");
-    expect(isQuoteExpired("ENVIADA", past, now)).toBe(true);
-    expect(isQuoteExpired("BORRADOR", past, now)).toBe(false);
-    expect(isQuoteExpired("ENVIADA", null, now)).toBe(false);
+  it("pendiente puede facturarse o anularse; facturada puede devolverse", () => {
+    expect(canTransitionQuote("PENDIENTE_FACTURAR", "FACTURADO")).toBe(true);
+    expect(canTransitionQuote("PENDIENTE_FACTURAR", "ANULADO")).toBe(true);
+    expect(canTransitionQuote("FACTURADO", "PENDIENTE_FACTURAR")).toBe(true);
   });
 });

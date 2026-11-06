@@ -2,16 +2,17 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Trash2, Plus, UserPlus } from "lucide-react";
+import { Trash2, Plus } from "lucide-react";
 import { api, ApiClientError } from "@/lib/api-client";
 import { computeOrderTotals } from "@/lib/order-math";
 import { MIN_ORDER_KG, PORTIONS_PER_KG, applyPercentDiscount } from "@/lib/quote-rules";
-import { clampDiscount } from "@/lib/quote-discount";
+import { NEW_CLIENT_DISCOUNT_PCT, clampDiscount } from "@/lib/quote-discount";
 import { formatCOP } from "@/lib/format";
 import {
   BILLING_MODE_LABEL,
   CLIENT_TYPE_LABEL,
   PRESENTATION_SHORT,
+  QUOTE_INVENTORY_NOTE,
   toOptions,
 } from "@/lib/labels";
 import { Button } from "@/components/ui/button";
@@ -22,19 +23,48 @@ import { EmptyState } from "@/components/ui/empty-state";
 import type { BillingMode, ClientType, Presentation } from "@/generated/prisma/enums";
 
 const clientTypeOptions = toOptions(CLIENT_TYPE_LABEL);
+const billingOptions = toOptions(BILLING_MODE_LABEL);
+
+/** Sede del cliente nuevo, con quién recibe ahí. */
+type SedeDraft = {
+  key: string;
+  label: string;
+  locality: string;
+  neighborhood: string;
+  address: string;
+  contactName: string;
+  whatsapp: string;
+};
 
 type NewClientDraft = {
   businessName: string;
+  nit: string;
   phone: string;
   email: string;
   type: ClientType;
+  priceListId: string;
+  billingMode: BillingMode;
+  notes: string;
+  deliveryAddressIndex: number;
 };
 
-const emptyNewClient: NewClientDraft = {
-  businessName: "",
-  phone: "",
-  email: "",
-  type: "OTRO",
+let sedeCounter = 0;
+const newSede = (): SedeDraft => ({
+  key: `sede-${(sedeCounter += 1)}`,
+  label: "",
+  locality: "",
+  neighborhood: "",
+  address: "",
+  contactName: "",
+  whatsapp: "",
+});
+
+export type QuoteClientAddress = {
+  id: string;
+  label: string;
+  address: string;
+  locality: string | null;
+  neighborhood: string | null;
 };
 
 export type QuoteClientOption = {
@@ -47,7 +77,16 @@ export type QuoteClientOption = {
   /** Lista de precios del cliente (la general si no tiene propia). */
   priceListId: string;
   billingMode: BillingMode;
-  addresses: { id: string; label: string; address: string }[];
+  /** Nivel de precio: Público general, Mayorista, Distribuidor o Superdistribuidor. */
+  tier: string;
+  businessName: string;
+  nit: string | null;
+  type: ClientType;
+  phone: string | null;
+  email: string | null;
+  notes: string | null;
+  contactName: string | null;
+  addresses: QuoteClientAddress[];
 };
 
 export type QuoteVariantOption = {
@@ -109,41 +148,63 @@ function StockHint({
   );
 }
 
+/** Dato de solo lectura que se trae de la ficha del cliente actual. */
+function Readonly({ label, value }: { label: string; value: string | null | undefined }) {
+  return (
+    <div>
+      <p className="text-xs font-medium text-muted-foreground">{label}</p>
+      <p className="mt-0.5 text-sm text-foreground">{value || "—"}</p>
+    </div>
+  );
+}
+
 export function QuoteForm({
-  clients: initialClients,
+  clients,
   variants,
+  priceLists,
+  advisors,
+  defaultAdvisorId,
+  today,
   initialClientId,
   isAdmin = false,
 }: {
   clients: QuoteClientOption[];
   variants: QuoteVariantOption[];
+  priceLists: { id: string; name: string }[];
+  /** Asesores a los que se atribuye la venta (Andrés, Fabián, Felipe, Karen…). */
+  advisors: { id: string; name: string }[];
+  defaultAdvisorId: string;
+  /** Fecha de hoy en Bogotá ("AAAA-MM-DD"): la cotización siempre es de hoy. */
+  today: string;
   /** Cliente preseleccionado al llegar desde su ficha. */
   initialClientId?: string;
-  /** Un administrador puede salirse de los topes de descuento. */
+  /** Solo un administrador elige a nombre de qué asesor se vende. */
   isAdmin?: boolean;
 }) {
   const router = useRouter();
 
-  // Los clientes creados desde aquí se suman a la lista sin recargar la página.
-  const [clients, setClients] = useState(initialClients);
-  const [creatingClient, setCreatingClient] = useState(false);
-  const [newClient, setNewClient] = useState<NewClientDraft>(emptyNewClient);
-  const [newClientError, setNewClientError] = useState<string | null>(null);
-  const [isSavingClient, setIsSavingClient] = useState(false);
-
   const initialClient = clients.find((client) => client.id === initialClientId);
 
+  const [mode, setMode] = useState<"ACTUAL" | "NUEVO">("ACTUAL");
   const [clientId, setClientId] = useState(initialClient?.id ?? "");
   const [addressId, setAddressId] = useState(initialClient?.addresses[0]?.id ?? "");
-  const [validUntil, setValidUntil] = useState("");
+  const [sellerId, setSellerId] = useState(defaultAdvisorId);
+  const [newClient, setNewClient] = useState<NewClientDraft>({
+    businessName: "",
+    nit: "",
+    phone: "",
+    email: "",
+    type: "OTRO",
+    priceListId: priceLists[0]?.id ?? "",
+    billingMode: "FACTURA",
+    notes: "",
+    deliveryAddressIndex: 0,
+  });
+  const [sedes, setSedes] = useState<SedeDraft[]>([newSede()]);
   const [discountPercent, setDiscountPercent] = useState(0);
   const [policy, setPolicy] = useState<DiscountPolicy | null>(null);
-  // Tope del descuento manual: 8 % para vendedores; un ADMIN puede salirse.
-  const discountMax = isAdmin
-    ? 100
-    : policy && "max" in policy.allowed
-      ? policy.allowed.max
-      : 0;
+  // Cliente actual: de 0 a 8 %. El 15 % es solo del cliente nuevo.
+  const discountMax = policy && "max" in policy.allowed ? policy.allowed.max : 0;
   const [notes, setNotes] = useState("");
   const [lines, setLines] = useState<Draft[]>([newDraft()]);
   const [formError, setFormError] = useState<string | null>(null);
@@ -154,7 +215,9 @@ export function QuoteForm({
     [variants],
   );
 
-  const selectedClient = clients.find((client) => client.id === clientId);
+  const selectedClient = mode === "ACTUAL" ? clients.find((client) => client.id === clientId) : undefined;
+  const selectedAddress = selectedClient?.addresses.find((address) => address.id === addressId);
+  const activePriceListId = mode === "NUEVO" ? newClient.priceListId : (selectedClient?.priceListId ?? "");
 
   const clientOptions = useMemo<ComboboxOption[]>(
     () =>
@@ -169,8 +232,8 @@ export function QuoteForm({
 
   function priceOf(variantId: string): number | null {
     const variant = variantById.get(variantId);
-    if (!variant || !selectedClient) return null;
-    return variant.priceByList[selectedClient.priceListId] ?? null;
+    if (!variant || !activePriceListId) return null;
+    return variant.priceByList[activePriceListId] ?? null;
   }
 
   // Vista previa con la misma aritmética del servidor; el servidor recalcula
@@ -186,10 +249,7 @@ export function QuoteForm({
 
     for (const line of lines) {
       const variant = variantById.get(line.variantId);
-      const price =
-        variant && selectedClient
-          ? (variant.priceByList[selectedClient.priceListId] ?? null)
-          : null;
+      const price = variant && activePriceListId ? (variant.priceByList[activePriceListId] ?? null) : null;
       if (!variant || price === null) continue;
 
       index.set(line.key, priced.length);
@@ -205,12 +265,12 @@ export function QuoteForm({
       totals: computeOrderTotals(applyPercentDiscount(priced, discountPercent)),
       pricedIndex: index,
     };
-  }, [lines, variantById, selectedClient, discountPercent]);
+  }, [lines, variantById, activePriceListId, discountPercent]);
 
-  // Al cambiar de cliente o de sede, el servidor dice qué descuento aplica:
-  // 15 % si es nuevo, la negociación especial, o manual hasta 8 %.
+  // Cliente actual: el servidor dice qué descuento aplica a ese cliente y sede
+  // (15 % si aún no ha pedido, la negociación especial, o manual de 0 a 8 %).
   useEffect(() => {
-    if (!clientId) return;
+    if (mode !== "ACTUAL" || !clientId) return;
     let cancelled = false;
 
     const query = new URLSearchParams({ clientId });
@@ -230,7 +290,20 @@ export function QuoteForm({
     return () => {
       cancelled = true;
     };
-  }, [clientId, addressId]);
+  }, [mode, clientId, addressId]);
+
+  // Cliente nuevo: 15 % fijo en su primer pedido.
+  useEffect(() => {
+    if (mode !== "NUEVO") return;
+    setPolicy({
+      kind: "NUEVO",
+      suggested: NEW_CLIENT_DISCOUNT_PCT,
+      allowed: { only: [NEW_CLIENT_DISCOUNT_PCT] },
+      fixed: true,
+      label: `Cliente nuevo ${NEW_CLIENT_DISCOUNT_PCT} %`,
+    });
+    setDiscountPercent(NEW_CLIENT_DISCOUNT_PCT);
+  }, [mode]);
 
   const totalKilos = lines.reduce(
     (sum, line) => (line.variantId ? sum + (line.quantity || 0) : sum),
@@ -243,58 +316,21 @@ export function QuoteForm({
     );
   }
 
+  function updateSede(key: string, patch: Partial<SedeDraft>) {
+    setSedes((current) => current.map((sede) => (sede.key === key ? { ...sede, ...patch } : sede)));
+  }
+
   function handleClientChange(nextClientId: string) {
     setClientId(nextClientId);
     const client = clients.find((item) => item.id === nextClientId);
     setAddressId(client?.addresses[0]?.id ?? "");
   }
 
-  async function handleCreateClient() {
-    setNewClientError(null);
-    if (newClient.businessName.trim().length < 3) {
-      setNewClientError("Escribe el nombre o razón social (mínimo 3 letras).");
-      return;
-    }
-
-    setIsSavingClient(true);
-    try {
-      // Queda como PROSPECTO con la lista de precios general; el servidor
-      // asigna al vendedor como responsable.
-      const created = await api.post<{
-        id: string;
-        businessName: string;
-        tradeName: string | null;
-        priceListId: string | null;
-        billingMode: BillingMode;
-      }>("/api/clientes", {
-        businessName: newClient.businessName,
-        phone: newClient.phone,
-        email: newClient.email,
-        type: newClient.type,
-        status: "PROSPECTO",
-      });
-
-      const option: QuoteClientOption = {
-        id: created.id,
-        label: created.tradeName ?? created.businessName,
-        priceListId: created.priceListId ?? "",
-        billingMode: created.billingMode,
-        addresses: [],
-      };
-      setClients((current) => [...current, option]);
-      setClientId(option.id);
-      setAddressId("");
-      setNewClient(emptyNewClient);
-      setCreatingClient(false);
-    } catch (error) {
-      setNewClientError(
-        error instanceof ApiClientError
-          ? error.message
-          : "No se pudo crear el cliente. Intenta de nuevo.",
-      );
-    } finally {
-      setIsSavingClient(false);
-    }
+  function switchMode(next: "ACTUAL" | "NUEVO") {
+    setMode(next);
+    setPolicy(null);
+    setDiscountPercent(next === "NUEVO" ? NEW_CLIENT_DISCOUNT_PCT : 0);
+    setFormError(null);
   }
 
   async function handleSubmit(event: React.FormEvent) {
@@ -305,22 +341,69 @@ export function QuoteForm({
       .filter((line) => line.variantId && line.quantity > 0)
       .map((line) => ({ variantId: line.variantId, quantity: line.quantity }));
 
-    if (!clientId) {
+    if (mode === "ACTUAL" && !clientId) {
       setFormError("Selecciona el cliente.");
       return;
+    }
+    if (mode === "NUEVO") {
+      if (newClient.businessName.trim().length < 3) {
+        setFormError("Escribe el nombre del cliente nuevo (mínimo 3 letras).");
+        return;
+      }
+      if (!newClient.phone.trim()) {
+        setFormError("Escribe el teléfono o WhatsApp del cliente nuevo.");
+        return;
+      }
+      if (!newClient.priceListId) {
+        setFormError("Elige la lista de precios del cliente nuevo.");
+        return;
+      }
+      const incomplete = sedes.some(
+        (sede) =>
+          !sede.locality.trim() || !sede.address.trim() || !sede.contactName.trim() || !sede.whatsapp.trim(),
+      );
+      if (incomplete) {
+        setFormError("Cada sede necesita localidad, dirección, contacto y WhatsApp.");
+        return;
+      }
     }
     if (items.length === 0) {
       setFormError("Agrega al menos un producto con cantidad.");
       return;
     }
 
+    const client =
+      mode === "ACTUAL"
+        ? { clientId, addressId: addressId || undefined }
+        : {
+            newClient: {
+              businessName: newClient.businessName,
+              nit: newClient.nit,
+              phone: newClient.phone,
+              email: newClient.email,
+              type: newClient.type,
+              priceListId: newClient.priceListId,
+              billingMode: newClient.billingMode,
+              notes: newClient.notes || undefined,
+              deliveryAddressIndex: newClient.deliveryAddressIndex,
+              addresses: sedes.map((sede) => ({
+                label: sede.label || undefined,
+                locality: sede.locality,
+                neighborhood: sede.neighborhood || undefined,
+                address: sede.address,
+                contactName: sede.contactName,
+                whatsapp: sede.whatsapp,
+              })),
+            },
+          };
+
     setIsSubmitting(true);
     try {
       const quote = await api.post<{ id: string }>("/api/cotizaciones", {
-        clientId,
-        addressId: addressId || undefined,
-        validUntil: validUntil || undefined,
-        discountPercent,
+        ...client,
+        sellerId: sellerId || undefined,
+        // El 15 % del cliente nuevo lo fija el servidor.
+        discountPercent: mode === "ACTUAL" ? discountPercent : undefined,
         notes: notes || undefined,
         items,
       });
@@ -342,162 +425,278 @@ export function QuoteForm({
       <Card>
         <CardHeader>
           <CardTitle>Cliente y condiciones</CardTitle>
+          <div role="group" aria-label="Tipo de cliente" className="flex gap-1">
+            {(["ACTUAL", "NUEVO"] as const).map((key) => (
+              <Button
+                key={key}
+                size="sm"
+                variant={mode === key ? "primary" : "secondary"}
+                aria-pressed={mode === key}
+                onClick={() => switchMode(key)}
+              >
+                {key === "ACTUAL" ? "Cliente actual" : "Cliente nuevo"}
+              </Button>
+            ))}
+          </div>
         </CardHeader>
         <CardContent className="grid gap-4 sm:grid-cols-2">
-          <Field id="clientId" label="Cliente" required className="sm:col-span-2">
-            {(props) => (
-              <Combobox
-                {...props}
-                value={clientId}
-                onChange={handleClientChange}
-                placeholder="Escribe el nombre, la razón social o el NIT…"
-                emptyText="Ningún cliente coincide. Puedes crearlo abajo."
-                options={clientOptions}
-              />
-            )}
+          <Field id="quoteDate" label="Fecha" hint="Siempre es la de hoy: no se montan pedidos en otros días.">
+            {(props) => <Input {...props} type="date" value={today} readOnly className="bg-muted text-muted-foreground" />}
           </Field>
 
-          <div className="sm:col-span-2">
-            {creatingClient ? (
-              <div className="space-y-3 rounded-md border border-border bg-muted/40 p-4">
-                <p className="text-sm font-medium text-foreground">Cliente nuevo</p>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <Field
-                    id="newClientName"
-                    label="Nombre o razón social"
-                    required
-                    className="sm:col-span-2"
-                  >
-                    {(props) => (
-                      <Input
-                        {...props}
-                        value={newClient.businessName}
-                        onChange={(event) =>
-                          setNewClient({ ...newClient, businessName: event.target.value })
-                        }
-                      />
-                    )}
-                  </Field>
-                  <Field id="newClientPhone" label="Teléfono / WhatsApp">
-                    {(props) => (
-                      <Input
-                        {...props}
-                        type="tel"
-                        value={newClient.phone}
-                        onChange={(event) =>
-                          setNewClient({ ...newClient, phone: event.target.value })
-                        }
-                      />
-                    )}
-                  </Field>
-                  <Field id="newClientEmail" label="Correo">
-                    {(props) => (
-                      <Input
-                        {...props}
-                        type="email"
-                        value={newClient.email}
-                        onChange={(event) =>
-                          setNewClient({ ...newClient, email: event.target.value })
-                        }
-                      />
-                    )}
-                  </Field>
-                  <Field id="newClientType" label="Tipo de negocio">
-                    {(props) => (
-                      <Select
-                        {...props}
-                        value={newClient.type}
-                        onChange={(event) =>
-                          setNewClient({ ...newClient, type: event.target.value as ClientType })
-                        }
-                      >
-                        {clientTypeOptions.map((option) => (
-                          <option key={option.value} value={option.value}>
-                            {option.label}
-                          </option>
-                        ))}
-                      </Select>
-                    )}
-                  </Field>
-                </div>
-                {newClientError && (
-                  <p role="alert" className="text-sm text-destructive">
-                    {newClientError}
-                  </p>
-                )}
-                <div className="flex justify-end gap-2">
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => {
-                      setCreatingClient(false);
-                      setNewClientError(null);
-                    }}
-                  >
-                    Cancelar
-                  </Button>
-                  <Button size="sm" onClick={handleCreateClient} disabled={isSavingClient}>
-                    {isSavingClient ? "Creando…" : "Crear y seleccionar"}
-                  </Button>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Se crea como prospecto con la lista de precios general. La sede y demás datos se
-                  completan luego en su ficha.
-                </p>
-              </div>
-            ) : (
-              <Button variant="secondary" size="sm" onClick={() => setCreatingClient(true)}>
-                <UserPlus aria-hidden="true" />
-                Cliente nuevo
-              </Button>
-            )}
-          </div>
-
-          <Field id="addressId" label="Sede">
+          <Field id="sellerId" label="Asesor" required>
             {(props) => (
               <Select
                 {...props}
-                value={addressId}
-                onChange={(event) => setAddressId(event.target.value)}
-                disabled={!selectedClient}
+                value={sellerId}
+                onChange={(event) => setSellerId(event.target.value)}
+                disabled={!isAdmin}
               >
-                <option value="">Sin especificar</option>
-                {selectedClient?.addresses.map((address) => (
-                  <option key={address.id} value={address.id}>
-                    {address.label} — {address.address}
+                {advisors.map((advisor) => (
+                  <option key={advisor.id} value={advisor.id}>
+                    {advisor.name}
                   </option>
                 ))}
               </Select>
             )}
           </Field>
 
-          {/* La define administración en la ficha del cliente: aquí solo se
-              muestra, porque la cotización la hereda tal cual. */}
-          <Field
-            id="billingMode"
-            label="Forma de facturación"
-            hint="La define el administrador en la ficha del cliente."
-          >
-            {(props) => (
-              <Input
-                {...props}
-                readOnly
-                value={selectedClient ? BILLING_MODE_LABEL[selectedClient.billingMode] : "—"}
-                className="bg-muted text-muted-foreground"
-              />
-            )}
-          </Field>
+          {mode === "ACTUAL" ? (
+            <>
+              <Field id="clientId" label="Cliente" required className="sm:col-span-2">
+                {(props) => (
+                  <Combobox
+                    {...props}
+                    value={clientId}
+                    onChange={handleClientChange}
+                    placeholder="Escribe el nombre, la razón social o el NIT…"
+                    emptyText="Ningún cliente coincide. Usa «Cliente nuevo» para registrarlo."
+                    options={clientOptions}
+                  />
+                )}
+              </Field>
 
-          <Field id="validUntil" label="Válida hasta" hint="Vacío: 15 días desde hoy">
-            {(props) => (
-              <Input
-                {...props}
-                type="date"
-                value={validUntil}
-                onChange={(event) => setValidUntil(event.target.value)}
-              />
-            )}
-          </Field>
+              <Field id="addressId" label="Sede">
+                {(props) => (
+                  <Select
+                    {...props}
+                    value={addressId}
+                    onChange={(event) => setAddressId(event.target.value)}
+                    disabled={!selectedClient}
+                  >
+                    <option value="">Sin especificar</option>
+                    {selectedClient?.addresses.map((address) => (
+                      <option key={address.id} value={address.id}>
+                        {address.label} — {address.address}
+                      </option>
+                    ))}
+                  </Select>
+                )}
+              </Field>
+
+              {selectedClient && (
+                <div className="grid gap-3 rounded-md bg-muted/50 p-4 sm:col-span-2 sm:grid-cols-3">
+                  <Readonly label="Nombre" value={selectedClient.businessName} />
+                  <Readonly label="NIT / cédula" value={selectedClient.nit} />
+                  <Readonly label="Tipo de cliente" value={selectedClient.tier} />
+                  <Readonly label="Tipo de negocio" value={CLIENT_TYPE_LABEL[selectedClient.type]} />
+                  <Readonly label="Facturación" value={BILLING_MODE_LABEL[selectedClient.billingMode]} />
+                  <Readonly label="Contacto" value={selectedClient.contactName} />
+                  <Readonly label="Teléfono" value={selectedClient.phone} />
+                  <Readonly label="Correo" value={selectedClient.email} />
+                  <Readonly label="Localidad" value={selectedAddress?.locality} />
+                  <Readonly label="Barrio" value={selectedAddress?.neighborhood} />
+                  <Readonly label="Dirección" value={selectedAddress?.address} />
+                  <Readonly label="Notas del cliente" value={selectedClient.notes} />
+                </div>
+              )}
+            </>
+          ) : (
+            <>
+              <Field id="newClientName" label="Nombre o razón social" required className="sm:col-span-2">
+                {(props) => (
+                  <Input
+                    {...props}
+                    value={newClient.businessName}
+                    onChange={(event) => setNewClient({ ...newClient, businessName: event.target.value })}
+                  />
+                )}
+              </Field>
+              <Field id="newClientNit" label="Cédula o NIT">
+                {(props) => (
+                  <Input
+                    {...props}
+                    inputMode="numeric"
+                    value={newClient.nit}
+                    onChange={(event) => setNewClient({ ...newClient, nit: event.target.value })}
+                  />
+                )}
+              </Field>
+              <Field id="newClientPhone" label="Teléfono / WhatsApp" required>
+                {(props) => (
+                  <Input
+                    {...props}
+                    type="tel"
+                    value={newClient.phone}
+                    onChange={(event) => setNewClient({ ...newClient, phone: event.target.value })}
+                  />
+                )}
+              </Field>
+              <Field id="newClientEmail" label="Correo (opcional)">
+                {(props) => (
+                  <Input
+                    {...props}
+                    type="email"
+                    value={newClient.email}
+                    onChange={(event) => setNewClient({ ...newClient, email: event.target.value })}
+                  />
+                )}
+              </Field>
+              <Field id="newClientType" label="Tipo de negocio">
+                {(props) => (
+                  <Select
+                    {...props}
+                    value={newClient.type}
+                    onChange={(event) => setNewClient({ ...newClient, type: event.target.value as ClientType })}
+                  >
+                    {clientTypeOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </Select>
+                )}
+              </Field>
+              <Field id="newClientPriceList" label="Lista de precios" required>
+                {(props) => (
+                  <Select
+                    {...props}
+                    value={newClient.priceListId}
+                    onChange={(event) => setNewClient({ ...newClient, priceListId: event.target.value })}
+                  >
+                    {priceLists.map((list) => (
+                      <option key={list.id} value={list.id}>
+                        {list.name}
+                      </option>
+                    ))}
+                  </Select>
+                )}
+              </Field>
+              <Field id="newClientBilling" label="Remisión o factura" required>
+                {(props) => (
+                  <Select
+                    {...props}
+                    value={newClient.billingMode}
+                    onChange={(event) =>
+                      setNewClient({ ...newClient, billingMode: event.target.value as BillingMode })
+                    }
+                  >
+                    {billingOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </Select>
+                )}
+              </Field>
+
+              <div className="space-y-3 sm:col-span-2">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-medium text-foreground">Sedes</p>
+                  <Button variant="secondary" size="sm" onClick={() => setSedes((current) => [...current, newSede()])}>
+                    <Plus aria-hidden="true" />
+                    Agregar sede
+                  </Button>
+                </div>
+                {sedes.map((sede, index) => (
+                  <div key={sede.key} className="space-y-3 rounded-md border border-border p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <label className="flex items-center gap-2 text-sm text-foreground">
+                        <input
+                          type="radio"
+                          name="deliveryAddress"
+                          checked={newClient.deliveryAddressIndex === index}
+                          onChange={() => setNewClient({ ...newClient, deliveryAddressIndex: index })}
+                        />
+                        Sede {index + 1}: este pedido va aquí
+                      </label>
+                      {sedes.length > 1 && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          aria-label={`Quitar la sede ${index + 1}`}
+                          onClick={() => {
+                            setSedes((current) => current.filter((item) => item.key !== sede.key));
+                            setNewClient((current) => ({ ...current, deliveryAddressIndex: 0 }));
+                          }}
+                        >
+                          <Trash2 aria-hidden="true" />
+                        </Button>
+                      )}
+                    </div>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <Field id={`${sede.key}-locality`} label="Localidad" required>
+                        {(props) => (
+                          <Input
+                            {...props}
+                            value={sede.locality}
+                            onChange={(event) => updateSede(sede.key, { locality: event.target.value })}
+                          />
+                        )}
+                      </Field>
+                      <Field id={`${sede.key}-neighborhood`} label="Barrio">
+                        {(props) => (
+                          <Input
+                            {...props}
+                            value={sede.neighborhood}
+                            onChange={(event) => updateSede(sede.key, { neighborhood: event.target.value })}
+                          />
+                        )}
+                      </Field>
+                      <Field id={`${sede.key}-address`} label="Dirección" required className="sm:col-span-2">
+                        {(props) => (
+                          <Input
+                            {...props}
+                            value={sede.address}
+                            onChange={(event) => updateSede(sede.key, { address: event.target.value })}
+                          />
+                        )}
+                      </Field>
+                      <Field id={`${sede.key}-contact`} label="Contacto" required>
+                        {(props) => (
+                          <Input
+                            {...props}
+                            value={sede.contactName}
+                            onChange={(event) => updateSede(sede.key, { contactName: event.target.value })}
+                          />
+                        )}
+                      </Field>
+                      <Field id={`${sede.key}-whatsapp`} label="WhatsApp" required>
+                        {(props) => (
+                          <Input
+                            {...props}
+                            type="tel"
+                            value={sede.whatsapp}
+                            onChange={(event) => updateSede(sede.key, { whatsapp: event.target.value })}
+                          />
+                        )}
+                      </Field>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <Field id="newClientNotes" label="Observaciones del cliente" className="sm:col-span-2">
+                {(props) => (
+                  <Textarea
+                    {...props}
+                    value={newClient.notes}
+                    onChange={(event) => setNewClient({ ...newClient, notes: event.target.value })}
+                  />
+                )}
+              </Field>
+            </>
+          )}
 
           <Field
             id="discountPercent"
@@ -509,13 +708,11 @@ export function QuoteForm({
                   ? "Negociación especial: porcentaje fijo según la sede"
                   : policy.kind === "NUEVO"
                     ? "Cliente nuevo: 15 % en el primer pedido, sin excepción y sin otros descuentos"
-                    : isAdmin
-                      ? "Manual (hasta 8 % para vendedores)"
-                      : "Manual: de 0 a 8 %"
+                    : "Cliente actual: de 0 a 8 %"
             }
           >
             {(props) =>
-              policy && "only" in policy.allowed && (!isAdmin || policy.fixed) ? (
+              policy && "only" in policy.allowed ? (
                 <Select
                   {...props}
                   value={discountPercent}
@@ -539,15 +736,13 @@ export function QuoteForm({
                   value={discountPercent}
                   disabled={!policy}
                   // Se recorta al teclear: escribir 20 deja 8, no un error al guardar.
-                  onChange={(event) =>
-                    setDiscountPercent(clampDiscount(event.target.value, discountMax))
-                  }
+                  onChange={(event) => setDiscountPercent(clampDiscount(event.target.value, discountMax))}
                 />
               )
             }
           </Field>
 
-          <Field id="notes" label="Notas" className="sm:col-span-2">
+          <Field id="notes" label="Observaciones del asesor" className="sm:col-span-2">
             {(props) => (
               <Textarea
                 {...props}
@@ -630,7 +825,7 @@ export function QuoteForm({
                         />
                       </td>
                       <td className="tabular px-4 py-2 text-right text-muted-foreground">
-                        {!selectedClient
+                        {!activePriceListId
                           ? "—"
                           : line.variantId
                             ? price === null
@@ -726,14 +921,14 @@ export function QuoteForm({
 
       <div className="flex items-center justify-between gap-3">
         <p className="text-xs text-muted-foreground">
-          La cotización no reserva inventario. Al aceptarla se convierte en pedido.
+          {QUOTE_INVENTORY_NOTE}
         </p>
         <div className="flex gap-2">
           <Button variant="secondary" onClick={() => router.back()}>
             Cancelar
           </Button>
           <Button type="submit" disabled={isSubmitting}>
-            {isSubmitting ? "Creando…" : "Crear cotización"}
+            {isSubmitting ? "Guardando…" : "Guardar cotización"}
           </Button>
         </div>
       </div>
