@@ -10,7 +10,7 @@ const emptyToUndefined = (value: unknown) => (value === "" ? undefined : value);
 export const orderBoardQuerySchema = z.object({
   search: z.preprocess(emptyToUndefined, z.string().trim().max(120).optional()),
   /** Estado contable: el de la cotización. */
-  accounting: z.preprocess(emptyToUndefined, z.enum(QuoteStatus).optional()),
+  accounting: z.preprocess(emptyToUndefined, z.enum([...Object.values(QuoteStatus), "SIN_COTIZACION"] as const).optional()),
   zone: z.preprocess(
     emptyToUndefined,
     z.enum(["NORTE_R1", "NORTE_R2", "SUR_R1", "SUR_R2", "CUNDINAMARCA", "NACIONAL"]).optional(),

@@ -18,8 +18,9 @@ export type DispatchState = "EN_RUTA" | "PROGRAMADO" | "NO_ENVIADO" | "ENTREGADO
 export type OrderBoardRow = {
   orderId: string;
   orderNumber: number;
-  quoteId: string;
-  quoteCode: string;
+  /** Nulos en un pedido que creó un administrador sin cotización. */
+  quoteId: string | null;
+  quoteCode: string | null;
   address: string | null;
   zone: DeliveryZoneKey | null;
   locality: string | null;
@@ -27,7 +28,7 @@ export type OrderBoardRow = {
   neighborhood: string | null;
   route: string | null;
   deliveryDate: Date | null;
-  accounting: QuoteStatus;
+  accounting: QuoteStatus | "SIN_COTIZACION";
   production: ProductionState;
   /** Solo hay estado de despacho cuando el pedido está alistado. */
   dispatch: DispatchState | null;
@@ -59,101 +60,102 @@ export async function listOrderBoard(user: SessionUser, query: OrderBoardQuery) 
 
   const zoneLocalities = zone ? (DELIVERY_ZONES.find((z) => z.key === zone)?.localities ?? []) : [];
 
-  const where: Prisma.QuoteWhereInput = {
-    orderId: { not: null },
-    // Las anuladas no aparecen.
-    status: accounting ?? { not: QuoteStatus.ANULADO },
+  // Todo pedido vivo: los que nacen de una cotización (menos las anuladas) y
+  // los que crea un administrador directamente. Los históricos importados por
+  // archivo no entran: serían miles de filas ya entregadas.
+  const where: Prisma.OrderWhereInput = {
+    status:
+      view === "lista"
+        ? { not: OrderStatus.CANCELADO }
+        : { notIn: [OrderStatus.CANCELADO, OrderStatus.ENTREGADO] },
     ...(user.role === UserRole.VENDEDOR ? { sellerId: user.id } : {}),
-    order: {
-      status: { not: OrderStatus.CANCELADO },
-      // Por pulpa y por zona se agrupa lo que falta por entregar.
-      ...(view !== "lista" ? { status: { notIn: [OrderStatus.CANCELADO, OrderStatus.ENTREGADO] } } : {}),
-      ...(day
-        ? { requestedDeliveryDate: { gte: day, lte: endOfBusinessDay(day) } }
-        : {}),
-    },
-    ...(search
-      ? {
-          client: {
-            OR: [
-              { businessName: { contains: search, mode: "insensitive" as const } },
-              { tradeName: { contains: search, mode: "insensitive" as const } },
-            ],
-          },
-        }
-      : {}),
-    ...(zone
-      ? {
-          address: {
-            OR:
-              zone === "NACIONAL"
-                ? [{ locality: { not: null } }]
-                : zoneLocalities.map((locality) => ({
-                    locality: { equals: locality, mode: "insensitive" as const },
-                  })),
-          },
-        }
-      : {}),
+    AND: [
+      {
+        OR: [
+          { quote: { is: { status: { not: QuoteStatus.ANULADO } } } },
+          { quote: { is: null }, externalRef: null },
+        ],
+      },
+      ...(accounting === "SIN_COTIZACION"
+        ? [{ quote: { is: null } }]
+        : accounting
+          ? [{ quote: { is: { status: accounting } } }]
+          : []),
+      ...(day ? [{ requestedDeliveryDate: { gte: day, lte: endOfBusinessDay(day) } }] : []),
+      ...(search
+        ? [
+            {
+              client: {
+                OR: [
+                  { businessName: { contains: search, mode: "insensitive" as const } },
+                  { tradeName: { contains: search, mode: "insensitive" as const } },
+                ],
+              },
+            },
+          ]
+        : []),
+      ...(zone
+        ? [
+            {
+              address: {
+                OR:
+                  zone === "NACIONAL"
+                    ? [{ locality: { not: null } }]
+                    : zoneLocalities.map((locality) => ({
+                        locality: { equals: locality, mode: "insensitive" as const },
+                      })),
+              },
+            },
+          ]
+        : []),
+    ],
   };
 
   const paged = view === "lista";
-  const [rows, total] = await Promise.all([
-    prisma.quote.findMany({
+  const [orders, total] = await Promise.all([
+    prisma.order.findMany({
       where,
-      orderBy: { quoteDate: "desc" },
+      orderBy: { orderNumber: "desc" },
       skip: paged ? (page - 1) * pageSize : 0,
       take: paged ? pageSize : BOARD_LIMIT,
       select: {
         id: true,
-        code: true,
+        orderNumber: true,
         status: true,
+        requestedDeliveryDate: true,
+        dispatchNote: true,
+        quote: { select: { id: true, code: true, status: true } },
         client: { select: { businessName: true, tradeName: true } },
         address: { select: { address: true, locality: true, neighborhood: true } },
-        order: {
-          select: {
-            id: true,
-            orderNumber: true,
-            status: true,
-            requestedDeliveryDate: true,
-            dispatchNote: true,
-            route: { select: { name: true, status: true } },
-            items: { select: { productNameSnapshot: true, presentationSnapshot: true, quantity: true } },
-          },
-        },
+        route: { select: { name: true, status: true } },
+        items: { select: { productNameSnapshot: true, presentationSnapshot: true, quantity: true } },
       },
     }),
-    prisma.quote.count({ where }),
+    prisma.order.count({ where }),
   ]);
 
-  let board: OrderBoardRow[] = rows.flatMap((quote) => {
-    const order = quote.order;
-    if (!order) return [];
-
-    return [
-      {
-        orderId: order.id,
-        orderNumber: order.orderNumber,
-        quoteId: quote.id,
-        quoteCode: quote.code,
-        address: quote.address?.address ?? null,
-        zone: zoneForLocality(quote.address?.locality),
-        locality: quote.address?.locality ?? null,
-        client: quote.client.tradeName ?? quote.client.businessName,
-        neighborhood: quote.address?.neighborhood ?? null,
-        route: order.route?.name ?? null,
-        deliveryDate: order.requestedDeliveryDate,
-        accounting: quote.status,
-        production: productionState(order.status),
-        dispatch: dispatchState(order.status, order.route),
-        note: order.dispatchNote,
-        items: order.items.map((item) => ({
-          name: item.productNameSnapshot,
-          presentation: item.presentationSnapshot,
-          quantity: Number(item.quantity),
-        })),
-      },
-    ];
-  });
+  let board: OrderBoardRow[] = orders.map((order) => ({
+    orderId: order.id,
+    orderNumber: order.orderNumber,
+    quoteId: order.quote?.id ?? null,
+    quoteCode: order.quote?.code ?? null,
+    address: order.address?.address ?? null,
+    zone: zoneForLocality(order.address?.locality),
+    locality: order.address?.locality ?? null,
+    client: order.client.tradeName ?? order.client.businessName,
+    neighborhood: order.address?.neighborhood ?? null,
+    route: order.route?.name ?? null,
+    deliveryDate: order.requestedDeliveryDate,
+    accounting: order.quote?.status ?? "SIN_COTIZACION",
+    production: productionState(order.status),
+    dispatch: dispatchState(order.status, order.route),
+    note: order.dispatchNote,
+    items: order.items.map((item) => ({
+      name: item.productNameSnapshot,
+      presentation: item.presentationSnapshot,
+      quantity: Number(item.quantity),
+    })),
+  }));
 
   // Nacional también recoge lo que no está en ninguna lista: se afina aquí.
   if (zone === "NACIONAL") board = board.filter((row) => row.zone === "NACIONAL");

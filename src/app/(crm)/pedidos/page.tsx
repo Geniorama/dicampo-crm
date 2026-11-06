@@ -8,7 +8,8 @@ import { DispatchNoteCell } from "@/components/orders/dispatch-note-cell";
 import { Pagination } from "@/components/ui/pagination";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Plus } from "lucide-react";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input, Select } from "@/components/ui/field";
 import { formatCalendarDate, formatOrderNumber } from "@/lib/format";
@@ -21,8 +22,8 @@ import {
   PRESENTATION_SHORT,
   PRODUCTION_STATE_LABEL,
   PRODUCTION_STATE_TONE,
-  QUOTE_STATUS_LABEL,
-  QUOTE_STATUS_TONE,
+  ACCOUNTING_LABEL,
+  ACCOUNTING_TONE,
   toOptions,
 } from "@/lib/labels";
 import { cn } from "@/lib/utils";
@@ -30,7 +31,7 @@ import type { Presentation } from "@/generated/prisma/enums";
 
 export const metadata: Metadata = { title: "Pedidos" };
 
-const accountingOptions = toOptions(QUOTE_STATUS_LABEL);
+const accountingOptions = toOptions(ACCOUNTING_LABEL);
 
 const VIEWS = [
   { key: "lista", label: "Lista" },
@@ -66,9 +67,13 @@ function OrderRows({ rows }: { rows: OrderBoardRow[] }) {
                   {formatOrderNumber(row.orderNumber)}
                 </Link>
                 <p className="text-xs text-muted-foreground">
-                  <Link href={`/cotizaciones/${row.quoteId}`} className="hover:underline">
-                    {row.quoteCode}
-                  </Link>
+                  {row.quoteId ? (
+                    <Link href={`/cotizaciones/${row.quoteId}`} className="hover:underline">
+                      {row.quoteCode}
+                    </Link>
+                  ) : (
+                    "Sin cotización"
+                  )}
                 </p>
               </td>
               <td className="px-3 py-2.5 text-muted-foreground">{row.address ?? "—"}</td>
@@ -79,7 +84,7 @@ function OrderRows({ rows }: { rows: OrderBoardRow[] }) {
               <td className="px-3 py-2.5 text-muted-foreground">{row.route ?? "—"}</td>
               <td className="px-3 py-2.5 text-muted-foreground">{formatCalendarDate(row.deliveryDate)}</td>
               <td className="px-3 py-2.5">
-                <Badge tone={QUOTE_STATUS_TONE[row.accounting]}>{QUOTE_STATUS_LABEL[row.accounting]}</Badge>
+                <Badge tone={ACCOUNTING_TONE[row.accounting]}>{ACCOUNTING_LABEL[row.accounting]}</Badge>
               </td>
               <td className="px-3 py-2.5">
                 <Badge tone={PRODUCTION_STATE_TONE[row.production]}>{PRODUCTION_STATE_LABEL[row.production]}</Badge>
@@ -129,7 +134,15 @@ export default async function OrdersPage({
     <div className="space-y-5">
       <PageHeader
         title="Pedidos"
-        description={`${total} ${total === 1 ? "pedido" : "pedidos"} · nacen de las cotizaciones de los asesores`}
+        description={`${total} ${total === 1 ? "pedido" : "pedidos"} · nacen de las cotizaciones; un administrador también puede crear uno directo`}
+        actions={
+          user.role === "ADMIN" ? (
+            <Link href="/pedidos/nuevo" className={buttonVariants()}>
+              <Plus aria-hidden="true" />
+              Nuevo pedido
+            </Link>
+          ) : undefined
+        }
       />
 
       <Card>

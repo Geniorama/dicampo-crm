@@ -1,5 +1,5 @@
 import type { NextRequest } from "next/server";
-import { requireUser, SALES_ROLES } from "@/server/guards";
+import { requireAdmin, requireUser } from "@/server/guards";
 import { created, ok, readJson, route } from "@/server/http";
 import { createOrder, listOrders } from "@/server/services/orders";
 import {
@@ -19,9 +19,9 @@ export const GET = route(async (request: NextRequest) => {
   return ok(await listOrders(user, query));
 });
 
-/** POST /api/pedidos — crea un pedido en borrador. */
+/** POST /api/pedidos — un administrador crea un pedido directo (sin cotización), en borrador. */
 export const POST = route(async (request: NextRequest) => {
-  const user = await requireUser(SALES_ROLES);
+  const user = await requireAdmin();
   const input = orderCreateSchema.parse(await readJson(request));
 
   return created(await createOrder(user, input));

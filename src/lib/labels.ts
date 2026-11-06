@@ -179,6 +179,17 @@ export const QUOTE_STATUS_TONE: Record<QuoteStatus, BadgeTone> = {
   ANULADO: "danger",
 };
 
+/** Estado contable de un pedido: el de su cotización, o ninguno si lo creó un admin directo. */
+export const ACCOUNTING_LABEL: Record<QuoteStatus | "SIN_COTIZACION", string> = {
+  ...QUOTE_STATUS_LABEL,
+  SIN_COTIZACION: "Sin cotización",
+};
+
+export const ACCOUNTING_TONE: Record<QuoteStatus | "SIN_COTIZACION", BadgeTone> = {
+  ...QUOTE_STATUS_TONE,
+  SIN_COTIZACION: "neutral",
+};
+
 /** Texto del formulario de cotización sobre qué pasa con el inventario. */
 export const QUOTE_INVENTORY_NOTE =
   "La cotización reserva inventario, la factura lo confirma, la anulación devuelve inventario.";
