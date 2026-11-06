@@ -3,13 +3,14 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { api, ApiClientError } from "@/lib/api-client";
-import { PAYMENT_METHOD_LABEL, toOptions } from "@/lib/labels";
+import { PAYMENT_METHOD_LABEL, PAYMENT_RECEIVER_LABEL, toOptions } from "@/lib/labels";
 import { formatCOP } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Input, Select } from "@/components/ui/field";
-import type { PaymentMethod } from "@/generated/prisma/enums";
+import type { PaymentMethod, PaymentReceiver } from "@/generated/prisma/enums";
 
 const methodOptions = toOptions(PAYMENT_METHOD_LABEL);
+const receiverOptions = toOptions(PAYMENT_RECEIVER_LABEL);
 
 /**
  * Registro de un abono. Se propone el saldo completo (lo más común es que el
@@ -28,6 +29,7 @@ export function PaymentForm({
   const [open, setOpen] = useState(false);
   const [amount, setAmount] = useState(String(balance));
   const [method, setMethod] = useState<PaymentMethod>("EFECTIVO");
+  const [receivedBy, setReceivedBy] = useState<PaymentReceiver | "">("");
   const [reference, setReference] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -42,6 +44,7 @@ export function PaymentForm({
       await api.post(`/api/pedidos/${orderId}/pagos`, {
         amount: value,
         method,
+        receivedBy: receivedBy || undefined,
         reference: reference || undefined,
       });
       setOpen(false);
@@ -74,7 +77,7 @@ export function PaymentForm({
       <p className="text-xs text-muted-foreground">
         {orderNumber} · saldo {formatCOP(balance)}
       </p>
-      <div className="grid gap-2 sm:grid-cols-3">
+      <div className="grid gap-2 sm:grid-cols-4">
         <Input
           aria-label={`Valor del pago de ${orderNumber}`}
           type="number"
@@ -91,6 +94,18 @@ export function PaymentForm({
           onChange={(event) => setMethod(event.target.value as PaymentMethod)}
         >
           {methodOptions.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </Select>
+        <Select
+          aria-label={`Quién recibió el pago de ${orderNumber}`}
+          value={receivedBy}
+          onChange={(event) => setReceivedBy(event.target.value as PaymentReceiver | "")}
+        >
+          <option value="">¿Quién recibió?</option>
+          {receiverOptions.map((option) => (
             <option key={option.value} value={option.value}>
               {option.label}
             </option>

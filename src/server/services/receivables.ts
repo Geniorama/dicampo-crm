@@ -1,16 +1,19 @@
 import { prisma } from "../db";
 import type { Prisma } from "@/generated/prisma/client";
 import { BusinessRuleError, ForbiddenError, NotFoundError } from "../errors";
-import { OrderStatus, UserRole } from "@/generated/prisma/enums";
+import { BillingMode, OrderStatus, UserRole } from "@/generated/prisma/enums";
 import { scopeToOwnPortfolio, type SessionUser } from "../guards";
 import { lockKey } from "../locks";
 import {
   AGING_LABEL,
+  collectionPriority,
+  isBlockedForPayment,
   paymentStatusFor,
   summarizeClient,
   type AgingBucket,
 } from "@/lib/receivables";
-import type { PaymentCreateInput, ReceivablesQuery } from "../validators/payments";
+import { PAYMENT_BLOCK_LABEL } from "@/lib/labels";
+import type { CollectionUpdateInput, PaymentCreateInput, ReceivablesQuery } from "../validators/payments";
 
 /**
  * Cartera y pagos.
@@ -19,6 +22,13 @@ import type { PaymentCreateInput, ReceivablesQuery } from "../validators/payment
  * suma de sus pagos, y `Order.paymentStatus` se recalcula con cada pago: no se
  * escribe a mano, así no puede contradecir lo cobrado.
  */
+
+/** Meses hacia atrás desde `now`, para el filtro de entregas recientes. */
+function monthsAgo(now: Date, months: number): Date {
+  const date = new Date(now);
+  date.setUTCMonth(date.getUTCMonth() - months);
+  return date;
+}
 
 /** Clientes con saldo, del más vencido al menos. Un VENDEDOR ve su cartera. */
 export async function listReceivables(
@@ -29,13 +39,15 @@ export async function listReceivables(
   const orders = await prisma.order.findMany({
     where: {
       status: OrderStatus.ENTREGADO,
-      deliveredAt: { not: null },
+      deliveredAt: query.months ? { gte: monthsAgo(now, query.months) } : { not: null },
       // Un pedido pagado no tiene saldo: se descarta en la consulta en vez de
       // traer todo el histórico. `paymentStatus` se recalcula con cada pago.
       paymentStatus: { not: "PAGADO" },
       client: {
         ...scopeToOwnPortfolio(user),
         ...(query.ownerId && user.role !== UserRole.VENDEDOR ? { ownerId: query.ownerId } : {}),
+        ...(query.clientType ? { type: query.clientType } : {}),
+        ...(query.collectionStatus ? { collectionStatus: query.collectionStatus } : {}),
         ...(query.search
           ? {
               OR: [
@@ -59,8 +71,25 @@ export async function listReceivables(
           businessName: true,
           tradeName: true,
           phone: true,
+          type: true,
+          billingMode: true,
+          isSuperDistributor: true,
+          collectionStatus: true,
+          collectionNote: true,
           creditLimit: true,
           owner: { select: { id: true, name: true } },
+          contacts: {
+            where: { active: true },
+            orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
+            take: 1,
+            select: { firstName: true, lastName: true, phone: true, whatsapp: true },
+          },
+          addresses: {
+            where: { active: true },
+            orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
+            take: 1,
+            select: { locality: true },
+          },
         },
       },
     },
@@ -89,12 +118,32 @@ export async function listReceivables(
       );
 
       const creditLimit = Number(client.creditLimit);
+      const contact = client.contacts[0];
+      const oldest = summary.orders.reduce<Date | null>(
+        (min, order) => (min === null || order.deliveredAt < min ? order.deliveredAt : min),
+        null,
+      );
+      const isRemission = client.billingMode === BillingMode.REMISION;
 
       return {
         clientId: client.id,
         name: client.tradeName ?? client.businessName,
         phone: client.phone,
         owner: client.owner,
+        type: client.type,
+        isSuperDistributor: client.isSuperDistributor,
+        collectionStatus: client.collectionStatus,
+        collectionNote: client.collectionNote,
+        contactName: contact ? [contact.firstName, contact.lastName].filter(Boolean).join(" ") : null,
+        mobile: contact?.whatsapp ?? contact?.phone ?? client.phone,
+        locality: client.addresses[0]?.locality ?? null,
+        pendingCount: summary.orders.length,
+        /** Saldo en remisiones y en facturas, según cómo se documenta al cliente. */
+        remissionBalance: isRemission ? summary.balance : 0,
+        invoiceBalance: isRemission ? 0 : summary.balance,
+        oldestDeliveredAt: oldest,
+        priority: collectionPriority(summary.maxOverdueDays),
+        blocked: isBlockedForPayment(summary.maxOverdueDays),
         creditLimit,
         // Si debe más que su cupo aprobado, conviene frenar nuevos pedidos a crédito.
         overCreditLimit: creditLimit > 0 && summary.balance > creditLimit,
@@ -115,12 +164,30 @@ export async function listReceivables(
     }
   }
 
+  const sum = (rows: typeof clients, pick: (c: (typeof clients)[number]) => number) =>
+    rows.reduce((total, client) => total + pick(client), 0);
+  const team = clients.filter((client) => !client.isSuperDistributor);
+  const supers = clients.filter((client) => client.isSuperDistributor);
+
   return {
     clients,
     totals: {
-      balance: clients.reduce((sum, client) => sum + client.balance, 0),
-      overdue: clients.reduce((sum, client) => sum + client.overdue, 0),
+      balance: sum(clients, (c) => c.balance),
+      overdue: sum(clients, (c) => c.overdue),
       clientCount: clients.length,
+    },
+    /** Las cuatro tarjetas del encabezado: valor y número de clientes. */
+    cards: {
+      total: { amount: sum(clients, (c) => c.balance), clients: clients.length },
+      superDistributors: { amount: sum(supers, (c) => c.balance), clients: supers.length },
+      teamRemissions: {
+        amount: sum(team, (c) => c.remissionBalance),
+        clients: team.filter((c) => c.remissionBalance > 0).length,
+      },
+      teamInvoices: {
+        amount: sum(team, (c) => c.invoiceBalance),
+        clients: team.filter((c) => c.invoiceBalance > 0).length,
+      },
     },
     aging: (["AL_DIA", "1_30", "31_60", "MAS_60"] as const).map((bucket) => ({
       bucket,
@@ -128,6 +195,68 @@ export async function listReceivables(
       amount: aging.get(bucket) ?? 0,
     })),
   };
+}
+
+/** Mayor atraso, en días, entre los pedidos entregados con saldo de un cliente. */
+export async function clientMaxOverdueDays(clientId: string, now: Date = new Date()): Promise<number> {
+  const orders = await prisma.order.findMany({
+    where: {
+      clientId,
+      status: OrderStatus.ENTREGADO,
+      deliveredAt: { not: null },
+      paymentStatus: { not: "PAGADO" },
+    },
+    select: {
+      id: true,
+      total: true,
+      deliveredAt: true,
+      paymentTerms: true,
+      payments: { select: { amount: true } },
+    },
+  });
+
+  return summarizeClient(
+    orders.map((order) => ({
+      id: order.id,
+      total: Number(order.total),
+      paid: order.payments.reduce((sum, payment) => sum + Number(payment.amount), 0),
+      deliveredAt: order.deliveredAt!,
+      terms: order.paymentTerms,
+    })),
+    now,
+  ).maxOverdueDays;
+}
+
+/**
+ * Un cliente con mora crítica no recibe cotizaciones nuevas. Un ADMIN puede
+ * saltarse el bloqueo (por ejemplo, tras un acuerdo de pago).
+ */
+export async function assertClientNotBlocked(user: SessionUser, clientId: string, now: Date = new Date()) {
+  if (user.role === UserRole.ADMIN) return;
+  const days = await clientMaxOverdueDays(clientId, now);
+  if (isBlockedForPayment(days)) {
+    throw new BusinessRuleError(
+      `${PAYMENT_BLOCK_LABEL}: tiene ${days} días de mora. Un administrador puede autorizar la cotización.`,
+    );
+  }
+}
+
+/** Estado y observaciones de cobro de un cliente. */
+export async function updateCollection(user: SessionUser, clientId: string, input: CollectionUpdateInput) {
+  const client = await prisma.client.findFirst({
+    where: { id: clientId, ...scopeToOwnPortfolio(user) },
+    select: { id: true },
+  });
+  if (!client) throw new NotFoundError("El cliente");
+
+  return prisma.client.update({
+    where: { id: clientId },
+    data: {
+      collectionStatus: input.collectionStatus,
+      ...(input.collectionNote !== undefined ? { collectionNote: input.collectionNote } : {}),
+    },
+    select: { id: true, collectionStatus: true, collectionNote: true },
+  });
 }
 
 /** Pagos de un pedido, del más reciente al más antiguo, con el saldo vigente. */
@@ -160,6 +289,7 @@ export async function getOrderPayments(user: SessionUser, orderId: string) {
       id: payment.id,
       amount: Number(payment.amount),
       method: payment.method,
+      receivedBy: payment.receivedBy,
       paidAt: payment.paidAt,
       reference: payment.reference,
       registeredBy: payment.user?.name ?? null,
@@ -227,6 +357,7 @@ export async function recordPayment(
       orderId,
       amount: input.amount,
       method: input.method,
+      receivedBy: input.receivedBy,
       paidAt: input.paidAt ?? new Date(),
       reference: input.reference,
       userId: user.id,

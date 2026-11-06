@@ -71,3 +71,22 @@ describe("summarizeClient", () => {
     expect(result.orders[0].id).toBe("a");
   });
 });
+
+import { collectionPriority, isBlockedForPayment } from "./receivables";
+
+describe("prioridad de cobro", () => {
+  it("clasifica por días de mora", () => {
+    expect(collectionPriority(0)).toBe("BAJO");
+    expect(collectionPriority(4)).toBe("BAJO");
+    expect(collectionPriority(5)).toBe("MEDIO");
+    expect(collectionPriority(8)).toBe("MEDIO");
+    expect(collectionPriority(9)).toBe("ALTO");
+    expect(collectionPriority(13)).toBe("ALTO");
+    expect(collectionPriority(14)).toBe("CRITICO");
+  });
+
+  it("bloquea desde 14 días", () => {
+    expect(isBlockedForPayment(13)).toBe(false);
+    expect(isBlockedForPayment(14)).toBe(true);
+  });
+});

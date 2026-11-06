@@ -151,37 +151,40 @@ enum DocType {
 }
 
 model Client {
-  id                  String       @id @default(cuid())
+  id                  String           @id @default(cuid())
   /// Consecutivo generado por Postgres; se muestra como "CLI-0042".
   /// Delegarlo a una secuencia evita la condición de carrera de contar filas.
-  sequence            Int          @unique @default(autoincrement())
+  sequence            Int              @unique @default(autoincrement())
   /// Razón social
   businessName        String
   /// Nombre comercial / del establecimiento
   tradeName           String?
   /// NIT sin dígito de verificación
-  nit                 String?      @unique
+  nit                 String?          @unique
   /// Dígito de verificación del NIT
   nitDv               String?
-  type                ClientType   @default(OTRO)
-  status              ClientStatus @default(PROSPECTO)
+  type                ClientType       @default(OTRO)
+  status              ClientStatus     @default(PROSPECTO)
   email               String?
   phone               String?
   ownerId             String?
   priceListId         String?
-  paymentTerms        PaymentTerms @default(CONTADO)
-  billingMode         BillingMode  @default(FACTURA)
+  paymentTerms        PaymentTerms     @default(CONTADO)
+  billingMode         BillingMode      @default(FACTURA)
   /// Uno de los 8 superdistribuidores (compran al por mayor). Solo un ADMIN lo cambia.
-  isSuperDistributor  Boolean      @default(false)
+  isSuperDistributor  Boolean          @default(false)
+  /// Gestión de cobro: estado y observaciones de cartera
+  collectionStatus    CollectionStatus @default(PENDIENTE_PAGO)
+  collectionNote      String?
   /// Negociación especial "X-Y" (15-10): X % de descuento en el primer pedido
   /// de cada sede y Y % en los siguientes. Nulo = sin negociación.
   negotiationFirstPct Int?
   negotiationNextPct  Int?
   /// Cupo de crédito aprobado en COP
-  creditLimit         Decimal      @default(0) @db.Decimal(14, 2)
-  notes               String?      @db.Text
-  createdAt           DateTime     @default(now())
-  updatedAt           DateTime     @updatedAt
+  creditLimit         Decimal          @default(0) @db.Decimal(14, 2)
+  notes               String?          @db.Text
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
 
   owner         User?                  @relation("ClientOwner", fields: [ownerId], references: [id], onDelete: SetNull)
   priceList     PriceList?             @relation(fields: [priceListId], references: [id], onDelete: SetNull)
@@ -531,7 +534,26 @@ model Order {
 enum PaymentMethod {
   EFECTIVO
   TRANSFERENCIA
+  BANCOLOMBIA
+  CAJA_SOCIAL
+  NEQUI
   OTRO
+}
+
+/// Quién recibió el dinero de un pago.
+enum PaymentReceiver {
+  DAVID
+  DOMICILIARIO
+  KAREN_CARTERA
+  ASESOR
+}
+
+/// Gestión de cobro de un cliente con cartera.
+enum CollectionStatus {
+  PENDIENTE_PAGO
+  RECAUDADO
+  NO_CONTESTA
+  ACUERDO_PAGO
 }
 
 /// Pago recibido de un pedido. Un pedido puede pagarse en varios abonos; el
@@ -539,16 +561,18 @@ enum PaymentMethod {
 /// Solo se insertan: un pago mal digitado se corrige con otro que lo compense
 /// (el cobro es dinero, no se edita en silencio).
 model Payment {
-  id        String        @id @default(cuid())
-  orderId   String
-  amount    Decimal       @db.Decimal(14, 2)
-  method    PaymentMethod @default(EFECTIVO)
+  id         String           @id @default(cuid())
+  orderId    String
+  amount     Decimal          @db.Decimal(14, 2)
+  method     PaymentMethod    @default(EFECTIVO)
   /// Fecha en que se recibió el dinero
-  paidAt    DateTime      @default(now())
+  paidAt     DateTime         @default(now())
   /// Referencia de la transferencia, recibo, etc.
-  reference String?
-  userId    String?
-  createdAt DateTime      @default(now())
+  reference  String?
+  /// Quién recibió el dinero (nulo en pagos anteriores al campo)
+  receivedBy PaymentReceiver?
+  userId     String?
+  createdAt  DateTime         @default(now())
 
   order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
   user  User? @relation(fields: [userId], references: [id], onDelete: SetNull)

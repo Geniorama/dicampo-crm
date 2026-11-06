@@ -110,3 +110,23 @@ export function summarizeClient(
     orders: views,
   };
 }
+
+// ── Prioridad de cobro y bloqueo ─────────────────────────────
+
+export type CollectionPriority = "CRITICO" | "ALTO" | "MEDIO" | "BAJO";
+
+/** Días de mora desde los que un cliente queda bloqueado para cotizar. */
+export const BLOCK_DAYS = 14;
+
+/** Crítico ≥14 días, Alto 9–13, Medio 5–8, Bajo menos de 5. */
+export function collectionPriority(overdueDays: number): CollectionPriority {
+  if (overdueDays >= BLOCK_DAYS) return "CRITICO";
+  if (overdueDays >= 9) return "ALTO";
+  if (overdueDays >= 5) return "MEDIO";
+  return "BAJO";
+}
+
+/** Un cliente en prioridad crítica no puede recibir cotizaciones nuevas. */
+export function isBlockedForPayment(overdueDays: number): boolean {
+  return overdueDays >= BLOCK_DAYS;
+}

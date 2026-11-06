@@ -1,4 +1,5 @@
 import type { BadgeTone } from "@/components/ui/badge";
+import type { CollectionPriority } from "@/lib/receivables";
 import type {
   ActivityType,
   BillingMode,
@@ -16,6 +17,8 @@ import type {
   OrderChannel,
   OrderStatus,
   PaymentMethod,
+  PaymentReceiver,
+  CollectionStatus,
   PaymentStatus,
   PaymentTerms,
   Presentation,
@@ -207,8 +210,41 @@ export const PAYMENT_STATUS_TONE: Record<PaymentStatus, BadgeTone> = {
 export const PAYMENT_METHOD_LABEL: Record<PaymentMethod, string> = {
   EFECTIVO: "Efectivo",
   TRANSFERENCIA: "Transferencia",
+  BANCOLOMBIA: "Bancolombia",
+  CAJA_SOCIAL: "Caja Social",
+  NEQUI: "Nequi",
   OTRO: "Otro",
 };
+
+export const PAYMENT_RECEIVER_LABEL: Record<PaymentReceiver, string> = {
+  DAVID: "David",
+  DOMICILIARIO: "Domiciliario",
+  KAREN_CARTERA: "Karen (cartera)",
+  ASESOR: "Asesor",
+};
+
+export const COLLECTION_STATUS_LABEL: Record<CollectionStatus, string> = {
+  PENDIENTE_PAGO: "Pendiente de pago",
+  RECAUDADO: "Recaudado",
+  NO_CONTESTA: "No contesta",
+  ACUERDO_PAGO: "Acuerdo de pago",
+};
+
+export const COLLECTION_PRIORITY_LABEL: Record<CollectionPriority, string> = {
+  CRITICO: "Crítico",
+  ALTO: "Alto",
+  MEDIO: "Medio",
+  BAJO: "Bajo",
+};
+
+export const COLLECTION_PRIORITY_TONE: Record<CollectionPriority, BadgeTone> = {
+  CRITICO: "danger",
+  ALTO: "warning",
+  MEDIO: "info",
+  BAJO: "success",
+};
+
+export const PAYMENT_BLOCK_LABEL = "Bloqueado por falta de pago";
 
 export const DELIVERY_FAIL_REASON_LABEL: Record<DeliveryFailReason, string> = {
   CLIENTE_AUSENTE: "El cliente no estaba",

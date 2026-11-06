@@ -9,6 +9,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import type { SessionUser } from "../guards";
 import { buildPriceResolver } from "./pricing";
 import { createOrder } from "./orders";
+import { assertClientNotBlocked } from "./receivables";
 import { lockKey } from "../locks";
 import { TZDate } from "@date-fns/tz";
 import { BUSINESS_TIME_ZONE } from "@/lib/format";
@@ -399,6 +400,8 @@ async function nextQuoteCode(tx: Prisma.TransactionClient, date: Date): Promise<
 
 export async function createQuote(user: SessionUser, input: QuoteCreateInput) {
   const client = await loadClientForQuote(user, input.clientId);
+  // Mora crítica: no se cotiza hasta que pague (un ADMIN puede autorizarlo).
+  await assertClientNotBlocked(user, client.id);
 
   const addressId = input.addressId ?? client.addresses[0]?.id;
   if (addressId && !client.addresses.some((a) => a.id === addressId)) {
