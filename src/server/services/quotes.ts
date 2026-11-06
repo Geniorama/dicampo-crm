@@ -268,20 +268,24 @@ async function resolveDiscountPolicy(
 ) {
   const notSelf = excludeQuoteId ? { id: { not: excludeQuoteId } } : {};
   const live = { status: { not: OrderStatus.CANCELADO } };
+  // Una cotización anulada no cuenta: devolvió el pedido y el inventario.
+  const liveQuote = { status: { not: QuoteStatus.ANULADO }, ...notSelf };
 
-  const [clientOrders, addressQuotes, addressOrders] = await Promise.all([
+  const [clientOrders, clientQuotes, addressQuotes, addressOrders] = await Promise.all([
     prisma.order.count({ where: { clientId: client.id, ...live } }),
+    prisma.quote.count({ where: { clientId: client.id, ...liveQuote } }),
     addressId
-      ? prisma.quote.count({ where: { clientId: client.id, addressId, ...notSelf } })
+      ? prisma.quote.count({ where: { clientId: client.id, addressId, ...liveQuote } })
       : Promise.resolve(0),
     addressId
       ? prisma.order.count({ where: { clientId: client.id, addressId, ...live } })
       : Promise.resolve(0),
   ]);
 
-  // "Cliente nuevo" es el que no ha hecho su primer pedido: cotizaciones
-  // previas (rechazadas, vencidas o rehechas) no le quitan la promo.
-  const clientHasHistory = clientOrders > 0;
+  // Solo es "cliente nuevo" (15 % fijo) quien nunca ha cotizado ni pedido. Un
+  // cliente actual —con cotizaciones o pedidos, incluido el histórico— nunca
+  // recibe la promo: va de 0 a 8 % o por su negociación especial.
+  const clientHasHistory = clientOrders > 0 || clientQuotes > 0;
   // Sin sede indicada, "la sede" es el cliente entero.
   const addressHasHistory = addressId ? addressQuotes + addressOrders > 0 : clientHasHistory;
 
@@ -297,10 +301,9 @@ async function resolveDiscountPolicy(
 
 /**
  * Valida el descuento pedido contra la política y devuelve el definitivo con
- * su rótulo. Un ADMIN puede salirse de los topes; un vendedor no.
+ * su rótulo. Los topes no se saltan.
  */
 function settleDiscount(
-  user: SessionUser,
   policy: ReturnType<typeof discountPolicy>,
   requested: number | undefined,
 ) {
@@ -313,17 +316,16 @@ function settleDiscount(
     );
   }
 
+  // Los topes valen para todos, también para un ADMIN: un cliente actual lleva
+  // de 0 a 8 % (o el de su negociación especial); el 15 % es solo del nuevo.
   if (!isDiscountAllowed(policy, pct)) {
-    if (user.role !== UserRole.ADMIN) {
-      const hint =
-        "only" in policy.allowed
-          ? policy.allowed.only.map((value) => `${value} %`).join(" o ")
-          : `de ${policy.allowed.min} a ${policy.allowed.max} %`;
-      throw new BusinessRuleError(
-        `El descuento de ${pct} % no está permitido para este cliente (${hint}).`,
-      );
-    }
-    return { pct, label: discountLabel("MANUAL", pct) };
+    const hint =
+      "only" in policy.allowed
+        ? policy.allowed.only.map((value) => `${value} %`).join(" o ")
+        : `de ${policy.allowed.min} a ${policy.allowed.max} %`;
+    throw new BusinessRuleError(
+      `El descuento de ${pct} % no está permitido para este cliente (${hint}).`,
+    );
   }
 
   return {
@@ -477,7 +479,7 @@ export async function createQuote(user: SessionUser, input: QuoteCreateInput) {
 
     const policy = await resolveDiscountPolicy(client, addressId);
     isNewClient = isNewClient || policy.kind === "NUEVO";
-    const discount = settleDiscount(user, policy, input.discountPercent);
+    const discount = settleDiscount(policy, input.discountPercent);
 
     const sellerId = await resolveOrderSeller(user, input.sellerId, client.ownerId);
     const { totals, data, priceListId, priceListName } = await buildQuoteItems(
