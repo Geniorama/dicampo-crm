@@ -13,9 +13,11 @@ const optionalText = (max = 255) =>
 export const batchCreateSchema = z
   .object({
     productId: z.string().cuid(),
+    /** Presentación del lote (kilo, libra, zumo…); sin ella, la de 1 kg. */
+    variantId: z.string().cuid().optional(),
     date: z.coerce.date(),
     /** Kilos de fruta que entraron a despulpar. */
-    fruitKg: z.coerce.number().positive("Indica los kilos de fruta").max(100_000),
+    fruitKg: z.coerce.number().min(0).max(100_000),
     /** Pulpa para la venta: se vuelve un lote con FEFO. */
     publicKg: z.coerce.number().min(0).max(100_000),
     /** Pulpa a granel: se contabiliza pero no se vende por el catálogo. */
@@ -28,7 +30,7 @@ export const batchCreateSchema = z
     path: ["publicKg"],
     message: "Reparte al menos un kilo de pulpa.",
   })
-  .refine((data) => data.publicKg + data.bulkKg <= data.fruitKg, {
+  .refine((data) => data.fruitKg === 0 || data.publicKg + data.bulkKg <= data.fruitKg, {
     path: ["publicKg"],
     message: "La pulpa no puede pesar más que la fruta recibida.",
   })

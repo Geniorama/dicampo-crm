@@ -1,4 +1,5 @@
 import { prisma } from "../db";
+import { findDefaultPriceList } from "./default-price-list";
 import { ConflictError, NotFoundError } from "../errors";
 import { Presentation } from "@/generated/prisma/enums";
 import {
@@ -52,10 +53,7 @@ export async function listProducts(query: ProductListQuery) {
         where: { id: priceListId },
         select: { id: true, name: true },
       })
-    : await prisma.priceList.findFirst({
-        where: { isDefault: true, active: true },
-        select: { id: true, name: true },
-      });
+    : await findDefaultPriceList(prisma);
 
   const products = await prisma.product.findMany({
     where: {
@@ -152,10 +150,7 @@ export async function createProduct(input: ProductCreateInput) {
     });
 
     if (firstPrice !== undefined) {
-      const defaultList = await tx.priceList.findFirst({
-        where: { isDefault: true, active: true },
-        select: { id: true },
-      });
+      const defaultList = await findDefaultPriceList(tx);
 
       if (defaultList) {
         await tx.priceListItem.create({
@@ -239,10 +234,7 @@ export async function addVariant(productId: string, input: VariantCreateInput) {
     });
 
     if (input.price !== undefined) {
-      const defaultList = await tx.priceList.findFirst({
-        where: { isDefault: true, active: true },
-        select: { id: true },
-      });
+      const defaultList = await findDefaultPriceList(tx);
 
       if (defaultList) {
         await tx.priceListItem.create({
@@ -285,10 +277,7 @@ export async function listSellableVariants(priceListId?: string) {
         where: { id: priceListId },
         select: { id: true },
       })
-    : await prisma.priceList.findFirst({
-        where: { isDefault: true, active: true },
-        select: { id: true },
-      });
+    : await findDefaultPriceList(prisma);
 
   return prisma.productVariant.findMany({
     where: { active: true, product: { active: true } },

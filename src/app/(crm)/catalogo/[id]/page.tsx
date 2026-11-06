@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { findDefaultPriceList } from "@/server/services/default-price-list";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { Pencil } from "lucide-react";
@@ -32,10 +33,7 @@ export default async function ProductDetailPage({
       if (error instanceof NotFoundError) notFound();
       throw error;
     }),
-    prisma.priceList.findFirst({
-      where: { isDefault: true, active: true },
-      select: { id: true, name: true },
-    }),
+    findDefaultPriceList(prisma),
   ]);
 
   // Solo administración puede tocar el catálogo: los precios son decisión

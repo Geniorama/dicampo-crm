@@ -17,9 +17,18 @@ export default async function ProductionPage() {
 
   const [products, batches] = await Promise.all([
     prisma.product.findMany({
-      where: { active: true, variants: { some: { presentation: "KILO", active: true } } },
-      orderBy: { name: "asc" },
-      select: { id: true, name: true, expectedYieldPct: true },
+      where: { active: true, variants: { some: { active: true } } },
+      orderBy: [{ category: "asc" }, { name: "asc" }],
+      select: {
+        id: true,
+        name: true,
+        expectedYieldPct: true,
+        variants: {
+          where: { active: true },
+          orderBy: { presentation: "asc" },
+          select: { id: true, presentation: true },
+        },
+      },
     }),
     listBatches(),
   ]);

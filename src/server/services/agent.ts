@@ -1,4 +1,5 @@
 import { prisma } from "../db";
+import { findDefaultPriceList } from "./default-price-list";
 import { BusinessRuleError, NotFoundError, ValidationError } from "../errors";
 import type { SessionUser } from "../guards";
 import { buildPriceResolver } from "./pricing";
@@ -295,10 +296,7 @@ export async function createLead(
     if (raced) return { created: false, clientId: raced.clientId, contactId: raced.id };
 
     const ownerId = await rotateSeller(tx);
-    const defaultList = await tx.priceList.findFirst({
-      where: { isDefault: true, active: true },
-      select: { id: true },
-    });
+    const defaultList = await findDefaultPriceList(tx);
 
     const name = splitName(input.nombreContacto);
     const businessName =

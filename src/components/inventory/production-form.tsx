@@ -8,11 +8,21 @@ import {
   addDaysToDateString,
   batchBreakdown,
 } from "@/lib/production";
+import { PRESENTATION_LABEL } from "@/lib/labels";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field, Input, Select, Textarea } from "@/components/ui/field";
 
-export type ProductOption = { id: string; name: string; expectedYieldPct: number | null };
+export type ProductOption = {
+  id: string;
+  name: string;
+  expectedYieldPct: number | null;
+  variants: { id: string; presentation: string }[];
+};
+
+/** Kilo y libra son pulpa; el resto (zumos) se cuenta por unidades. */
+const isWeightPresentation = (presentation: string | undefined) =>
+  !presentation || presentation === "KILO" || presentation === "LIBRA";
 
 /**
  * Registro de una tanda de producción. El desperdicio se calcula solo —fruta
@@ -30,6 +40,7 @@ export function ProductionForm({
   const router = useRouter();
 
   const [productId, setProductId] = useState("");
+  const [variantId, setVariantId] = useState("");
   const [date, setDate] = useState(today);
   const [expiryDate, setExpiryDate] = useState(addDaysToDateString(today, DEFAULT_SHELF_LIFE_DAYS));
   const [expiryTouched, setExpiryTouched] = useState(false);
@@ -46,9 +57,16 @@ export function ProductionForm({
   const bulk = Number(bulkKg) || 0;
   const breakdown = useMemo(() => batchBreakdown(fruit, pub, bulk), [fruit, pub, bulk]);
   const product = products.find((item) => item.id === productId);
+  const variants = product?.variants ?? [];
+  const selectedVariant = variants.find((item) => item.id === variantId);
+  const weight = isWeightPresentation(selectedVariant?.presentation);
+  const unitLabel = weight ? "kg" : "unid.";
 
   const canSave =
-    Boolean(productId) && fruit > 0 && breakdown.pulpKg > 0 && !breakdown.exceedsFruit && !saving;
+    Boolean(productId) &&
+    breakdown.pulpKg > 0 &&
+    (!weight || (fruit > 0 && !breakdown.exceedsFruit)) &&
+    !saving;
 
   function changeDate(next: string) {
     setDate(next);
@@ -65,6 +83,7 @@ export function ProductionForm({
     try {
       await api.post("/api/produccion", {
         productId,
+        variantId: variantId || undefined,
         date,
         fruitKg: fruit,
         publicKg: pub,
@@ -72,8 +91,9 @@ export function ProductionForm({
         expiryDate: pub > 0 ? expiryDate : undefined,
         notes: notes || undefined,
       });
-      setDone(`${product?.name}: +${pub} kg de pulpa pública, ${bulk} kg a granel.`);
+      setDone(`${product?.name}: +${pub} ${unitLabel} de pulpa pública, ${bulk} ${unitLabel} a granel.`);
       setProductId("");
+      setVariantId("");
       setFruitKg("");
       setPublicKg("");
       setBulkKg("");
@@ -95,7 +115,16 @@ export function ProductionForm({
         <CardContent className="grid gap-4 sm:grid-cols-2">
           <Field id="productId" label="Fruta / producto" required className="sm:col-span-2">
             {(props) => (
-              <Select {...props} value={productId} onChange={(event) => setProductId(event.target.value)}>
+              <Select
+                {...props}
+                value={productId}
+                onChange={(event) => {
+                  const next = products.find((item) => item.id === event.target.value);
+                  setProductId(event.target.value);
+                  // Por defecto el kilo, que es lo habitual en una tanda.
+                  setVariantId(next?.variants.find((v) => v.presentation === "KILO")?.id ?? next?.variants[0]?.id ?? "");
+                }}
+              >
                 <option value="">Selecciona…</option>
                 {products.map((item) => (
                   <option key={item.id} value={item.id}>
@@ -106,13 +135,32 @@ export function ProductionForm({
             )}
           </Field>
 
+          {variants.length > 1 && (
+            <Field
+              id="variantId"
+              label="Presentación del lote"
+              hint="Las libras (500 g) entran como el doble de unidades que los kilos"
+              className="sm:col-span-2"
+            >
+              {(props) => (
+                <Select {...props} value={variantId} onChange={(event) => setVariantId(event.target.value)}>
+                  {variants.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {PRESENTATION_LABEL[item.presentation as keyof typeof PRESENTATION_LABEL] ?? item.presentation}
+                    </option>
+                  ))}
+                </Select>
+              )}
+            </Field>
+          )}
+
           <Field id="date" label="Fecha de producción" required>
             {(props) => (
               <Input {...props} type="date" value={date} onChange={(event) => changeDate(event.target.value)} />
             )}
           </Field>
 
-          <Field id="fruitKg" label="Kilos de fruta recibidos" required>
+          <Field id="fruitKg" label="Kilos de fruta recibidos" required={weight}>
             {(props) => (
               <Input
                 {...props}
@@ -126,7 +174,7 @@ export function ProductionForm({
             )}
           </Field>
 
-          <Field id="publicKg" label="Pulpa pública (kg)" hint="Se vende: entra como lote">
+          <Field id="publicKg" label={`Pulpa pública (${unitLabel})`} hint="Se vende: entra como lote">
             {(props) => (
               <Input
                 {...props}
@@ -140,7 +188,7 @@ export function ProductionForm({
             )}
           </Field>
 
-          <Field id="bulkKg" label="Pulpa a granel (kg)" hint="Se contabiliza; no entra al catálogo">
+          <Field id="bulkKg" label={`Pulpa a granel (${unitLabel})`} hint="Se contabiliza; no entra al catálogo">
             {(props) => (
               <Input
                 {...props}
@@ -181,7 +229,7 @@ export function ProductionForm({
             )}
           </Field>
 
-          {fruit > 0 && (
+          {fruit > 0 && weight && (
             <dl className="space-y-1 rounded-md bg-muted px-4 py-3 text-sm sm:col-span-2">
               <div className="flex justify-between">
                 <dt className="text-muted-foreground">Pulpa total</dt>

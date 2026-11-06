@@ -1,4 +1,5 @@
 import { prisma } from "../db";
+import { findDefaultPriceList } from "./default-price-list";
 import { BusinessRuleError, NotFoundError } from "../errors";
 import type { PriceBulkUpdateInput, PriceListCreateInput } from "../validators/catalog";
 
@@ -52,10 +53,7 @@ export async function buildPriceResolver(
 
   const effectiveList =
     priceList ??
-    (await prisma.priceList.findFirst({
-      where: { isDefault: true, active: true },
-      select: { id: true, name: true },
-    }));
+    (await findDefaultPriceList(prisma));
 
   if (!effectiveList) {
     throw new BusinessRuleError(

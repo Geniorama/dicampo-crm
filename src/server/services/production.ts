@@ -48,8 +48,10 @@ export async function registerBatch(user: SessionUser, input: BatchCreateInput) 
       baseFruit: true,
       active: true,
       variants: {
-        where: { presentation: Presentation.KILO, active: true },
-        select: { id: true, sku: true },
+        where: input.variantId
+          ? { id: input.variantId, active: true }
+          : { presentation: Presentation.KILO, active: true },
+        select: { id: true, sku: true, presentation: true },
         take: 1,
       },
     },
@@ -58,11 +60,25 @@ export async function registerBatch(user: SessionUser, input: BatchCreateInput) 
   if (!product || !product.active) throw new NotFoundError("El producto");
 
   const variant = product.variants[0];
+  if (input.variantId && !variant) {
+    throw new BusinessRuleError("Esa presentación no existe o está inactiva.");
+  }
   if (input.publicKg > 0 && !variant) {
     throw new BusinessRuleError(
       `${product.name} no tiene presentación de 1 kg: créala en el catálogo para registrar pulpa pública.`,
     );
   }
+
+  // Kilo y libra son pulpa y se miden contra la fruta; los zumos se cuentan por unidades.
+  const isWeight = !variant || variant.presentation === Presentation.KILO || variant.presentation === Presentation.LIBRA;
+  if (isWeight && input.fruitKg <= 0) {
+    throw new BusinessRuleError("Indica los kilos de fruta recibidos.");
+  }
+  if (isWeight && input.publicKg + input.bulkKg > input.fruitKg) {
+    throw new BusinessRuleError("La pulpa no puede pesar más que la fruta recibida.");
+  }
+  // Una libra es medio kilo: los kilos de pulpa pública son el doble en libras.
+  const lotQuantity = variant?.presentation === Presentation.LIBRA ? input.publicKg * 2 : input.publicKg;
 
   if (input.expiryDate && input.expiryDate <= input.date) {
     throw new BusinessRuleError("El vencimiento debe ser posterior a la fecha de producción.");
@@ -84,8 +100,8 @@ export async function registerBatch(user: SessionUser, input: BatchCreateInput) 
           lotCode: await nextLotCode(tx, variant.id, variant.sku, input.date),
           productionDate: input.date,
           expiryDate: input.expiryDate!,
-          quantityInitial: input.publicKg,
-          quantityAvailable: input.publicKg,
+          quantityInitial: lotQuantity,
+          quantityAvailable: lotQuantity,
           notes: input.notes,
         },
       });
@@ -96,7 +112,7 @@ export async function registerBatch(user: SessionUser, input: BatchCreateInput) 
           type: StockMovementType.ENTRADA_PRODUCCION,
           variantId: variant.id,
           lotId: lot.id,
-          quantity: input.publicKg,
+          quantity: lotQuantity,
           userId: user.id,
           reason: "Tanda de producción",
         },

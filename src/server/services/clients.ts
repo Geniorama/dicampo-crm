@@ -1,4 +1,5 @@
 import { prisma } from "../db";
+import { findDefaultPriceList } from "./default-price-list";
 import {
   BusinessRuleError,
   ConflictError,
@@ -275,10 +276,7 @@ export async function createClient(user: SessionUser, input: ClientCreateInput) 
   const priceListId =
     input.priceListId ??
     (
-      await prisma.priceList.findFirst({
-        where: { isDefault: true, active: true },
-        select: { id: true },
-      })
+      await findDefaultPriceList(prisma)
     )?.id;
 
   const { negotiation, ...clientData } = input;
