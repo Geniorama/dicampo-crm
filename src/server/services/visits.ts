@@ -1,7 +1,7 @@
 import { prisma } from "../db";
 import { BusinessRuleError, ForbiddenError, NotFoundError } from "../errors";
 import type { SessionUser } from "../guards";
-import { ActivityType, ClientStatus, OpportunityStage, UserRole } from "@/generated/prisma/enums";
+import { ActivityType, ClientStatus, OpportunityStage, UserRole, VisitCategory } from "@/generated/prisma/enums";
 import { NEW_CLIENT_VISIT_TITLE, VISIT_REASON_LABEL } from "@/lib/labels";
 import { addAddress, addContact, createClient } from "./clients";
 import { createActivity, createOpportunity } from "./pipeline";
@@ -26,6 +26,9 @@ export async function createVisit(user: SessionUser, input: VisitCreateInput) {
 
   let clientId: string;
   let title: string;
+  // Demostración a un negocio nuevo; fidelización a un cliente actual.
+  const defaultCategory: VisitCategory =
+    input.kind === "NUEVO" ? VisitCategory.DEMOSTRACION : VisitCategory.FIDELIZACION;
   const notes: string[] = [];
 
   if (input.kind === "NUEVO") {
@@ -94,6 +97,7 @@ export async function createVisit(user: SessionUser, input: VisitCreateInput) {
     title,
     stage: OpportunityStage.CONTACTADO,
     estimatedValue: 0,
+    visitCategory: input.category ?? defaultCategory,
     notes: notes.join("\n") || undefined,
   });
 

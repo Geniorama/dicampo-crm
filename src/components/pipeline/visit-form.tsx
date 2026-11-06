@@ -3,7 +3,13 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { api, ApiClientError } from "@/lib/api-client";
-import { NEW_CLIENT_VISIT_TITLE, VISIT_REASON_LABEL } from "@/lib/labels";
+import {
+  NEW_CLIENT_VISIT_TITLE,
+  VISIT_CATEGORY_LABEL,
+  VISIT_REASON_LABEL,
+  toOptions,
+} from "@/lib/labels";
+import type { VisitCategory } from "@/generated/prisma/enums";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field, Input, Select } from "@/components/ui/field";
@@ -39,6 +45,8 @@ export function VisitForm({
   const [businessName, setBusinessName] = useState("");
   const [clientId, setClientId] = useState(defaultClientId ?? "");
   const [reason, setReason] = useState<Reason>("RECAPACITACION");
+  // Vacío = la del tipo de visita (Demostración o Fidelización).
+  const [category, setCategory] = useState<VisitCategory | "">("");
   const [visitDate, setVisitDate] = useState(today);
   const [visitTime, setVisitTime] = useState("");
   const [sampleQuantity, setSampleQuantity] = useState("");
@@ -62,6 +70,7 @@ export function VisitForm({
           ? {
               kind,
               businessName,
+              category: category || undefined,
               visitDate,
               visitTime,
               sampleQuantity,
@@ -70,7 +79,7 @@ export function VisitForm({
               address,
               contactName,
             }
-          : { kind, clientId, reason, visitDate, visitTime };
+          : { kind, clientId, reason, category: category || undefined, visitDate, visitTime };
 
       const created = await api.post<{ id: string }>("/api/visitas", body);
       router.push(`/pipeline/${created.id}`);
@@ -94,6 +103,30 @@ export function VisitForm({
               <Select {...props} value={kind} onChange={(event) => setKind(event.target.value as Kind)}>
                 <option value="NUEVO">Cliente nuevo (demostración)</option>
                 <option value="FIDELIZACION">Fidelización (cliente actual)</option>
+              </Select>
+            )}
+          </Field>
+
+          <Field
+            id="category"
+            label="Categoría"
+            hint="Es la etiqueta que se ve en el pipeline"
+            className="sm:col-span-2"
+          >
+            {(props) => (
+              <Select
+                {...props}
+                value={category}
+                onChange={(event) => setCategory(event.target.value as VisitCategory | "")}
+              >
+                <option value="">
+                  {kind === "NUEVO" ? "Demostración (por defecto)" : "Fidelización (por defecto)"}
+                </option>
+                {toOptions(VISIT_CATEGORY_LABEL).map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
               </Select>
             )}
           </Field>

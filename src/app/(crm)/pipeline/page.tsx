@@ -13,7 +13,12 @@ import { Input, Select } from "@/components/ui/field";
 import { StageSelector } from "@/components/pipeline/stage-selector";
 import { formatCOP, formatCalendarDate } from "@/lib/format";
 import { flattenSearchParams, type RawSearchParams } from "@/lib/search-params";
-import { OPPORTUNITY_STAGE_LABEL } from "@/lib/labels";
+import {
+  OPPORTUNITY_STAGE_LABEL,
+  VISIT_CATEGORY_LABEL,
+  VISIT_CATEGORY_TONE,
+  toOptions,
+} from "@/lib/labels";
 import { isClosedStage } from "@/lib/pipeline-stages";
 
 export const metadata: Metadata = { title: "Pipeline" };
@@ -63,6 +68,25 @@ export default async function PipelinePage({
               placeholder="Título de la oportunidad o cliente"
               className="mt-1"
             />
+          </div>
+
+          <div>
+            <label htmlFor="visitCategory" className="text-xs font-medium text-muted-foreground">
+              Categoría
+            </label>
+            <Select
+              id="visitCategory"
+              name="visitCategory"
+              defaultValue={query.visitCategory ?? ""}
+              className="mt-1"
+            >
+              <option value="">Todas</option>
+              {toOptions(VISIT_CATEGORY_LABEL).map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </Select>
           </div>
 
           <div>
@@ -128,6 +152,12 @@ export default async function PipelinePage({
                       >
                         {item.title}
                       </Link>
+
+                      {item.visitCategory && (
+                        <Badge tone={VISIT_CATEGORY_TONE[item.visitCategory]}>
+                          {VISIT_CATEGORY_LABEL[item.visitCategory]}
+                        </Badge>
+                      )}
 
                       <p className="text-xs text-muted-foreground">
                         {item.client.tradeName ?? item.client.businessName}

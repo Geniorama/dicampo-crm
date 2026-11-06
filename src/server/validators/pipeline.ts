@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { businessDateSchema } from "./reports";
-import { ActivityType, OpportunityStage } from "@/generated/prisma/enums";
+import { ActivityType, OpportunityStage, VisitCategory } from "@/generated/prisma/enums";
 
 /** Validación de oportunidades comerciales y de la bitácora de actividades. */
 
@@ -25,6 +25,8 @@ const opportunityBaseSchema = z.object({
     .default(0),
   ownerId: z.string().cuid().optional(),
   expectedCloseDate: z.coerce.date().optional(),
+  /** Categoría de la visita; null la quita. */
+  visitCategory: z.enum(VisitCategory).nullable().optional(),
   notes: optionalText(2000),
 });
 
@@ -72,6 +74,7 @@ export const opportunityListQuerySchema = z.object({
   stage: z.enum(OpportunityStage).optional(),
   ownerId: z.string().cuid().optional(),
   clientId: z.string().cuid().optional(),
+  visitCategory: z.enum(VisitCategory).optional(),
   /** "1" incluye las cerradas (ganadas y perdidas) en el tablero. */
   includeClosed: z
     .enum(["0", "1"])

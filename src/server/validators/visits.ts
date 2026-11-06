@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { VisitCategory } from "@/generated/prisma/enums";
 
 /**
  * Registro de una visita comercial. Hay dos tipos:
@@ -25,6 +26,8 @@ const timeText = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Indica la hora d
 const common = {
   visitDate: dateText,
   visitTime: timeText,
+  /** Categoría de la etiqueta; si no se envía, la del tipo de visita. */
+  category: z.enum(VisitCategory).optional(),
 };
 
 export const visitCreateSchema = z.discriminatedUnion("kind", [

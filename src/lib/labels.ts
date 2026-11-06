@@ -26,6 +26,7 @@ import type {
   RouteStatus,
   StockMovementType,
   UserRole,
+  VisitCategory,
 } from "@/generated/prisma/enums";
 
 /**
@@ -402,6 +403,27 @@ export const VISIT_REASON_LABEL: Record<
   RECUPERACION: "Visita recuperación",
   ENTREGA_PEDIDOS: "Visita entrega pedidos",
   DEVOLUCION_FALTANTES: "Visita devolución / faltantes",
+};
+
+/** Categoría de una visita: la etiqueta que se ve en el pipeline. */
+export const VISIT_CATEGORY_LABEL: Record<VisitCategory, string> = {
+  DEMOSTRACION: "Demostración",
+  FIDELIZACION: "Fidelización",
+  RECAPACITACION: "Re-capacitación",
+  RECUPERACION: "Recuperación",
+  ENTREGA_PEDIDOS: "Entrega de pedidos",
+  DEVOLUCION_FALTANTES: "Devolución / faltantes",
+  OTRA: "Otra",
+};
+
+export const VISIT_CATEGORY_TONE: Record<VisitCategory, BadgeTone> = {
+  DEMOSTRACION: "info",
+  FIDELIZACION: "success",
+  RECAPACITACION: "primary",
+  RECUPERACION: "warning",
+  ENTREGA_PEDIDOS: "neutral",
+  DEVOLUCION_FALTANTES: "danger",
+  OTRA: "neutral",
 };
 
 /** Título por defecto de la visita a un cliente nuevo. */

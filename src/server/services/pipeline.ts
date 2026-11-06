@@ -42,6 +42,7 @@ const cardSelect = {
   expectedCloseDate: true,
   closedAt: true,
   lostReason: true,
+  visitCategory: true,
   updatedAt: true,
   client: {
     select: { id: true, businessName: true, tradeName: true, status: true },
@@ -64,7 +65,7 @@ export async function listOpportunities(
   user: SessionUser,
   query: OpportunityListQuery,
 ) {
-  const { search, stage, ownerId, clientId, includeClosed } = query;
+  const { search, stage, ownerId, clientId, visitCategory, includeClosed } = query;
 
   const stages = includeClosed ? ALL_STAGES : OPEN_STAGES;
 
@@ -73,6 +74,7 @@ export async function listOpportunities(
       ...opportunityScope(user),
       ...(stage ? { stage } : { stage: { in: stages } }),
       ...(clientId ? { clientId } : {}),
+      ...(visitCategory ? { visitCategory } : {}),
       ...(ownerId && user.role !== UserRole.VENDEDOR ? { ownerId } : {}),
       ...(search
         ? {

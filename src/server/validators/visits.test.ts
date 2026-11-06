@@ -34,4 +34,9 @@ describe("visitCreateSchema", () => {
   it("exige hora de visita", () => {
     expect(visitCreateSchema.safeParse({ ...nuevo, visitTime: "" }).success).toBe(false);
   });
+
+  it("acepta una categoria opcional y rechaza una desconocida", () => {
+    expect(visitCreateSchema.safeParse({ ...nuevo, category: "RECUPERACION" }).success).toBe(true);
+    expect(visitCreateSchema.safeParse({ ...nuevo, category: "INVENTADA" }).success).toBe(false);
+  });
 });

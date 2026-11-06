@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { StageSelector } from "@/components/pipeline/stage-selector";
+import { VisitCategorySelect } from "@/components/pipeline/visit-category-select";
 import { ActivityForm } from "@/components/pipeline/activity-form";
 import { CompleteActivityButton } from "@/components/pipeline/complete-activity-button";
 import { formatCOP, formatCalendarDate, formatDate, formatDateTime } from "@/lib/format";
@@ -19,6 +20,8 @@ import {
   CLIENT_STATUS_LABEL,
   CLIENT_STATUS_TONE,
   OPPORTUNITY_STAGE_LABEL,
+  VISIT_CATEGORY_LABEL,
+  VISIT_CATEGORY_TONE,
 } from "@/lib/labels";
 import { isClosedStage } from "@/lib/pipeline-stages";
 import { whatsappLink } from "@/lib/whatsapp";
@@ -162,6 +165,23 @@ export default async function OpportunityDetailPage({
         </div>
 
         <div className="space-y-5">
+          <Card>
+            <CardHeader>
+              <CardTitle>Categoría</CardTitle>
+              {opportunity.visitCategory && (
+                <Badge tone={VISIT_CATEGORY_TONE[opportunity.visitCategory]}>
+                  {VISIT_CATEGORY_LABEL[opportunity.visitCategory]}
+                </Badge>
+              )}
+            </CardHeader>
+            <CardContent>
+              <VisitCategorySelect
+                opportunityId={opportunity.id}
+                category={opportunity.visitCategory}
+              />
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader>
               <CardTitle>Etapa</CardTitle>
