@@ -82,3 +82,20 @@ export function formatDuration(ms: number | null): string {
   if (hours === 0) return `${rest} min`;
   return rest === 0 ? `${hours} h` : `${hours} h ${rest} min`;
 }
+
+/** Minutos que se calculan por parada: trayecto y atención en sitio. Es un supuesto, no una lectura de Maps. */
+export const ESTIMATED_MINUTES_PER_STOP = 25;
+
+/** Tiempo aproximado de una ruta según sus paradas (sin API de mapas). */
+export function estimateRouteMinutes(stops: number): number {
+  return Math.max(0, Math.round(stops)) * ESTIMATED_MINUTES_PER_STOP;
+}
+
+/** 95 → "1 h 35 min" */
+export function formatMinutes(minutes: number): string {
+  if (minutes <= 0) return "—";
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  if (hours === 0) return `${rest} min`;
+  return rest === 0 ? `${hours} h` : `${hours} h ${rest} min`;
+}

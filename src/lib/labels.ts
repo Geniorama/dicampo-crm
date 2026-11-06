@@ -216,6 +216,23 @@ export const PAYMENT_METHOD_LABEL: Record<PaymentMethod, string> = {
   OTRO: "Otro",
 };
 
+export const NO_PAYMENT_LABEL = "No ha pagado";
+
+/** Estado de una parada en la tabla del domiciliario. */
+export type StopStatus = "EN_RUTA" | "ENTREGADO" | "DEVUELTO";
+
+export const STOP_STATUS_LABEL: Record<StopStatus, string> = {
+  EN_RUTA: "En ruta",
+  ENTREGADO: "Entregado",
+  DEVUELTO: "Devuelto",
+};
+
+export const STOP_STATUS_TONE: Record<StopStatus, BadgeTone> = {
+  EN_RUTA: "primary",
+  ENTREGADO: "success",
+  DEVUELTO: "danger",
+};
+
 export const PAYMENT_RECEIVER_LABEL: Record<PaymentReceiver, string> = {
   DAVID: "David",
   DOMICILIARIO: "Domiciliario",

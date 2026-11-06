@@ -60,3 +60,19 @@ describe("formatDuration", () => {
     expect(formatDuration(90 * 60_000)).toBe("1 h 30 min");
   });
 });
+
+import { estimateRouteMinutes, formatMinutes } from "./route-timing";
+
+describe("tiempo aproximado de ruta", () => {
+  it("suma el mismo tiempo por parada", () => {
+    expect(estimateRouteMinutes(0)).toBe(0);
+    expect(estimateRouteMinutes(4)).toBe(100);
+  });
+
+  it("lo muestra en horas y minutos", () => {
+    expect(formatMinutes(0)).toBe("—");
+    expect(formatMinutes(45)).toBe("45 min");
+    expect(formatMinutes(120)).toBe("2 h");
+    expect(formatMinutes(95)).toBe("1 h 35 min");
+  });
+});

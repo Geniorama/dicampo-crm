@@ -562,7 +562,20 @@ export async function getDriverDay(user: SessionUser, fecha?: string) {
           giftNote: true,
           arrivedAt: true,
           deliveredAt: true,
-          client: { select: { id: true, businessName: true, tradeName: true, phone: true } },
+          client: {
+            select: {
+              id: true,
+              businessName: true,
+              tradeName: true,
+              phone: true,
+              contacts: {
+                where: { active: true },
+                orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
+                take: 1,
+                select: { firstName: true, lastName: true },
+              },
+            },
+          },
           address: {
             select: {
               label: true,
@@ -570,10 +583,11 @@ export async function getDriverDay(user: SessionUser, fecha?: string) {
               neighborhood: true,
               locality: true,
               deliveryNotes: true,
+              zone: { select: { name: true } },
             },
           },
           proof: { select: { receivedBy: true, notes: true } },
-          payments: { select: { amount: true } },
+          payments: { select: { amount: true, method: true }, orderBy: { paidAt: "desc" as const } },
           _count: { select: { items: true } },
         },
       },
@@ -586,6 +600,8 @@ export async function getDriverDay(user: SessionUser, fecha?: string) {
       const paid = payments.reduce((sum, payment) => sum + Number(payment.amount), 0);
       return {
         ...order,
+        /** Medio del último pago; nulo si todavía no ha pagado. */
+        paymentMethod: payments[0]?.method ?? null,
         total: Number(total),
         balance: Math.max(0, Math.round(Number(total) - paid)),
       };
