@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Trash2, Plus } from "lucide-react";
+import { Trash2, Plus, UserCheck, UserPlus } from "lucide-react";
 import { api, ApiClientError } from "@/lib/api-client";
 import { computeOrderTotals } from "@/lib/order-math";
 import { MIN_ORDER_KG, PORTIONS_PER_KG, applyPercentDiscount } from "@/lib/quote-rules";
@@ -187,7 +187,9 @@ export function QuoteForm({
 
   const initialClient = clients.find((client) => client.id === initialClientId);
 
-  const [mode, setMode] = useState<"ACTUAL" | "NUEVO">("ACTUAL");
+  // Lo primero que se elige: sin elegir no se muestra el formulario. Si se
+  // llega desde la ficha de un cliente, ya se sabe que es actual.
+  const [mode, setMode] = useState<"ACTUAL" | "NUEVO" | null>(initialClient ? "ACTUAL" : null);
   const [clientId, setClientId] = useState(initialClient?.id ?? "");
   const [addressId, setAddressId] = useState(initialClient?.addresses[0]?.id ?? "");
   const [sellerId, setSellerId] = useState(defaultAdvisorId);
@@ -431,6 +433,45 @@ export function QuoteForm({
       );
       setIsSubmitting(false);
     }
+  }
+
+  if (mode === null) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>¿Para quién es la cotización?</CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-4 sm:grid-cols-2">
+          <button
+            type="button"
+            onClick={() => switchMode("ACTUAL")}
+            className="rounded-lg border border-border p-5 text-left transition-colors hover:border-primary hover:bg-muted focus-visible:outline-2 focus-visible:outline-primary"
+          >
+            <span className="flex items-center gap-2 text-base font-semibold text-foreground">
+              <UserCheck className="size-5 text-primary" aria-hidden="true" />
+              Cliente actual
+            </span>
+            <span className="mt-2 block text-sm text-muted-foreground">
+              Ya está en la base: buscas el cliente, revisas sus datos y los confirmas.
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => switchMode("NUEVO")}
+            className="rounded-lg border border-border p-5 text-left transition-colors hover:border-primary hover:bg-muted focus-visible:outline-2 focus-visible:outline-primary"
+          >
+            <span className="flex items-center gap-2 text-base font-semibold text-foreground">
+              <UserPlus className="size-5 text-primary" aria-hidden="true" />
+              Cliente nuevo
+            </span>
+            <span className="mt-2 block text-sm text-muted-foreground">
+              Aún no existe: registras sus datos y sedes, y recibe el 15 % del primer pedido.
+            </span>
+          </button>
+        </CardContent>
+      </Card>
+    );
   }
 
   return (
