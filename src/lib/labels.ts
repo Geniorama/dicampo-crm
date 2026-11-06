@@ -312,3 +312,17 @@ export const DISQUALIFICATION_REASON_LABEL: Record<DisqualificationReason, strin
   SIN_NEGOCIO: "Sin negocio",
   OTRO: "Otro motivo",
 };
+
+/** Motivos de una visita de fidelización a un cliente actual. */
+export const VISIT_REASON_LABEL: Record<
+  "RECAPACITACION" | "RECUPERACION" | "ENTREGA_PEDIDOS" | "DEVOLUCION_FALTANTES",
+  string
+> = {
+  RECAPACITACION: "Visita re-capacitación",
+  RECUPERACION: "Visita recuperación",
+  ENTREGA_PEDIDOS: "Visita entrega pedidos",
+  DEVOLUCION_FALTANTES: "Visita devolución / faltantes",
+};
+
+/** Título por defecto de la visita a un cliente nuevo. */
+export const NEW_CLIENT_VISIT_TITLE = "Visita cliente nuevo";

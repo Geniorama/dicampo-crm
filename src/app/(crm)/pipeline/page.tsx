@@ -43,7 +43,7 @@ export default async function PipelinePage({
             <ImportLink entity="oportunidades" user={user} />
             <Link href="/pipeline/nueva" className={buttonVariants()}>
               <Plus aria-hidden="true" />
-              Nueva oportunidad
+              Nueva visita
             </Link>
           </>
         }

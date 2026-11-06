@@ -114,7 +114,7 @@ export default async function ClientDetailPage({ params }: Props) {
                 href={`/pipeline/nueva?clientId=${client.id}`}
                 className="text-xs font-medium text-primary hover:underline"
               >
-                Nueva oportunidad
+                Nueva visita
               </Link>
             </CardHeader>
 
