@@ -6,19 +6,24 @@ import {
   getDashboardMetrics,
   getMonthlySalesBySegment,
   getQuoteMixByMonth,
-  getRecentOrders,
 } from "@/server/services/reports";
 import { getGoalsProgress } from "@/server/services/goals";
 import { listReceivables } from "@/server/services/receivables";
-import { getDailyActivity } from "@/server/services/daily-activity";
+import {
+  getDailyActivity,
+  getOrderCounters,
+  getProductionPriorities,
+  listDayOrders,
+  type DayOrdersTab,
+} from "@/server/services/daily-activity";
+import { DailyBoard } from "@/components/dashboard/daily-board";
+import type { RawSearchParams } from "@/lib/search-params";
 import { GoalMeter } from "@/components/goals/goal-meter";
 import { GroupedBars } from "@/components/reports/grouped-bars";
 import { BarList } from "@/components/ui/bar-list";
 import { currentMonth } from "@/lib/goals";
 import { Card, CardContent, CardHeader, CardTitle, StatCard } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { formatCOP, formatDate, formatOrderNumber } from "@/lib/format";
-import { ORDER_STATUS_LABEL, ORDER_STATUS_TONE } from "@/lib/labels";
+import { formatCOP } from "@/lib/format";
 
 const AGING_BAR: Record<string, string> = {
   AL_DIA: "bg-primary",
@@ -42,20 +47,29 @@ function formatMonth(month: string): string {
   );
 }
 
-export default async function DashboardPage() {
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<RawSearchParams>;
+}) {
+  const params = await searchParams;
+  const tab: DayOrdersTab = params.tab === "hoy" ? "hoy" : "ayer";
+  const page = Math.max(1, Number(Array.isArray(params.page) ? params.page[0] : params.page) || 1);
   const user = await requireUserPage(SALES_ROLES);
   // Las metas son del equipo comercial; bodega y despacho no las ven.
   const showGoals = user.role === "ADMIN" || user.role === "VENDEDOR";
   const month = currentMonth();
-  const [metrics, segments, quoteMix, clientsWithOrder, recentOrders, goals, receivables, daily] = await Promise.all([
+  const [metrics, segments, quoteMix, clientsWithOrder, goals, receivables, daily, counters, dayOrders, priorities] = await Promise.all([
     getDashboardMetrics(user),
     getMonthlySalesBySegment(user),
     getQuoteMixByMonth(user),
     getClientsWithOrder(user),
-    getRecentOrders(user),
     showGoals ? getGoalsProgress(user, month) : null,
     showGoals ? listReceivables(user, { overdueOnly: false }) : null,
     showGoals ? getDailyActivity(user) : null,
+    getOrderCounters(user),
+    listDayOrders(user, tab, page),
+    getProductionPriorities(),
   ]);
 
   return (
@@ -239,43 +253,15 @@ export default async function DashboardPage() {
         </Card>
       )}
 
-      {daily && daily.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Gestión de hoy</CardTitle>
-            <Link href="/agenda" className="text-xs font-medium text-primary hover:underline">
-              Ver agenda
-            </Link>
-          </CardHeader>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground">
-                  <th scope="col" className="px-5 py-2 font-medium">Asesor</th>
-                  <th scope="col" className="px-3 py-2 text-right font-medium">Llamadas</th>
-                  <th scope="col" className="px-3 py-2 text-right font-medium">WhatsApp</th>
-                  <th scope="col" className="px-3 py-2 text-right font-medium">Visitas</th>
-                  <th scope="col" className="px-3 py-2 text-right font-medium">Muestras</th>
-                  <th scope="col" className="px-3 py-2 text-right font-medium">Clientes tocados</th>
-                  <th scope="col" className="px-5 py-2 text-right font-medium">Cobrado</th>
-                </tr>
-              </thead>
-              <tbody>
-                {daily.map((row) => (
-                  <tr key={row.userId} className="border-b border-border last:border-0">
-                    <td className="px-5 py-2.5 font-medium text-foreground">{row.name}</td>
-                    <td className="tabular px-3 py-2.5 text-right">{row.calls}</td>
-                    <td className="tabular px-3 py-2.5 text-right">{row.whatsapp}</td>
-                    <td className="tabular px-3 py-2.5 text-right">{row.visits}</td>
-                    <td className="tabular px-3 py-2.5 text-right">{row.samples}</td>
-                    <td className="tabular px-3 py-2.5 text-right">{row.clientsTouched}</td>
-                    <td className="tabular px-5 py-2.5 text-right">{formatCOP(row.collected)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </Card>
+      {daily && (
+        <DailyBoard
+          rows={daily}
+          counters={counters}
+          tab={tab}
+          dayOrders={dayOrders}
+          searchParams={params}
+          priorities={priorities}
+        />
       )}
 
       {metrics.overdueActivities > 0 && (
@@ -290,71 +276,6 @@ export default async function DashboardPage() {
           por atender.
         </p>
       )}
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Últimos pedidos</CardTitle>
-          <Link
-            href="/pedidos"
-            className="text-xs font-medium text-primary hover:underline"
-          >
-            Ver todos
-          </Link>
-        </CardHeader>
-
-        {recentOrders.length === 0 ? (
-          <CardContent>
-            <p className="text-sm text-muted-foreground">
-              Aún no hay pedidos registrados.
-            </p>
-          </CardContent>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground">
-                  <th scope="col" className="px-5 py-2 font-medium">Pedido</th>
-                  <th scope="col" className="px-5 py-2 font-medium">Cliente</th>
-                  <th scope="col" className="px-5 py-2 font-medium">Fecha</th>
-                  <th scope="col" className="px-5 py-2 font-medium">Estado</th>
-                  <th scope="col" className="px-5 py-2 text-right font-medium">Total</th>
-                </tr>
-              </thead>
-              <tbody>
-                {recentOrders.map((order) => (
-                  <tr
-                    key={order.id}
-                    className="border-b border-border last:border-0 hover:bg-muted"
-                  >
-                    <td className="px-5 py-2.5">
-                      <Link
-                        href={`/pedidos/${order.id}`}
-                        className="tabular font-medium text-primary hover:underline"
-                      >
-                        {formatOrderNumber(order.orderNumber)}
-                      </Link>
-                    </td>
-                    <td className="px-5 py-2.5 text-foreground">
-                      {order.client.tradeName ?? order.client.businessName}
-                    </td>
-                    <td className="px-5 py-2.5 text-muted-foreground">
-                      {formatDate(order.orderDate)}
-                    </td>
-                    <td className="px-5 py-2.5">
-                      <Badge tone={ORDER_STATUS_TONE[order.status]}>
-                        {ORDER_STATUS_LABEL[order.status]}
-                      </Badge>
-                    </td>
-                    <td className="tabular px-5 py-2.5 text-right font-medium text-foreground">
-                      {formatCOP(order.total)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </Card>
     </div>
   );
 }
