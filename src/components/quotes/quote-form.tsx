@@ -20,7 +20,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field, Input, Select, Textarea } from "@/components/ui/field";
 import { Combobox, type ComboboxOption } from "@/components/ui/combobox";
 import { EmptyState } from "@/components/ui/empty-state";
-import type { BillingMode, ClientType, Presentation } from "@/generated/prisma/enums";
+import type { BillingMode, ClientStatus, ClientType, Presentation } from "@/generated/prisma/enums";
 
 const clientTypeOptions = toOptions(CLIENT_TYPE_LABEL);
 const billingOptions = toOptions(BILLING_MODE_LABEL);
@@ -81,6 +81,8 @@ export type QuoteClientOption = {
   tier: string;
   businessName: string;
   nit: string | null;
+  /** Un prospecto (de una visita) pasa a cliente con su primera cotización. */
+  status: ClientStatus;
   type: ClientType;
   phone: string | null;
   email: string | null;
@@ -189,6 +191,8 @@ export function QuoteForm({
   const [clientId, setClientId] = useState(initialClient?.id ?? "");
   const [addressId, setAddressId] = useState(initialClient?.addresses[0]?.id ?? "");
   const [sellerId, setSellerId] = useState(defaultAdvisorId);
+  // El asesor confirma que vio los datos del cliente actual antes de cotizar.
+  const [confirmed, setConfirmed] = useState(false);
   const [newClient, setNewClient] = useState<NewClientDraft>({
     businessName: "",
     nit: "",
@@ -322,6 +326,7 @@ export function QuoteForm({
 
   function handleClientChange(nextClientId: string) {
     setClientId(nextClientId);
+    setConfirmed(false);
     const client = clients.find((item) => item.id === nextClientId);
     setAddressId(client?.addresses[0]?.id ?? "");
   }
@@ -345,9 +350,17 @@ export function QuoteForm({
       setFormError("Selecciona el cliente.");
       return;
     }
+    if (mode === "ACTUAL" && !confirmed) {
+      setFormError("Revisa los datos del cliente y confírmalos antes de guardar.");
+      return;
+    }
     if (mode === "NUEVO") {
       if (newClient.businessName.trim().length < 3) {
         setFormError("Escribe el nombre del cliente nuevo (mínimo 3 letras).");
+        return;
+      }
+      if (newClient.nit.replace(/\D/g, "").length < 5) {
+        setFormError("Escribe la cédula o NIT del cliente nuevo.");
         return;
       }
       if (!newClient.phone.trim()) {
@@ -508,6 +521,30 @@ export function QuoteForm({
                   <Readonly label="Barrio" value={selectedAddress?.neighborhood} />
                   <Readonly label="Dirección" value={selectedAddress?.address} />
                   <Readonly label="Notas del cliente" value={selectedClient.notes} />
+
+                  <div className="space-y-2 sm:col-span-3">
+                    {selectedClient.status === "PROSPECTO" && (
+                      <p className="rounded-md bg-info-subtle px-3 py-2 text-xs text-info">
+                        Es un prospecto de una visita: con esta cotización pasa al módulo de Clientes.
+                      </p>
+                    )}
+                    <label className="flex items-center gap-2 text-sm text-foreground">
+                      <input
+                        type="checkbox"
+                        checked={confirmed}
+                        onChange={(event) => setConfirmed(event.target.checked)}
+                      />
+                      Confirmo que los datos del cliente son correctos
+                    </label>
+                    <a
+                      href={`/clientes/${selectedClient.id}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs text-primary hover:underline"
+                    >
+                      ¿Algo está mal? Corrige la ficha del cliente
+                    </a>
+                  </div>
                 </div>
               )}
             </>
@@ -522,7 +559,7 @@ export function QuoteForm({
                   />
                 )}
               </Field>
-              <Field id="newClientNit" label="Cédula o NIT">
+              <Field id="newClientNit" label="Cédula o NIT" required>
                 {(props) => (
                   <Input
                     {...props}

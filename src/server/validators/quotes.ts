@@ -33,11 +33,9 @@ export const newClientSchema = z.object({
     .string()
     .trim()
     .transform(onlyDigits)
-    .refine((value) => value === "" || (value.length >= 5 && value.length <= 15), {
-      message: "La cédula o NIT debe tener entre 5 y 15 dígitos",
-    })
-    .transform((value) => (value === "" ? undefined : value))
-    .optional(),
+    .refine((value) => value.length >= 5 && value.length <= 15, {
+      message: "La cédula o NIT es obligatoria (entre 5 y 15 dígitos)",
+    }),
   phone: requiredText("El teléfono o WhatsApp es obligatorio", 50),
   email: z.string().trim().email("Correo no válido").optional().or(z.literal("").transform(() => undefined)),
   type: z.enum(ClientType),

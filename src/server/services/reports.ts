@@ -302,7 +302,7 @@ export async function getClientsWithOrder(user: SessionUser) {
       by: ["clientId"],
       where: { ...orderScope(user), status: { in: SOLD_STATUSES }, orderDate: { gte: monthStart } },
     }),
-    prisma.client.count({ where: clientScope(user) }),
+    prisma.client.count({ where: { ...clientScope(user), status: { not: "PROSPECTO" } } }),
   ]);
 
   return { withOrder: withOrder.length, total };

@@ -21,7 +21,8 @@ export default async function NewVisitPage({
 
   const [clients, products] = await Promise.all([
     prisma.client.findMany({
-      where: scopeToOwnPortfolio(user),
+      // Fidelización es a un cliente actual: los prospectos no entran.
+      where: { ...scopeToOwnPortfolio(user), status: { not: "PROSPECTO" } },
       orderBy: { businessName: "asc" },
       select: {
         id: true,

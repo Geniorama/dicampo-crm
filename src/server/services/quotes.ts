@@ -408,7 +408,7 @@ async function createQuoteClient(sellerId: string, input: NewClientInput) {
         billingMode: input.billingMode,
         notes: input.notes,
         ownerId: sellerId,
-        status: "PROSPECTO",
+        status: "ACTIVO",
       },
       select: { id: true },
     });
@@ -514,7 +514,7 @@ export async function createQuote(user: SessionUser, input: QuoteCreateInput) {
     const quoteDate = new Date();
 
     try {
-      return await prisma.$transaction(async (tx) => {
+      const quote = await prisma.$transaction(async (tx) => {
         const code = await nextQuoteCode(tx, quoteDate);
 
         return tx.quote.create({
@@ -543,6 +543,13 @@ export async function createQuote(user: SessionUser, input: QuoteCreateInput) {
           include: { items: true },
         });
       });
+
+      // Con su primera cotización un prospecto pasa a ser cliente.
+      if (client.status === "PROSPECTO") {
+        await prisma.client.update({ where: { id: client.id }, data: { status: "ACTIVO" } });
+      }
+
+      return quote;
     } catch (error) {
       // Sin cotización no debe quedar un pedido reservando inventario.
       await changeOrderStatus(user, order.id, {

@@ -63,7 +63,9 @@ export async function listClients(user: SessionUser, query: ClientListQuery) {
 
   const where = {
     ...scopeToOwnPortfolio(user),
-    ...(status ? { status } : {}),
+    // Un prospecto (agendó una visita pero aún no tiene cotización) no es
+    // cliente: vive en el pipeline hasta que se le cotiza.
+    status: status && status !== "PROSPECTO" ? status : { not: "PROSPECTO" as const },
     ...(type ? { type } : {}),
     ...(locality
       ? {

@@ -25,7 +25,7 @@ import {
 
 export const metadata: Metadata = { title: "Clientes" };
 
-const statusOptions = toOptions(CLIENT_STATUS_LABEL);
+const statusOptions = toOptions(CLIENT_STATUS_LABEL).filter((option) => option.value !== "PROSPECTO");
 const typeOptions = toOptions(CLIENT_TYPE_LABEL);
 
 export default async function ClientsPage({
