@@ -729,7 +729,8 @@ export async function updateDispatchNotes(
     data: {
       ...(input.collectionNote !== undefined ? { collectionNote: input.collectionNote } : {}),
       ...(input.giftNote !== undefined ? { giftNote: input.giftNote } : {}),
+      ...(input.dispatchNote !== undefined ? { dispatchNote: input.dispatchNote } : {}),
     },
-    select: { id: true, collectionNote: true, giftNote: true },
+    select: { id: true, collectionNote: true, giftNote: true, dispatchNote: true },
   });
 }

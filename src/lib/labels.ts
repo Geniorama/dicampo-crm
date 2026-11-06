@@ -216,6 +216,33 @@ export const PAYMENT_METHOD_LABEL: Record<PaymentMethod, string> = {
   OTRO: "Otro",
 };
 
+export const PRODUCTION_STATE_LABEL = {
+  EN_PREPARACION: "En preparación",
+  ALISTADO: "Alistado",
+} as const;
+
+export const PRODUCTION_STATE_TONE: Record<keyof typeof PRODUCTION_STATE_LABEL, BadgeTone> = {
+  EN_PREPARACION: "warning",
+  ALISTADO: "success",
+};
+
+export const DISPATCH_STATE_LABEL = {
+  EN_RUTA: "En ruta",
+  PROGRAMADO: "Programado",
+  NO_ENVIADO: "No enviado",
+  ENTREGADO: "Entregado",
+} as const;
+
+export const DISPATCH_STATE_TONE: Record<keyof typeof DISPATCH_STATE_LABEL, BadgeTone> = {
+  EN_RUTA: "primary",
+  PROGRAMADO: "info",
+  NO_ENVIADO: "danger",
+  ENTREGADO: "success",
+};
+
+/** Un pedido que no está alistado todavía no tiene despacho. */
+export const NO_DISPATCH_LABEL = "Sin despacho disponible";
+
 export const NO_PAYMENT_LABEL = "No ha pagado";
 
 /** Estado de una parada en la tabla del domiciliario. */

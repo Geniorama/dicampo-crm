@@ -133,9 +133,13 @@ const nullableNote = z
 
 /** Observaciones para el repartidor; `null` o vacío las borra. */
 export const dispatchNotesSchema = z
-  .object({ collectionNote: nullableNote, giftNote: nullableNote })
-  .refine((data) => data.collectionNote !== undefined || data.giftNote !== undefined, {
-    message: "No se envió ninguna observación.",
-  });
+  .object({ collectionNote: nullableNote, giftNote: nullableNote, dispatchNote: nullableNote })
+  .refine(
+    (data) =>
+      data.collectionNote !== undefined || data.giftNote !== undefined || data.dispatchNote !== undefined,
+    {
+      message: "No se envió ninguna observación.",
+    },
+  );
 
 export type DispatchNotesInput = z.infer<typeof dispatchNotesSchema>;

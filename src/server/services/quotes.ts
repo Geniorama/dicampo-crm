@@ -22,6 +22,8 @@ import { computeOrderTotals } from "@/lib/order-math";
 import { applyPercentDiscount, canTransitionQuote } from "@/lib/quote-rules";
 import { QUOTE_STATUS_LABEL } from "@/lib/labels";
 import { calculateNitDv } from "@/lib/nit";
+import { nextDeliveryDay } from "@/lib/delivery-zones";
+import { todayInBogota } from "./routes";
 import { contactWhatsappKey } from "@/lib/whatsapp";
 import { endOfBusinessDay } from "../validators/reports";
 import type {
@@ -492,6 +494,8 @@ export async function createQuote(user: SessionUser, input: QuoteCreateInput) {
       channel: "WHATSAPP",
       sellerId,
       notes: input.notes,
+      // Pedido de hoy, se entrega el siguiente día hábil.
+      requestedDeliveryDate: new Date(`${nextDeliveryDay(todayInBogota())}T00:00:00.000Z`),
       items: data.map((item) => ({
         variantId: item.variantId,
         quantity: Number(item.quantity),

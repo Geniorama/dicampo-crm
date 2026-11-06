@@ -497,6 +497,8 @@ model Order {
   collectionNote        String?
   /// Para el repartidor: obsequios que lleva este pedido
   giftNote              String?
+  /// Observación de despacho para pedidos incompletos, no enviados, etc.
+  dispatchNote          String?
   /// Momento en que se descontó inventario (idempotencia de la reserva FEFO)
   stockAppliedAt        DateTime?
   confirmedAt           DateTime?
