@@ -44,7 +44,9 @@ function quitarNombre(t, nombre) {
     .replace(new RegExp(`(^|[.!?¡¿]\\s+|\\n)${n},\\s*`, 'g'), '$1')
     // "... gracias Angel." / "... para ti Angel?"
     .replace(new RegExp(`\\s+${n}(?=[.!?])`, 'g'), '')
-    .replace(/(^|[.!?]\s+|\n)([¡¿]?)([a-záéíóúñ])/g, (m, a, b, c) => a + b + c.toUpperCase())
+    // Mayúscula al inicio de frase, salvo tras "a. m." / "p. m." (no cierran frase).
+    .replace(/(^|[.!?]\s+|\n)([¡¿]?)([a-záéíóúñ])/g, (m, a, b, c, off, s) =>
+      /(^|\s)[apm]\.\s+$/i.test(s.slice(0, off + a.length)) ? m : a + b + c.toUpperCase())
     .replace(/ {2,}/g, ' ')
     .trim();
 }
