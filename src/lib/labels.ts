@@ -4,6 +4,7 @@ import type {
   ActivityType,
   BillingMode,
   QuoteStatus,
+  ClientRelationStatus,
   ClientStatus,
   ClientType,
   DeliveryFailReason,
@@ -439,3 +440,15 @@ export const VISIT_CATEGORY_TONE: Record<VisitCategory, BadgeTone> = {
 
 /** Título por defecto de la visita a un cliente nuevo. */
 export const NEW_CLIENT_VISIT_TITLE = "Visita cliente nuevo";
+
+export const CLIENT_RELATION_STATUS_LABEL: Record<ClientRelationStatus, string> = {
+  ACTIVO: "Cliente activo",
+  POR_RECUPERAR: "Por recuperar",
+  EN_ALERTA: "En alerta",
+};
+
+export const CLIENT_RELATION_STATUS_TONE: Record<ClientRelationStatus, BadgeTone> = {
+  ACTIVO: "success",
+  POR_RECUPERAR: "warning",
+  EN_ALERTA: "danger",
+};

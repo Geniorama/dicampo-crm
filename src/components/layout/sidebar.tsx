@@ -16,6 +16,7 @@ import {
   Package,
   Truck,
   Upload,
+  UserCheck,
   Users,
   Wallet,
   UserCog,
@@ -40,6 +41,7 @@ type NavItem = {
 
 const NAV_ITEMS: NavItem[] = [
   { href: "/dashboard", label: "Tablero", icon: LayoutDashboard, roles: ["VENDEDOR"] },
+  { href: "/mis-clientes", label: "Mis clientes", icon: UserCheck, roles: ["VENDEDOR"] },
   { href: "/clientes", label: "Clientes", icon: Users, roles: ["VENDEDOR"] },
   {
     href: "/pipeline",

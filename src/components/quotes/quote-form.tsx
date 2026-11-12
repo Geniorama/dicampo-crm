@@ -168,6 +168,7 @@ export function QuoteForm({
   defaultAdvisorId,
   today,
   initialClientId,
+  initialLines,
   isAdmin = false,
 }: {
   clients: QuoteClientOption[];
@@ -180,6 +181,8 @@ export function QuoteForm({
   today: string;
   /** Cliente preseleccionado al llegar desde su ficha. */
   initialClientId?: string;
+  /** Renglones precargados (último pedido del cliente). */
+  initialLines?: { variantId: string; quantity: number }[];
   /** Solo un administrador elige a nombre de qué asesor se vende. */
   isAdmin?: boolean;
 }) {
@@ -212,7 +215,11 @@ export function QuoteForm({
   // Cliente actual: de 0 a 8 %. El 15 % es solo del cliente nuevo.
   const discountMax = policy && "max" in policy.allowed ? policy.allowed.max : 0;
   const [notes, setNotes] = useState("");
-  const [lines, setLines] = useState<Draft[]>([newDraft()]);
+  const [lines, setLines] = useState<Draft[]>(() =>
+    initialLines && initialLines.length > 0
+      ? initialLines.map((line) => ({ ...newDraft(), ...line }))
+      : [newDraft()],
+  );
   const [formError, setFormError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 

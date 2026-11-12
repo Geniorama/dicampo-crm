@@ -1,4 +1,5 @@
 import { prisma } from "../db";
+import { refreshClientSalesStats } from "./client-sales";
 import {
   BusinessRuleError,
   ConflictError,
@@ -317,7 +318,7 @@ export async function createOrder(user: SessionUser, input: OrderCreateInput) {
   const sellerId = await resolveOrderSeller(user, input.sellerId, client.ownerId);
   const { totals, data } = await buildOrderItems(client.priceListId, input.items);
 
-  return prisma.order.create({
+  const created = await prisma.order.create({
     data: {
       clientId: client.id,
       addressId,
@@ -334,6 +335,8 @@ export async function createOrder(user: SessionUser, input: OrderCreateInput) {
     },
     include: { items: true },
   });
+  await refreshClientSalesStats(client.id);
+  return created;
 }
 
 /**
@@ -590,7 +593,7 @@ export async function changeOrderStatus(
 
   const now = new Date();
 
-  return prisma.$transaction(async (tx) => {
+  const updated = await prisma.$transaction(async (tx) => {
     // `stockAppliedAt` hace la reserva idempotente: aunque se reintente la
     // confirmación, el inventario se descuenta una sola vez.
     if (input.status === OrderStatus.CONFIRMADO && !order.stockAppliedAt) {
@@ -625,4 +628,8 @@ export async function changeOrderStatus(
       },
     });
   });
+
+  // Confirmar o cancelar cambia lo que cuenta como venta del cliente.
+  await refreshClientSalesStats(updated.clientId);
+  return updated;
 }

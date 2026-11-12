@@ -20,10 +20,10 @@ export const metadata: Metadata = { title: "Nueva cotización" };
 export default async function NewQuotePage({
   searchParams,
 }: {
-  searchParams: Promise<{ clientId?: string }>;
+  searchParams: Promise<{ clientId?: string; repetir?: string }>;
 }) {
   const user = await requireUserPage(SALES_ROLES);
-  const { clientId } = await searchParams;
+  const { clientId, repetir } = await searchParams;
 
   const [clients, variants, priceLists, priceItems, stock, sellers] = await Promise.all([
     prisma.client.findMany({
@@ -72,6 +72,23 @@ export default async function NewQuotePage({
     getStockSummary(),
     listSellerOptions(),
   ]);
+
+  // Desde "Mis clientes": precarga el último pedido del cliente para repetirlo.
+  const lastOrder =
+    repetir === "1" && clientId
+      ? await prisma.order.findFirst({
+          where: {
+            clientId,
+            status: { in: ["CONFIRMADO", "EN_PREPARACION", "DESPACHADO", "ENTREGADO"] },
+            client: scopeToOwnPortfolio(user),
+          },
+          orderBy: { orderDate: "desc" },
+          select: { items: { select: { variantId: true, quantity: true } } },
+        })
+      : null;
+  const initialLines = (lastOrder?.items ?? [])
+    .filter((item) => variants.some((variant) => variant.id === item.variantId))
+    .map((item) => ({ variantId: item.variantId, quantity: Number(item.quantity) }));
 
   const defaultListId = priceLists.find((list) => list.isDefault)?.id ?? "";
 
@@ -161,6 +178,7 @@ export default async function NewQuotePage({
           today={todayInBogota()}
           isAdmin={user.role === "ADMIN"}
           initialClientId={clientOptions.some((c) => c.id === clientId) ? clientId : undefined}
+          initialLines={initialLines}
         />
       )}
     </div>
