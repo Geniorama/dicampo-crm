@@ -4,7 +4,7 @@ import JSZip from "jszip";
 import { readFileSync } from "node:fs";
 import { prisma } from "../src/server/db";
 import type { SessionUser } from "../src/server/guards";
-import { allocateStockForOrder } from "../src/server/services/inventory";
+import { allocateFefo } from "../src/lib/fefo";
 import { recordPayment } from "../src/server/services/receivables";
 import { refreshClientSalesStats } from "../src/server/services/client-sales";
 import {
@@ -40,6 +40,85 @@ import { calculateNitDv } from "../src/lib/nit";
 const args = process.argv.slice(2);
 const FILE = args.find((arg) => !arg.startsWith("--"));
 const APPLY = args.includes("--aplicar");
+
+type Tx = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
+const DEFICIT_LOT = "SIN-INVENTARIO";
+
+/**
+ * Como `allocateStockForOrder`, pero tolera la falta de existencias (acordado
+ * con Oscar para esta carga): descuenta por FEFO lo que haya y el faltante lo
+ * carga a un lote AGOTADO "SIN-INVENTARIO" por variante, que queda en negativo
+ * y deja el kardex trazable. Al cargar el inventario real se compensa con un
+ * ajuste. Un lote en negativo no entra en la rotación FEFO (no está DISPONIBLE).
+ */
+async function allocateAllowingDeficit(tx: Tx, orderId: string, userId: string, when: Date) {
+  const items = await tx.orderItem.findMany({
+    where: { orderId },
+    select: { variantId: true, quantity: true },
+  });
+  for (const item of items) {
+    const lots = await tx.lot.findMany({
+      where: { variantId: item.variantId, status: "DISPONIBLE", quantityAvailable: { gt: 0 } },
+      orderBy: { expiryDate: "asc" },
+      select: { id: true, quantityAvailable: true },
+    });
+    const { allocations, shortfall } = allocateFefo(
+      lots.map((lot) => ({ id: lot.id, available: Number(lot.quantityAvailable) })),
+      Number(item.quantity),
+    );
+    for (const allocation of allocations) {
+      await tx.lot.update({
+        where: { id: allocation.lotId },
+        data: {
+          quantityAvailable: allocation.remaining,
+          ...(allocation.remaining === 0 ? { status: "AGOTADO" } : {}),
+        },
+      });
+      await tx.stockMovement.create({
+        data: {
+          type: "SALIDA_VENTA",
+          variantId: item.variantId,
+          lotId: allocation.lotId,
+          quantity: -allocation.taken,
+          orderId,
+          userId,
+          reason: "Confirmación de pedido",
+        },
+      });
+    }
+    if (shortfall > 0) {
+      const deficit = await tx.lot.upsert({
+        where: { variantId_lotCode: { variantId: item.variantId, lotCode: DEFICIT_LOT } },
+        create: {
+          variantId: item.variantId,
+          lotCode: DEFICIT_LOT,
+          productionDate: when,
+          expiryDate: when,
+          quantityInitial: 0,
+          quantityAvailable: 0,
+          status: "AGOTADO",
+          notes: "Ventas cargadas sin existencias registradas (carga de noviembre). Saldo negativo = pendiente de inventario real.",
+        },
+        update: {},
+      });
+      await tx.lot.update({
+        where: { id: deficit.id },
+        data: { quantityAvailable: { decrement: shortfall } },
+      });
+      await tx.stockMovement.create({
+        data: {
+          type: "SALIDA_VENTA",
+          variantId: item.variantId,
+          lotId: deficit.id,
+          quantity: -shortfall,
+          orderId,
+          userId,
+          reason: "Venta sin existencias registradas (carga de noviembre)",
+        },
+      });
+    }
+  }
+}
 
 const norm = (value: string) =>
   value.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, " ").trim().toLowerCase();
@@ -294,7 +373,9 @@ async function main() {
     return;
   }
   if (shortages.length > 0) {
-    throw new Error("Inventario insuficiente: no se escribió nada.");
+    console.log(
+      "\nInventario insuficiente: se descuenta lo que haya por FEFO y el resto queda en negativo (lote SIN-INVENTARIO).",
+    );
   }
   if (missingFlavors.size > 0 || unknownAdvisors.size > 0 || mismatches.length > 0) {
     console.log("\nSe cargan solo las cotizaciones completas; el resto queda pendiente.");
@@ -401,7 +482,7 @@ async function main() {
           },
         });
 
-        await allocateStockForOrder(tx, order.id, actor.id);
+        await allocateAllowingDeficit(tx, order.id, actor.id, quote.date);
 
         await tx.quote.create({
           data: {
