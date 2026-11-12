@@ -104,7 +104,12 @@ export async function getGoalsProgress(user: SessionUser, month: string, now: Da
 
   const newClientOwners = newClientIds.length
     ? await prisma.client.findMany({
-        where: { id: { in: newClientIds } },
+        where: {
+          id: { in: newClientIds },
+          // Un cliente con ventas antes del CRM no es nuevo, salvo que su
+          // cotización lo marque así (la base maestra ya incluye a los de este mes).
+          OR: [{ baseOrderCount: 0 }, { quotes: { some: { isNewClient: true } } }],
+        },
         select: { ownerId: true },
       })
     : [];

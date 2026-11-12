@@ -237,6 +237,7 @@ async function loadClientForQuote(user: SessionUser, clientId: string) {
       billingMode: true,
       negotiationFirstPct: true,
       negotiationNextPct: true,
+      baseOrderCount: true,
       addresses: {
         where: { active: true },
         orderBy: { isPrimary: "desc" },
@@ -285,9 +286,13 @@ async function resolveDiscountPolicy(
   // Solo es "cliente nuevo" (15 % fijo) quien nunca ha cotizado ni pedido. Un
   // cliente actual —con cotizaciones o pedidos, incluido el histórico— nunca
   // recibe la promo: va de 0 a 8 % o por su negociación especial.
-  const clientHasHistory = clientOrders > 0 || clientQuotes > 0;
+  // El historial de antes del CRM (corte de la base maestra) también cuenta.
+  const hadSalesBeforeCrm = client.baseOrderCount > 0;
+  const clientHasHistory = clientOrders > 0 || clientQuotes > 0 || hadSalesBeforeCrm;
   // Sin sede indicada, "la sede" es el cliente entero.
-  const addressHasHistory = addressId ? addressQuotes + addressOrders > 0 : clientHasHistory;
+  const addressHasHistory = addressId
+    ? addressQuotes + addressOrders > 0 || hadSalesBeforeCrm
+    : clientHasHistory;
 
   return discountPolicy({
     negotiation:
