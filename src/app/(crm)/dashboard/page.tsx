@@ -5,6 +5,7 @@ import {
   getClientsWithOrder,
   getDashboardMetrics,
   getMonthlySalesBySegment,
+  getNewClientsByAdvisor,
   getQuoteMixByMonth,
 } from "@/server/services/reports";
 import { getGoalsProgress } from "@/server/services/goals";
@@ -31,6 +32,8 @@ const AGING_BAR: Record<string, string> = {
   "31_60": "bg-brand-orange",
   MAS_60: "bg-destructive",
 };
+
+const ADVISOR_COLORS = ["var(--info)", "var(--brand-orange)", "var(--primary)", "var(--warning)", "var(--destructive)"];
 
 export const metadata: Metadata = { title: "Tablero" };
 
@@ -59,9 +62,10 @@ export default async function DashboardPage({
   // Las metas son del equipo comercial; bodega y despacho no las ven.
   const showGoals = user.role === "ADMIN" || user.role === "VENDEDOR";
   const month = currentMonth();
-  const [metrics, segments, quoteMix, clientsWithOrder, goals, receivables, daily, counters, dayOrders, priorities] = await Promise.all([
+  const [metrics, segments, newByAdvisor, quoteMix, clientsWithOrder, goals, receivables, daily, counters, dayOrders, priorities] = await Promise.all([
     getDashboardMetrics(user),
     getMonthlySalesBySegment(user),
+    getNewClientsByAdvisor(user),
     getQuoteMixByMonth(user),
     getClientsWithOrder(user),
     showGoals ? getGoalsProgress(user, month) : null,
@@ -158,6 +162,25 @@ export default async function DashboardPage({
           />
         </Card>
       </div>
+
+      {newByAdvisor.advisors.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Clientes nuevos por mes y asesor</CardTitle>
+            <span className="text-xs text-muted-foreground">Últimos 6 meses</span>
+          </CardHeader>
+          <GroupedBars
+            title="Clientes nuevos por mes y asesor"
+            series={newByAdvisor.advisors.map((advisor, index) => ({
+              key: advisor,
+              label: advisor,
+              color: ADVISOR_COLORS[index % ADVISOR_COLORS.length],
+            }))}
+            points={newByAdvisor.points}
+            format={(value) => String(value)}
+          />
+        </Card>
+      )}
 
       {receivables && receivables.totals.balance > 0 && (
         <section aria-label="Cartera" className="grid gap-4 sm:grid-cols-2">

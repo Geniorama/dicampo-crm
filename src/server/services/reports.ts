@@ -2,7 +2,7 @@ import { prisma } from "../db";
 import { TZDate } from "@date-fns/tz";
 import { BUSINESS_TIME_ZONE } from "@/lib/format";
 import type { SessionUser } from "../guards";
-import { OrderStatus, UserRole } from "@/generated/prisma/enums";
+import { ManualStatMetric, OrderStatus, UserRole } from "@/generated/prisma/enums";
 
 /** Estados que cuentan como venta: un pedido cancelado no factura. */
 const SOLD_STATUSES: OrderStatus[] = [
@@ -255,7 +255,91 @@ export async function getMonthlySalesBySegment(user: SessionUser, months = 6): P
     else bucket.commercial += Number(order.total);
   }
 
+  // Los meses cargados a mano (anteriores al CRM) mandan sobre lo calculado.
+  // Son cifras de toda la empresa: un VENDEDOR sigue viendo solo lo suyo.
+  if (user.role !== UserRole.VENDEDOR) {
+    const manual = await prisma.manualStat.findMany({
+      where: { metric: ManualStatMetric.VENTAS_SEGMENTO, month: { in: keys } },
+    });
+    const overridden = new Set<string>();
+    for (const row of manual) {
+      const bucket = buckets.get(row.month);
+      if (!bucket) continue;
+      if (!overridden.has(row.month)) {
+        bucket.superDistributors = 0;
+        bucket.commercial = 0;
+        overridden.add(row.month);
+      }
+      if (row.label === "SUPER_DISTRIBUIDORES") bucket.superDistributors = Number(row.value);
+      else if (row.label === "GESTION_COMERCIAL") bucket.commercial = Number(row.value);
+    }
+  }
+
   return [...buckets.values()];
+}
+
+export type NewClientsByAdvisor = {
+  /** Asesores con al menos un cliente nuevo en el periodo, en orden de aparición. */
+  advisors: string[];
+  points: { key: string; values: Record<string, number> }[];
+};
+
+/**
+ * Clientes nuevos por mes y asesor. Los meses cargados a mano se muestran tal
+ * cual; el resto se calcula con las cotizaciones de cliente nuevo
+ * (`Quote.isNewClient`) según el asesor que las hizo.
+ */
+export async function getNewClientsByAdvisor(user: SessionUser, months = 6): Promise<NewClientsByAdvisor> {
+  const { keys, from } = lastMonths(months);
+
+  const [manual, quotes] = await Promise.all([
+    user.role === UserRole.VENDEDOR
+      ? []
+      : prisma.manualStat.findMany({
+          where: { metric: ManualStatMetric.CLIENTES_NUEVOS, month: { in: keys } },
+        }),
+    prisma.quote.findMany({
+      where: {
+        isNewClient: true,
+        status: { not: "ANULADO" },
+        quoteDate: { gte: from },
+        ...(user.role === UserRole.VENDEDOR ? { sellerId: user.id } : {}),
+      },
+      select: { quoteDate: true, clientId: true, seller: { select: { name: true } } },
+    }),
+  ]);
+
+  const manualMonths = new Set(manual.map((row) => row.month));
+  const counts = new Map<string, Map<string, number>>(keys.map((key) => [key, new Map()]));
+  const add = (month: string, advisor: string, amount: number) => {
+    const bucket = counts.get(month);
+    if (bucket) bucket.set(advisor, (bucket.get(advisor) ?? 0) + amount);
+  };
+
+  for (const row of manual) add(row.month, row.label, Number(row.value));
+
+  // Un cliente nuevo se cuenta una vez por mes aunque tenga varias cotizaciones.
+  const seen = new Set<string>();
+  for (const quote of quotes) {
+    const month = monthKey(quote.quoteDate);
+    if (manualMonths.has(month)) continue;
+    const mark = `${month}:${quote.clientId}`;
+    if (seen.has(mark)) continue;
+    seen.add(mark);
+    add(month, quote.seller?.name.split(" ")[0] ?? "Sin asesor", 1);
+  }
+
+  const advisors: string[] = [];
+  for (const key of keys) {
+    for (const [advisor, count] of counts.get(key)!) {
+      if (count > 0 && !advisors.includes(advisor)) advisors.push(advisor);
+    }
+  }
+
+  return {
+    advisors,
+    points: keys.map((key) => ({ key, values: Object.fromEntries(counts.get(key)!) })),
+  };
 }
 
 export type QuoteMixPoint = { key: string; newClients: number; currentClients: number };

@@ -1176,3 +1176,29 @@ model AvailabilityBlock {
 
   @@index([userId, endsAt])
 }
+
+// ─────────────────────────────────────────────────────────────
+// Estadísticas históricas del tablero (carga manual)
+// ─────────────────────────────────────────────────────────────
+
+enum ManualStatMetric {
+  /// Ventas del mes; `label` es el segmento (SUPER_DISTRIBUIDORES o GESTION_COMERCIAL).
+  VENTAS_SEGMENTO
+  /// Clientes nuevos del mes; `label` es el nombre del asesor.
+  CLIENTES_NUEVOS
+}
+
+/// Cifras de meses anteriores al CRM, subidas a mano. Mientras un mes tenga
+/// filas aquí, el tablero de ADMIN las muestra en vez de lo calculado.
+model ManualStat {
+  id        String           @id @default(cuid())
+  /// Mes, "AAAA-MM"
+  month     String
+  metric    ManualStatMetric
+  label     String
+  value     Decimal          @db.Decimal(14, 2)
+  createdAt DateTime         @default(now())
+
+  @@unique([month, metric, label])
+  @@index([metric, month])
+}
