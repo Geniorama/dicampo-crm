@@ -42,7 +42,8 @@ type NavItem = {
 const NAV_ITEMS: NavItem[] = [
   { href: "/dashboard", label: "Tablero", icon: LayoutDashboard, roles: ["VENDEDOR"] },
   { href: "/mis-clientes", label: "Mis clientes", icon: UserCheck, roles: ["VENDEDOR"] },
-  { href: "/clientes", label: "Clientes", icon: Users, roles: ["VENDEDOR"] },
+  // Los comerciales trabajan su cartera en "Mis clientes"; el listado general es de ADMIN.
+  { href: "/clientes", label: "Clientes", icon: Users, roles: [] },
   {
     href: "/pipeline",
     label: "Pipeline",

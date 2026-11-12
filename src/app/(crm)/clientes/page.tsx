@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 import { Plus } from "lucide-react";
 import { requireUserPage, SALES_ROLES } from "@/server/guards";
@@ -34,6 +35,8 @@ export default async function ClientsPage({
   searchParams: Promise<RawSearchParams>;
 }) {
   const user = await requireUserPage(SALES_ROLES);
+  // Un comercial solo trabaja su cartera, en "Mis clientes".
+  if (user.role === "VENDEDOR") redirect("/mis-clientes");
   const params = await searchParams;
 
   // Los filtros viajan por la URL: la búsqueda queda compartible y el
