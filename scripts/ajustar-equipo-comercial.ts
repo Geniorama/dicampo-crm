@@ -120,6 +120,21 @@ async function main() {
     }
   }
 
+  // 3. Etiquetas de las estadísticas manuales sin tilde → nombre del usuario.
+  const labels = await prisma.manualStat.findMany({
+    where: { metric: "CLIENTES_NUEVOS" },
+    select: { id: true, label: true },
+  });
+  const firstNames = new Map(
+    users.filter((u) => u.active).map((u) => [norm(u.name.split(" ")[0]), u.name.split(" ")[0]]),
+  );
+  for (const row of labels) {
+    const fixed = firstNames.get(norm(row.label));
+    if (!fixed || fixed === row.label) continue;
+    console.log(`· Estadística manual: «${row.label}» → «${fixed}»`);
+    if (APPLY) await prisma.manualStat.update({ where: { id: row.id }, data: { label: fixed } });
+  }
+
   console.log(APPLY ? "Listo." : "Nada se escribió. Revisa y corre con --aplicar.");
 }
 

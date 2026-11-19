@@ -315,6 +315,13 @@ export async function getNewClientsByAdvisor(user: SessionUser, months = 6): Pro
     }),
   ]);
 
+  // Las cifras manuales traen el nombre sin tilde ("Andres"): se unifica con el
+  // del usuario ("Andrés") para que no salgan dos barras de la misma persona.
+  const users = await prisma.user.findMany({ select: { name: true } });
+  const plain = (value: string) => value.normalize("NFD").replace(/[̀-ͯ]/g, "").trim().toLowerCase();
+  const canonical = new Map(users.map((u) => [plain(u.name.split(" ")[0]), u.name.split(" ")[0]]));
+  const canon = (label: string) => canonical.get(plain(label)) ?? label;
+
   const manualMonths = new Set(manual.map((row) => row.month));
   const counts = new Map<string, Map<string, number>>(keys.map((key) => [key, new Map()]));
   const add = (month: string, advisor: string, amount: number) => {
@@ -322,7 +329,7 @@ export async function getNewClientsByAdvisor(user: SessionUser, months = 6): Pro
     if (bucket) bucket.set(advisor, (bucket.get(advisor) ?? 0) + amount);
   };
 
-  for (const row of manual) add(row.month, row.label, Number(row.value));
+  for (const row of manual) add(row.month, canon(row.label), Number(row.value));
 
   // Un cliente nuevo se cuenta una vez por mes aunque tenga varias cotizaciones.
   const seen = new Set<string>();
@@ -332,7 +339,7 @@ export async function getNewClientsByAdvisor(user: SessionUser, months = 6): Pro
     const mark = `${month}:${quote.clientId}`;
     if (seen.has(mark)) continue;
     seen.add(mark);
-    add(month, quote.seller?.name.split(" ")[0] ?? "Sin asesor", 1);
+    add(month, canon(quote.seller?.name.split(" ")[0] ?? "Sin asesor"), 1);
   }
 
   const advisors: string[] = [];
