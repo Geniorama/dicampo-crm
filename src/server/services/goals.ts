@@ -26,10 +26,10 @@ export async function upsertGoal(input: GoalUpsertInput) {
   if (input.userId) {
     const advisor = await prisma.user.findUnique({
       where: { id: input.userId },
-      select: { id: true, active: true, role: true },
+      select: { id: true, active: true, role: true, inSalesTeam: true },
     });
     if (!advisor) throw new NotFoundError("El asesor");
-    if (!advisor.active || (advisor.role !== UserRole.VENDEDOR && advisor.role !== UserRole.ADMIN)) {
+    if (!advisor.active || !advisor.inSalesTeam || (advisor.role !== UserRole.VENDEDOR && advisor.role !== UserRole.ADMIN)) {
       throw new BusinessRuleError("Las metas se asignan a asesores activos.");
     }
   }
@@ -71,7 +71,7 @@ export async function getGoalsProgress(user: SessionUser, month: string, now: Da
   const elapsed = elapsedFraction(month, now);
   const inMonth = { gte: start, lt: end };
 
-  const [goals, salesBySeller, firstOrders, visits, advisors, balanceByOwner] = await Promise.all([
+  const [goals, salesBySeller, firstOrders, visits, advisors, balanceByOwner, outsideTeam] = await Promise.all([
     prisma.salesGoal.findMany({ where: { month } }),
     prisma.order.groupBy({
       by: ["sellerId"],
@@ -90,12 +90,15 @@ export async function getGoalsProgress(user: SessionUser, month: string, now: Da
       _count: { _all: true },
     }),
     prisma.user.findMany({
-      where: { active: true, role: { in: [UserRole.VENDEDOR, UserRole.ADMIN] } },
+      where: { active: true, inSalesTeam: true, role: { in: [UserRole.VENDEDOR, UserRole.ADMIN] } },
       orderBy: { name: "asc" },
       select: { id: true, name: true, role: true },
     }),
     receivableBalanceByOwner(now),
+    // Contabilidad y cuentas de prueba: sus ventas no cuentan para el equipo.
+    prisma.user.findMany({ where: { inSalesTeam: false }, select: { id: true } }),
   ]);
+  const outsideIds = new Set<string | null>(outsideTeam.map((u) => u.id));
 
   // Clientes cuyo primer pedido cae en el mes → responsable del cliente.
   const newClientIds = firstOrders
@@ -115,10 +118,13 @@ export async function getGoalsProgress(user: SessionUser, month: string, now: Da
     : [];
 
   const salesByUser = new Map(
-    salesBySeller.map((row) => [row.sellerId, Number(row._sum.total ?? 0)]),
+    salesBySeller
+      .filter((row) => !outsideIds.has(row.sellerId))
+      .map((row) => [row.sellerId, Number(row._sum.total ?? 0)]),
   );
   const newClientsByUser = new Map<string | null, number>();
   for (const { ownerId } of newClientOwners) {
+    if (outsideIds.has(ownerId)) continue;
     newClientsByUser.set(ownerId, (newClientsByUser.get(ownerId) ?? 0) + 1);
   }
   const visitsByUser = new Map(visits.map((row) => [row.userId, row._count._all]));

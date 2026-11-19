@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Trash2, Plus, UserCheck, UserPlus } from "lucide-react";
 import { api, ApiClientError } from "@/lib/api-client";
 import { computeOrderTotals } from "@/lib/order-math";
-import { MIN_ORDER_KG, PORTIONS_PER_KG, applyPercentDiscount } from "@/lib/quote-rules";
+import { MIN_ORDER_KG, NEW_CLIENT_PRICE_LISTS, PORTIONS_PER_KG, applyPercentDiscount } from "@/lib/quote-rules";
 import { NEW_CLIENT_DISCOUNT_PCT, clampDiscount } from "@/lib/quote-discount";
 import { formatCOP } from "@/lib/format";
 import {
@@ -188,6 +188,10 @@ export function QuoteForm({
 }) {
   const router = useRouter();
 
+  const newClientLists = priceLists.filter((list) =>
+    (NEW_CLIENT_PRICE_LISTS as readonly string[]).includes(list.name),
+  );
+
   const initialClient = clients.find((client) => client.id === initialClientId);
 
   // Lo primero que se elige: sin elegir no se muestra el formulario. Si se
@@ -204,7 +208,7 @@ export function QuoteForm({
     phone: "",
     email: "",
     type: "OTRO",
-    priceListId: priceLists[0]?.id ?? "",
+    priceListId: newClientLists[0]?.id ?? "",
     billingMode: "FACTURA",
     notes: "",
     deliveryAddressIndex: 0,
@@ -659,7 +663,7 @@ export function QuoteForm({
                     value={newClient.priceListId}
                     onChange={(event) => setNewClient({ ...newClient, priceListId: event.target.value })}
                   >
-                    {priceLists.map((list) => (
+                    {newClientLists.map((list) => (
                       <option key={list.id} value={list.id}>
                         {list.name}
                       </option>

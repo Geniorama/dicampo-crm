@@ -39,6 +39,11 @@ model User {
   phone         String?
   role          UserRole  @default(VENDEDOR)
   active        Boolean   @default(true)
+  /// Cuenta en metas, gestión del día, ventas del equipo y clientes nuevos.
+  /// Falso para contabilidad (p. ej. Karen) y cuentas de prueba.
+  inSalesTeam   Boolean   @default(true)
+  /// Aparece en el selector «Asesor» de la cotización (puede vender a su nombre).
+  canBeSeller   Boolean   @default(true)
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 

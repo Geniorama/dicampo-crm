@@ -19,7 +19,7 @@ import {
   isDiscountAllowed,
 } from "@/lib/quote-discount";
 import { computeOrderTotals } from "@/lib/order-math";
-import { applyPercentDiscount, canTransitionQuote } from "@/lib/quote-rules";
+import { NEW_CLIENT_PRICE_LISTS, applyPercentDiscount, canTransitionQuote } from "@/lib/quote-rules";
 import { QUOTE_STATUS_LABEL } from "@/lib/labels";
 import { calculateNitDv } from "@/lib/nit";
 import { nextDeliveryDay } from "@/lib/delivery-zones";
@@ -400,6 +400,10 @@ async function createQuoteClient(sellerId: string, input: NewClientInput) {
   }
   if (input.deliveryAddressIndex >= input.addresses.length) {
     throw new BusinessRuleError("Elige la sede a la que va este pedido.");
+  }
+  const list = await prisma.priceList.findUnique({ where: { id: input.priceListId }, select: { name: true } });
+  if (!list || !(NEW_CLIENT_PRICE_LISTS as readonly string[]).includes(list.name)) {
+    throw new BusinessRuleError("A un cliente nuevo solo se le asigna Distribuidor, Mayorista o Público general.");
   }
 
   return prisma.$transaction(async (tx) => {

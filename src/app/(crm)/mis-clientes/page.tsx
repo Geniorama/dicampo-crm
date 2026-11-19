@@ -166,6 +166,7 @@ export default async function MyClientsPage({
               <thead>
                 <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground">
                   <th scope="col" className="px-4 py-2 font-medium">Cliente</th>
+                  <th scope="col" className="px-4 py-2 font-medium">Teléfono</th>
                   <th scope="col" className="px-4 py-2 font-medium">Estado</th>
                   <th scope="col" className="px-4 py-2 font-medium">Localidad / Zona</th>
                   <th scope="col" className="px-4 py-2 font-medium">Pide / Entrega</th>
@@ -197,6 +198,9 @@ export default async function MyClientsPage({
                             {client.owner?.name ?? "Sin asignar"}
                           </p>
                         )}
+                      </td>
+                      <td className="tabular px-4 py-2.5 text-muted-foreground whitespace-nowrap">
+                        {client.contactPhone ?? "—"}
                       </td>
                       <td className="px-4 py-2.5">
                         {client.relationStatus ? (

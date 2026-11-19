@@ -75,6 +75,12 @@ export async function listMyClients(user: SessionUser, query: MyClientsQuery) {
         avgTicket: true,
         lastOrderAt: true,
         owner: { select: { id: true, name: true } },
+        contacts: {
+          where: { active: true },
+          orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
+          take: 1,
+          select: { phone: true, whatsapp: true },
+        },
         addresses: {
           where: { active: true },
           orderBy: { isPrimary: "desc" },
@@ -99,6 +105,8 @@ export async function listMyClients(user: SessionUser, query: MyClientsQuery) {
     items: items.map((client) => ({
       ...client,
       avgTicket: Number(client.avgTicket),
+      // El teléfono del cliente o, si falta, el del contacto principal.
+      contactPhone: client.phone ?? client.contacts[0]?.phone ?? client.contacts[0]?.whatsapp ?? null,
       locality: client.addresses[0]?.locality ?? null,
       zone: client.addresses[0]?.zone ?? null,
       lastManagement: lastByClient.get(client.id) ?? null,

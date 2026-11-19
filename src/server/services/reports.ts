@@ -53,6 +53,8 @@ export async function getDashboardMetrics(
   const inThirtyDays = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
 
   const soldStatuses = { status: { in: SOLD_STATUSES } };
+  // Ventas del equipo comercial: las de contabilidad (p. ej. Karen) no cuentan.
+  const teamOnly = { OR: [{ sellerId: null }, { seller: { inSalesTeam: true } }] };
 
   const [
     activeClients,
@@ -76,6 +78,7 @@ export async function getDashboardMetrics(
       where: {
         ...orderScope(user),
         ...soldStatuses,
+        ...teamOnly,
         orderDate: { gte: monthStart },
       },
     }),
@@ -84,6 +87,7 @@ export async function getDashboardMetrics(
       where: {
         ...orderScope(user),
         ...soldStatuses,
+        ...teamOnly,
         orderDate: { gte: monthStart },
       },
       _sum: { total: true },
@@ -93,6 +97,7 @@ export async function getDashboardMetrics(
       where: {
         ...orderScope(user),
         ...soldStatuses,
+        ...teamOnly,
         orderDate: { gte: previousMonthStart, lt: monthStart },
       },
       _sum: { total: true },
@@ -302,6 +307,7 @@ export async function getNewClientsByAdvisor(user: SessionUser, months = 6): Pro
       where: {
         isNewClient: true,
         status: { not: "ANULADO" },
+        OR: [{ sellerId: null }, { seller: { inSalesTeam: true } }],
         quoteDate: { gte: from },
         ...(user.role === UserRole.VENDEDOR ? { sellerId: user.id } : {}),
       },

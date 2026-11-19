@@ -274,7 +274,7 @@ export async function resolveOrderSeller(
 /** Asesores a los que se puede atribuir una venta, para los selectores. */
 export async function listSellerOptions() {
   return prisma.user.findMany({
-    where: { active: true, role: { in: SELLER_ROLES } },
+    where: { active: true, canBeSeller: true, role: { in: SELLER_ROLES } },
     orderBy: { name: "asc" },
     select: { id: true, name: true, role: true },
   });

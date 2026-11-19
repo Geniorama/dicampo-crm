@@ -66,7 +66,7 @@ export async function getDailyActivity(user: SessionUser, now: Date = new Date()
       _sum: { amount: true },
     }),
     prisma.user.findMany({
-      where: { active: true, role: { in: [UserRole.VENDEDOR] } },
+      where: { active: true, inSalesTeam: true, role: { in: [UserRole.VENDEDOR] } },
       orderBy: { name: "asc" },
       select: { id: true, name: true },
     }),

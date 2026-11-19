@@ -9,6 +9,9 @@ import type { OrderLine } from "./order-math";
  */
 
 /** Pedido mínimo, en kilos. Un paquete de 1 kg rinde 8 porciones de 125 g. */
+/** Listas que se ofrecen al cotizar a un cliente nuevo; las demás se asignan cliente por cliente. */
+export const NEW_CLIENT_PRICE_LISTS = ["Distribuidor", "Mayorista", "Público general"] as const;
+
 export const MIN_ORDER_KG = 8;
 export const PORTIONS_PER_KG = 8;
 
