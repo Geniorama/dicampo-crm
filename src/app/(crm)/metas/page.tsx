@@ -26,7 +26,7 @@ export default async function GoalsPage({
   const [goals, advisors] = await Promise.all([
     listGoals(month),
     prisma.user.findMany({
-      where: { active: true, role: "VENDEDOR" },
+      where: { active: true, inSalesTeam: true, role: "VENDEDOR" },
       orderBy: { name: "asc" },
       select: { id: true, name: true },
     }),
